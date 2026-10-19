@@ -696,11 +696,15 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setInvoices(INITIAL_INVOICE_LIST);
     setRfsList(INITIAL_RFS_LIST);
     setPenagihanList(INITIAL_PENAGIHAN_LIST);
+    setSystemUsers(DEFAULT_SYSTEM_USERS);
+
     localStorage.removeItem(STORAGE_KEYS.DAILY_REPORTS);
     localStorage.removeItem(STORAGE_KEYS.BAST);
     localStorage.removeItem(STORAGE_KEYS.INVOICE);
     localStorage.removeItem(STORAGE_KEYS.RFS);
     localStorage.removeItem(STORAGE_KEYS.PENAGIHAN);
+    localStorage.setItem(STORAGE_KEYS.SYSTEM_USERS, JSON.stringify(DEFAULT_SYSTEM_USERS));
+
     showToast('info', 'Data Direset', 'Seluruh data telah diatur ulang ke sampel awal Belacom.');
   };
 
