@@ -1,0 +1,8 @@
+{
+  "name": "Remix Controlling Project Belacom",
+  "description": "Sistem Informasi Controlling Project Belacom untuk Manajemen WO, Daily Report, BAST, Invoice, RFS, dan Penagihan Telecom secara Real-time.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

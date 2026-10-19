@@ -1,0 +1,159 @@
+import React from 'react';
+import { 
+  CheckCircle2, 
+  RotateCw, 
+  Search, 
+  User, 
+  LogOut, 
+  RefreshCw,
+  Activity,
+  Radio,
+  ShieldCheck,
+  X,
+  Cloud,
+  WifiOff
+} from 'lucide-react';
+import { useProjectContext } from '../context/ProjectContext';
+
+export const Header: React.FC = () => {
+  const { 
+    currentUserEmail, 
+    userProfile,
+    setActiveTab,
+    logout, 
+    autoSaveStatus, 
+    lastSavedTime,
+    syncStatus,
+    lastCloudSyncTime,
+    triggerManualSync,
+    filters,
+    setFilters,
+    resetAllData
+  } = useProjectContext();
+
+  return (
+    <header className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 lg:px-6 py-3 flex items-center justify-between gap-4 select-none">
+      
+      {/* Left Title & Status */}
+      <div className="flex items-center gap-3 sm:gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-600 via-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-cyan-950/50 border border-cyan-400/30 group cursor-pointer hover:scale-105 active:scale-95 transition-all">
+            <Radio className="w-5 h-5 text-white group-hover:rotate-12 transition-transform duration-300" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-sm sm:text-base lg:text-lg font-black tracking-wider text-white uppercase flex items-center gap-2 font-mono">
+                PROJECT BELACOM
+              </h1>
+            </div>
+          </div>
+        </div>
+
+        {/* Multi-Device Cloud Sync Connection Indicator (Titik hijau berdenyut dengan label "Cloud Sync: Terhubung") */}
+        <button
+          onClick={triggerManualSync}
+          className="hidden sm:flex items-center gap-2 px-3 py-1 bg-slate-800/90 hover:bg-slate-750 border border-slate-700/80 rounded-full text-xs font-mono shadow-sm transition-all cursor-pointer group active:scale-95"
+          title={`Multi-Device Real-Time Cloud Sync • Terakhir selaras: ${lastCloudSyncTime || lastSavedTime} • Klik untuk sinkronisasi paksa`}
+        >
+          {syncStatus === 'syncing' || autoSaveStatus === 'saving' ? (
+            <>
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500"></span>
+              </span>
+              <Cloud className="w-3.5 h-3.5 text-cyan-400 animate-pulse shrink-0" />
+              <span className="text-cyan-300 font-medium">Cloud Sync: Menyinkronkan...</span>
+            </>
+          ) : syncStatus === 'offline' ? (
+            <>
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+              </span>
+              <WifiOff className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="text-amber-300 font-medium">Cloud Sync: Offline</span>
+            </>
+          ) : (
+            <>
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 shadow-sm shadow-emerald-500/50"></span>
+              </span>
+              <Cloud className="w-3.5 h-3.5 text-emerald-400 shrink-0 group-hover:scale-110 transition-transform" />
+              <span className="text-emerald-300 font-medium">Cloud Sync: Terhubung</span>
+              <span className="text-slate-500 text-[10px] hidden xl:inline">({lastCloudSyncTime || lastSavedTime})</span>
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Middle Global Search */}
+      <div className="flex-1 max-w-xs lg:max-w-md hidden md:block">
+        <div className="relative group/search">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within/search:text-cyan-400 transition-colors" />
+          <input
+            type="text"
+            placeholder="Cari WO, PIC, area, tim, atau nomor surat..."
+            value={filters.searchQuery}
+            onChange={(e) => setFilters(prev => ({ ...prev, searchQuery: e.target.value }))}
+            className="w-full bg-slate-950/80 border border-slate-800 focus:border-cyan-500 text-xs text-slate-100 placeholder-slate-500 rounded-xl pl-9 pr-8 py-2 outline-none transition-all duration-200 focus:ring-1 focus:ring-cyan-500/50 shadow-inner"
+          />
+          {filters.searchQuery && (
+            <button
+              onClick={() => setFilters(prev => ({ ...prev, searchQuery: '' }))}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-white rounded hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Right Controls */}
+      <div className="flex items-center gap-2 sm:gap-3">
+        {/* Reset Demo Data */}
+        <button
+          onClick={() => {
+            if (confirm('Atur ulang seluruh data ke sampel awal Belacom?')) {
+              resetAllData();
+            }
+          }}
+          className="p-2 sm:px-3 sm:py-2 bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white rounded-xl text-xs border border-slate-700/60 transition-all duration-150 flex items-center gap-1.5 cursor-pointer group active:scale-95 shadow-sm"
+          title="Reset Sampel Data"
+        >
+          <RefreshCw className="w-3.5 h-3.5 text-cyan-400 shrink-0 group-hover:rotate-180 transition-transform duration-500 ease-out" />
+          <span className="hidden xl:inline text-xs font-medium">Reset Data</span>
+        </button>
+
+        {/* User Info (Clickable shortcut to Menu Setting) & Logout */}
+        <div className="flex items-center gap-2 pl-2 border-l border-slate-800">
+          <button
+            onClick={() => setActiveTab('user-settings')}
+            className="flex items-center gap-2 text-left p-1 rounded-xl hover:bg-slate-800/60 transition-colors group cursor-pointer"
+            title="Buka Menu Setting"
+          >
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-md border border-cyan-400/20 group-hover:scale-105 transition-transform">
+              <User className="w-4 h-4" />
+            </div>
+            <div className="hidden lg:block text-left">
+              <p className="text-xs font-semibold text-slate-200 group-hover:text-cyan-300 transition-colors truncate max-w-[140px]" title={userProfile?.fullName || currentUserEmail || 'Administrator'}>
+                {userProfile?.fullName || currentUserEmail || 'Administrator'}
+              </p>
+              <p className="text-[10px] text-cyan-400 font-mono flex items-center gap-1">
+                <Activity className="w-2.5 h-2.5 inline animate-pulse text-emerald-400" /> {userProfile?.role || 'Super Admin'}
+              </p>
+            </div>
+          </button>
+
+          <button
+            onClick={logout}
+            className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all duration-150 cursor-pointer ml-1 active:scale-95"
+            title="Keluar / Logout"
+          >
+            <LogOut className="w-4 h-4 hover:scale-110 transition-transform" />
+          </button>
+        </div>
+      </div>
+
+    </header>
+  );
+};

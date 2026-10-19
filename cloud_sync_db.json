@@ -1,0 +1,42 @@
+{
+  "version": 4,
+  "lastUpdated": "2026-10-19T12:09:50.000Z",
+  "data": {
+    "dailyReports": [
+      {
+        "id": "DR-999",
+        "woType": "Plan Network Interconection POP",
+        "monthReleaseWo": "2026-10",
+        "assignment": "Jabo 1",
+        "team": "ABR 01",
+        "statusWo": "Done",
+        "pic": "Budi Lapangan",
+        "workType": "Instalasi Core Baru",
+        "releaseDate": "2026-10-18",
+        "startDate": "2026-10-19",
+        "finishDate": "2026-10-19",
+        "durationDays": 1,
+        "woNumber": "WO-MULTI-DEVICE-999",
+        "estimatedDistanceMeters": 1200,
+        "totalDistanceMeters": 1200,
+        "statusTeamProject": "Done",
+        "pathLengthMeters": 1200,
+        "documentation": {},
+        "remarks": "Sinkronisasi sukses dari HP",
+        "createdAt": "2026-10-19T12:09:50.000Z",
+        "updatedAt": "2026-10-19T12:09:50.000Z"
+      }
+    ],
+    "bastList": [],
+    "invoices": [],
+    "rfsList": [],
+    "penagihanList": [],
+    "userProfile": {
+      "username": "admindsb",
+      "fullName": "Administrator Utama",
+      "email": "admin@belacom.co.id",
+      "role": "Super Admin"
+    },
+    "systemUsers": []
+  }
+}
