@@ -50,7 +50,7 @@ function getDeviceId(): string {
   return id;
 }
 
-// Configurable endpoint with default fallback
+// Configurable endpoint with default shared public Firebase RTDB database
 export const DEFAULT_FIREBASE_RTDB_ENDPOINT = 
   'https://belacom-controlling-default-rtdb.asia-southeast1.firebasedatabase.app/project_data.json';
 export const SERVER_ENDPOINT = '/api/sync/data';
@@ -69,6 +69,10 @@ class CloudSyncService {
   private deviceId = getDeviceId();
 
   constructor() {
+    // Ensure default shared Firebase RTDB endpoint is set if not present
+    if (!localStorage.getItem(STORAGE_KEYS.ENDPOINT)) {
+      localStorage.setItem(STORAGE_KEYS.ENDPOINT, DEFAULT_FIREBASE_RTDB_ENDPOINT);
+    }
     this.initEventListeners();
     this.startBackgroundSync();
   }
@@ -195,27 +199,33 @@ class CloudSyncService {
       };
 
       try {
-        // Attempt 1: Server endpoint
-        const serverRes = await fetch(SERVER_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
+        // Attempt 1: Shared Firebase Realtime Database REST API (Primary for AI Studio <-> Vercel live sync)
+        const activeEndpoint = localStorage.getItem(STORAGE_KEYS.ENDPOINT) || DEFAULT_FIREBASE_RTDB_ENDPOINT;
+        let success = false;
 
-        if (serverRes.ok) {
-          this.notifyStatus('connected');
-          this.isPushing = false;
-          return;
-        }
-
-        // Attempt 2: Firebase Realtime Database REST API if configured or fallback
-        const customEndpoint = localStorage.getItem(STORAGE_KEYS.ENDPOINT);
-        if (customEndpoint && customEndpoint.startsWith('http')) {
-          await fetch(customEndpoint, {
+        if (activeEndpoint && activeEndpoint.startsWith('http')) {
+          const fbRes = await fetch(activeEndpoint, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
+          if (fbRes.ok) success = true;
+        }
+
+        // Attempt 2: Server endpoint fallback
+        if (!success) {
+          const serverRes = await fetch(SERVER_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (serverRes.ok) success = true;
+        }
+
+        if (success) {
+          this.notifyStatus('connected');
+          this.isPushing = false;
+          return;
         }
 
         this.notifyStatus('connected');
@@ -245,36 +255,39 @@ class CloudSyncService {
     }
 
     try {
-      // 1. Try Server API endpoint
-      let response = await fetch(SERVER_ENDPOINT, {
-        method: 'GET',
-        headers: { 'Cache-Control': 'no-cache' }
-      });
-
       let cloudData: CloudSyncEnvelope | null = null;
+      const activeEndpoint = localStorage.getItem(STORAGE_KEYS.ENDPOINT) || DEFAULT_FIREBASE_RTDB_ENDPOINT;
 
-      if (response.ok) {
-        const result = await response.json();
-        if (result && result.data) {
-          cloudData = {
-            version: result.version || 1,
-            lastUpdated: result.lastUpdated || new Date().toISOString(),
-            deviceId: 'server',
-            data: result.data
-          };
+      // 1. Try Firebase RTDB REST endpoint first (Shared cross-domain database for AI Studio & Vercel)
+      if (activeEndpoint && activeEndpoint.startsWith('http')) {
+        const fbRes = await fetch(activeEndpoint, {
+          method: 'GET',
+          headers: { 'Cache-Control': 'no-cache' }
+        });
+        if (fbRes.ok) {
+          const json = await fbRes.json();
+          if (json && json.data) {
+            cloudData = json;
+          }
         }
       }
 
-      // 2. Fallback to Firebase RTDB REST endpoint if server has no data or custom endpoint is set
+      // 2. Fallback to Server API endpoint
       if (!cloudData) {
-        const customEndpoint = localStorage.getItem(STORAGE_KEYS.ENDPOINT);
-        if (customEndpoint && customEndpoint.startsWith('http')) {
-          const fbRes = await fetch(customEndpoint, {
-            method: 'GET',
-            headers: { 'Cache-Control': 'no-cache' }
-          });
-          if (fbRes.ok) {
-            cloudData = await fbRes.json();
+        let response = await fetch(SERVER_ENDPOINT, {
+          method: 'GET',
+          headers: { 'Cache-Control': 'no-cache' }
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result && result.data) {
+            cloudData = {
+              version: result.version || 1,
+              lastUpdated: result.lastUpdated || new Date().toISOString(),
+              deviceId: 'server',
+              data: result.data
+            };
           }
         }
       }
