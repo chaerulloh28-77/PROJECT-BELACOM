@@ -27,8 +27,7 @@ export const Header: React.FC = () => {
     lastCloudSyncTime,
     triggerManualSync,
     filters,
-    setFilters,
-    resetAllData
+    setFilters
   } = useProjectContext();
 
   return (
@@ -110,22 +109,8 @@ export const Header: React.FC = () => {
 
       {/* Right Controls */}
       <div className="flex items-center gap-2 sm:gap-3">
-        {/* Reset Demo Data */}
-        <button
-          onClick={() => {
-            if (confirm('Atur ulang seluruh data ke sampel awal Belacom?')) {
-              resetAllData();
-            }
-          }}
-          className="p-2 sm:px-3 sm:py-2 bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white rounded-xl text-xs border border-slate-700/60 transition-all duration-150 flex items-center gap-1.5 cursor-pointer group active:scale-95 shadow-sm"
-          title="Reset Sampel Data"
-        >
-          <RefreshCw className="w-3.5 h-3.5 text-cyan-400 shrink-0 group-hover:rotate-180 transition-transform duration-500 ease-out" />
-          <span className="hidden xl:inline text-xs font-medium">Reset Data</span>
-        </button>
-
         {/* User Info (Clickable shortcut to Menu Setting) & Logout */}
-        <div className="flex items-center gap-2 pl-2 border-l border-slate-800">
+        <div className="flex items-center gap-2 pl-2">
           <button
             onClick={() => setActiveTab('user-settings')}
             className="flex items-center gap-2 text-left p-1 rounded-xl hover:bg-slate-800/60 transition-colors group cursor-pointer"
