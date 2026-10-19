@@ -567,29 +567,72 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     showToast('info', 'Sesi Berakhir', 'Anda telah keluar dari sistem.');
   };
 
-  // CRUD Daily Report
+  // CRUD Daily Report with Automatic Billing Package Sync
   const addDailyReport = (item: Omit<DailyReportItem, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();
+    const newId = 'DR-' + Math.floor(100 + Math.random() * 900);
     const newRecord: DailyReportItem = {
       ...item,
-      id: 'DR-' + Math.floor(100 + Math.random() * 900),
+      id: newId,
       createdAt: now,
       updatedAt: now
     };
+
     setDailyReports(prev => [newRecord, ...prev]);
-    showToast('success', 'Daily Report Disimpan', `WO No. ${newRecord.woNumber} berhasil ditambahkan!`);
+
+    // Automatically create corresponding billing package and BAST/RFS drafts
+    const defaultNominal = 15000000 + Math.floor(Math.random() * 35000000); // 15M - 50M IDR
+    const newPenagihan: PenagihanItem = {
+      id: 'PNG-' + Math.floor(500 + Math.random() * 900),
+      billingCode: 'INV-BEL-2026-' + Math.floor(100 + Math.random() * 900),
+      woNumber: newRecord.woNumber,
+      statusPenagihan: newRecord.statusWo === 'Done' ? 'Disetujui' : 'Draft',
+      dailyReportWorkType: newRecord.workType,
+      dailyReportReleaseDate: newRecord.releaseDate,
+      dailyReportStartDate: newRecord.startDate,
+      dailyReportFinishDate: newRecord.finishDate,
+      dailyReportDurationDays: newRecord.durationDays,
+      dailyReportEstimatedDistanceMeters: newRecord.estimatedDistanceMeters,
+      dailyReportTotalDistanceMeters: newRecord.totalDistanceMeters,
+      totalNominalRupiah: defaultNominal,
+      remarks: newRecord.remarks,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    setPenagihanList(prev => [newPenagihan, ...prev]);
+    localStorage.setItem(STORAGE_KEYS.PENAGIHAN, JSON.stringify([newPenagihan, ...penagihanList]));
+
+    showToast('success', 'Daily Report & Tagihan Dibuat', `WO No. ${newRecord.woNumber} dan paket penagihan otomatis ditambahkan!`);
   };
 
   const updateDailyReport = (id: string, item: Partial<DailyReportItem>) => {
     const now = new Date().toISOString();
-    setDailyReports(prev => prev.map(r => r.id === id ? { ...r, ...item, updatedAt: now } : r));
+    setDailyReports(prev => prev.map(r => {
+      if (r.id === id) {
+        const updated = { ...r, ...item, updatedAt: now };
+        // Sync corresponding penagihan status if WO becomes Done
+        if (item.statusWo === 'Done') {
+          setPenagihanList(pList => pList.map(p => p.woNumber === updated.woNumber ? { ...p, statusPenagihan: 'Disetujui', updatedAt: now } : p));
+        }
+        return updated;
+      }
+      return r;
+    }));
     showToast('success', 'Daily Report Diperbarui', `Perubahan data ID: ${id} tersimpan otomatis.`);
   };
 
   const deleteDailyReport = (id: string) => {
     const target = dailyReports.find(r => r.id === id);
     setDailyReports(prev => prev.filter(r => r.id !== id));
-    showToast('error', 'Daily Report Dihapus', `Data WO ${target?.woNumber || id} telah dihapus.`);
+    if (target) {
+      // Automatically remove linked billing packages and BAST records
+      setPenagihanList(prev => prev.filter(p => p.woNumber !== target.woNumber));
+      setBastList(prev => prev.filter(b => b.woNumber !== target.woNumber));
+      setInvoices(prev => prev.filter(i => i.woNumber !== target.woNumber));
+      setRfsList(prev => prev.filter(r => r.woNumber !== target.woNumber));
+    }
+    showToast('error', 'Daily Report Dihapus', `Data WO ${target?.woNumber || id} beserta tagihan terkait telah dihapus.`);
   };
 
   // CRUD BAST
