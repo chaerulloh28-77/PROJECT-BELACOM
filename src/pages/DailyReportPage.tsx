@@ -468,7 +468,7 @@ export const DailyReportPage: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-800/60 font-sans">
               {filteredReports.map((report) => {
-                const docs = report.documentation;
+                const docs = report.documentation || {};
                 return (
                   <tr key={report.id} className="hover:bg-slate-850/60 transition-colors group">
                     
@@ -1081,32 +1081,32 @@ export const DailyReportPage: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   <PDFUploader
                     label="Foto Closure Doc"
-                    value={formData.documentation.fotoClosurePdf}
-                    onChange={(file) => setFormData(p => ({ ...p, documentation: { ...p.documentation, fotoClosurePdf: file } }))}
+                    value={formData?.documentation?.fotoClosurePdf}
+                    onChange={(file) => setFormData(p => ({ ...p, documentation: { ...(p?.documentation || {}), fotoClosurePdf: file } }))}
                     onPreview={(f) => setPreviewPdf(f)}
                   />
                   <PDFUploader
                     label="Pengujian OPM Doc"
-                    value={formData.documentation.opmPdf}
-                    onChange={(file) => setFormData(p => ({ ...p, documentation: { ...p.documentation, opmPdf: file } }))}
+                    value={formData?.documentation?.opmPdf}
+                    onChange={(file) => setFormData(p => ({ ...p, documentation: { ...(p?.documentation || {}), opmPdf: file } }))}
                     onPreview={(f) => setPreviewPdf(f)}
                   />
                   <PDFUploader
                     label="Pengujian OLS Doc"
-                    value={formData.documentation.olsPdf}
-                    onChange={(file) => setFormData(p => ({ ...p, documentation: { ...p.documentation, olsPdf: file } }))}
+                    value={formData?.documentation?.olsPdf}
+                    onChange={(file) => setFormData(p => ({ ...p, documentation: { ...(p?.documentation || {}), olsPdf: file } }))}
                     onPreview={(f) => setPreviewPdf(f)}
                   />
                   <PDFUploader
                     label="Dokumentasi BTS Doc"
-                    value={formData.documentation.btsPdf}
-                    onChange={(file) => setFormData(p => ({ ...p, documentation: { ...p.documentation, btsPdf: file } }))}
+                    value={formData?.documentation?.btsPdf}
+                    onChange={(file) => setFormData(p => ({ ...p, documentation: { ...(p?.documentation || {}), btsPdf: file } }))}
                     onPreview={(f) => setPreviewPdf(f)}
                   />
                   <PDFUploader
                     label="OTDR Trace Test Doc"
-                    value={formData.documentation.otdrPdf}
-                    onChange={(file) => setFormData(p => ({ ...p, documentation: { ...p.documentation, otdrPdf: file } }))}
+                    value={formData?.documentation?.otdrPdf}
+                    onChange={(file) => setFormData(p => ({ ...p, documentation: { ...(p?.documentation || {}), otdrPdf: file } }))}
                     onPreview={(f) => setPreviewPdf(f)}
                   />
                 </div>

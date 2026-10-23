@@ -248,7 +248,7 @@ class CloudSyncService {
     }
   }
 
-  // PULL: Download latest changes from Cloud
+  // PULL: Download latest changes from Cloud with 4s timeout and null-safety sanitization
   public async pullFromCloud(silent = false): Promise<boolean> {
     if (this.isPulling || !navigator.onLine) return false;
     this.isPulling = true;
@@ -261,37 +261,80 @@ class CloudSyncService {
       let cloudData: CloudSyncEnvelope | null = null;
       const activeEndpoint = localStorage.getItem(STORAGE_KEYS.ENDPOINT) || DEFAULT_FIREBASE_RTDB_ENDPOINT;
 
-      // 1. Try Firebase RTDB REST endpoint first (Shared cross-domain database for AI Studio & Vercel)
+      // 1. Try Firebase RTDB REST endpoint first with 4 second timeout
       if (activeEndpoint && activeEndpoint.startsWith('http')) {
-        const fbRes = await fetch(activeEndpoint, {
-          method: 'GET',
-          headers: { 'Cache-Control': 'no-cache' }
-        });
-        if (fbRes.ok) {
-          const json = await fbRes.json();
-          if (json && json.data) {
-            cloudData = json;
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 4000);
+          const fbRes = await fetch(activeEndpoint, {
+            method: 'GET',
+            headers: { 'Cache-Control': 'no-cache' },
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+
+          if (fbRes.ok) {
+            const json = await fbRes.json();
+            if (json) {
+              const rawData = json?.data || json || {};
+              const sanitizedBundle: SyncDataBundle = {
+                dailyReports: Array.isArray(rawData.dailyReports) ? rawData.dailyReports : [],
+                bastList: Array.isArray(rawData.bastList) ? rawData.bastList : [],
+                invoices: Array.isArray(rawData.invoices) ? rawData.invoices : [],
+                rfsList: Array.isArray(rawData.rfsList) ? rawData.rfsList : [],
+                penagihanList: Array.isArray(rawData.penagihanList) ? rawData.penagihanList : [],
+                teams: Array.isArray(rawData.teams) ? rawData.teams : [],
+                userProfile: rawData.userProfile || { username: 'admin', fullName: 'Administrator', email: '', role: 'Super Admin', updatedAt: new Date().toISOString() },
+                systemUsers: Array.isArray(rawData.systemUsers) ? rawData.systemUsers : []
+              };
+
+              cloudData = {
+                version: json.version || 1,
+                lastUpdated: json.lastUpdated || new Date().toISOString(),
+                deviceId: json.deviceId || 'remote',
+                data: sanitizedBundle
+              };
+            }
           }
+        } catch (fetchErr) {
+          console.warn('[CloudSync] Firebase GET timeout or error:', fetchErr);
         }
       }
 
       // 2. Fallback to Server API endpoint
       if (!cloudData) {
-        let response = await fetch(SERVER_ENDPOINT, {
-          method: 'GET',
-          headers: { 'Cache-Control': 'no-cache' }
-        });
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
+          let response = await fetch(SERVER_ENDPOINT, {
+            method: 'GET',
+            headers: { 'Cache-Control': 'no-cache' },
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
 
-        if (response.ok) {
-          const result = await response.json();
-          if (result && result.data) {
-            cloudData = {
-              version: result.version || 1,
-              lastUpdated: result.lastUpdated || new Date().toISOString(),
-              deviceId: 'server',
-              data: result.data
-            };
+          if (response.ok) {
+            const result = await response.json();
+            if (result && result.data) {
+              cloudData = {
+                version: result.version || 1,
+                lastUpdated: result.lastUpdated || new Date().toISOString(),
+                deviceId: 'server',
+                data: {
+                  dailyReports: Array.isArray(result.data.dailyReports) ? result.data.dailyReports : [],
+                  bastList: Array.isArray(result.data.bastList) ? result.data.bastList : [],
+                  invoices: Array.isArray(result.data.invoices) ? result.data.invoices : [],
+                  rfsList: Array.isArray(result.data.rfsList) ? result.data.rfsList : [],
+                  penagihanList: Array.isArray(result.data.penagihanList) ? result.data.penagihanList : [],
+                  teams: Array.isArray(result.data.teams) ? result.data.teams : [],
+                  userProfile: result.data.userProfile || { username: 'admin', fullName: 'Administrator', email: '', role: 'Super Admin', updatedAt: new Date().toISOString() },
+                  systemUsers: Array.isArray(result.data.systemUsers) ? result.data.systemUsers : []
+                }
+              };
+            }
           }
+        } catch (serverErr) {
+          // ignore fallback error
         }
       }
 
@@ -311,7 +354,11 @@ class CloudSyncService {
 
           // Broadcast to subscribers silently
           this.dataSubscribers.forEach(cb => {
-            cb(cloudData!.data, cloudData!.lastUpdated);
+            try {
+              cb(cloudData!.data, cloudData!.lastUpdated);
+            } catch (cbErr) {
+              console.warn('[CloudSync] subscriber callback error:', cbErr);
+            }
           });
         }
 

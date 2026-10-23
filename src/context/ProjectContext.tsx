@@ -482,61 +482,79 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
 
     const unsubRemote = cloudSyncService.onRemoteData((remoteData) => {
-      isReceivingRemote.current = true;
-      if (remoteData.teams && Array.isArray(remoteData.teams)) {
-        setTeams(remoteData.teams);
-        localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(remoteData.teams));
+      try {
+        isReceivingRemote.current = true;
+        const teamsArr = remoteData?.teams ?? [];
+        if (Array.isArray(teamsArr)) {
+          setTeams(teamsArr);
+          localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teamsArr));
+        }
+        const drArr = remoteData?.dailyReports ?? [];
+        if (Array.isArray(drArr)) {
+          setDailyReports(drArr);
+          localStorage.setItem(STORAGE_KEYS.DAILY_REPORTS, JSON.stringify(drArr));
+        }
+        const bastArr = remoteData?.bastList ?? [];
+        if (Array.isArray(bastArr)) {
+          setBastList(bastArr);
+          localStorage.setItem(STORAGE_KEYS.BAST, JSON.stringify(bastArr));
+        }
+        const invArr = remoteData?.invoices ?? [];
+        if (Array.isArray(invArr)) {
+          setInvoices(invArr);
+          localStorage.setItem(STORAGE_KEYS.INVOICE, JSON.stringify(invArr));
+        }
+        const rfsArr = remoteData?.rfsList ?? [];
+        if (Array.isArray(rfsArr)) {
+          setRfsList(rfsArr);
+          localStorage.setItem(STORAGE_KEYS.RFS, JSON.stringify(rfsArr));
+        }
+        const pngArr = remoteData?.penagihanList ?? [];
+        if (Array.isArray(pngArr)) {
+          setPenagihanList(pngArr);
+          localStorage.setItem(STORAGE_KEYS.PENAGIHAN, JSON.stringify(pngArr));
+        }
+        if (remoteData?.userProfile) {
+          setUserProfile(remoteData.userProfile);
+          localStorage.setItem(STORAGE_KEYS.USER_PROFILE, JSON.stringify(remoteData.userProfile));
+        }
+        const sysArr = remoteData?.systemUsers ?? [];
+        if (Array.isArray(sysArr)) {
+          setSystemUsers(sysArr);
+          localStorage.setItem(STORAGE_KEYS.SYSTEM_USERS, JSON.stringify(sysArr));
+        }
+      } catch (err) {
+        console.warn('[ProjectContext] unsubRemote error:', err);
+      } finally {
+        setTimeout(() => {
+          isReceivingRemote.current = false;
+        }, 600);
       }
-      if (remoteData.dailyReports && Array.isArray(remoteData.dailyReports)) {
-        setDailyReports(remoteData.dailyReports);
-        localStorage.setItem(STORAGE_KEYS.DAILY_REPORTS, JSON.stringify(remoteData.dailyReports));
-      }
-      if (remoteData.bastList && Array.isArray(remoteData.bastList)) {
-        setBastList(remoteData.bastList);
-        localStorage.setItem(STORAGE_KEYS.BAST, JSON.stringify(remoteData.bastList));
-      }
-      if (remoteData.invoices && Array.isArray(remoteData.invoices)) {
-        setInvoices(remoteData.invoices);
-        localStorage.setItem(STORAGE_KEYS.INVOICE, JSON.stringify(remoteData.invoices));
-      }
-      if (remoteData.rfsList && Array.isArray(remoteData.rfsList)) {
-        setRfsList(remoteData.rfsList);
-        localStorage.setItem(STORAGE_KEYS.RFS, JSON.stringify(remoteData.rfsList));
-      }
-      if (remoteData.penagihanList && Array.isArray(remoteData.penagihanList)) {
-        setPenagihanList(remoteData.penagihanList);
-        localStorage.setItem(STORAGE_KEYS.PENAGIHAN, JSON.stringify(remoteData.penagihanList));
-      }
-      if (remoteData.userProfile) {
-        setUserProfile(remoteData.userProfile);
-        localStorage.setItem(STORAGE_KEYS.USER_PROFILE, JSON.stringify(remoteData.userProfile));
-      }
-      if (remoteData.systemUsers && Array.isArray(remoteData.systemUsers)) {
-        setSystemUsers(remoteData.systemUsers);
-        localStorage.setItem(STORAGE_KEYS.SYSTEM_USERS, JSON.stringify(remoteData.systemUsers));
-      }
-
-      setTimeout(() => {
-        isReceivingRemote.current = false;
-      }, 600);
     });
 
-    // Initial pull from cloud with anti-overwrite protection
-    cloudSyncService.pullFromCloud().then(hasData => {
-      if (!hasData) {
-        cloudSyncService.pushToCloud({
-          dailyReports,
-          bastList,
-          invoices,
-          rfsList,
-          penagihanList,
-          userProfile,
-          systemUsers,
-          teams
-        }, true);
-      }
+    // Initial pull from cloud with anti-overwrite protection and timeout safety
+    try {
+      cloudSyncService.pullFromCloud().then(hasData => {
+        if (!hasData) {
+          cloudSyncService.pushToCloud({
+            dailyReports,
+            bastList,
+            invoices,
+            rfsList,
+            penagihanList,
+            userProfile,
+            systemUsers,
+            teams
+          }, true);
+        }
+      }).catch(err => {
+        console.warn('[ProjectContext] initial pull error:', err);
+      }).finally(() => {
+        isCloudReady.current = true;
+      });
+    } catch (e) {
       isCloudReady.current = true;
-    });
+    }
 
     return () => {
       unsubStatus();
