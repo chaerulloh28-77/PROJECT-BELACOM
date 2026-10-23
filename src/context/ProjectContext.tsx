@@ -697,6 +697,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     if (isUserValid && isPassValid) {
       setIsLoggedIn(true);
+      setPast([]);
+      setFuture([]);
       const userEmailToSet = cleanInput.includes('@') ? cleanInput : 'belacom@gmail.com';
       setCurrentUserEmail(userEmailToSet);
       localStorage.setItem(STORAGE_KEYS.AUTH, 'true');
@@ -711,6 +713,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const logout = () => {
     setIsLoggedIn(false);
     setCurrentUserEmail('');
+    setPast([]);
+    setFuture([]);
     localStorage.removeItem(STORAGE_KEYS.AUTH);
     localStorage.removeItem('belacom_user_email');
     showToast('info', 'Sesi Berakhir', 'Anda telah keluar dari sistem.');
