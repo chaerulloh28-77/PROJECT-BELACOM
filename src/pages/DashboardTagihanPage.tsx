@@ -20,7 +20,11 @@ import {
 import { useProjectContext, DrilldownFilter } from '../context/ProjectContext';
 import { DetailFilterModal } from '../components/DetailFilterModal';
 
-export const DashboardTagihanPage: React.FC = () => {
+export interface DashboardTagihanPageProps {
+  hideHeader?: boolean;
+}
+
+export const DashboardTagihanPage: React.FC<DashboardTagihanPageProps> = ({ hideHeader = false }) => {
   const { 
     penagihanList, 
     dailyReports, 
@@ -286,35 +290,37 @@ export const DashboardTagihanPage: React.FC = () => {
     <div className="space-y-6 animate-fadeIn pb-12 select-none">
       
       {/* Clean Executive Header */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-        <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-emerald-500/10 blur-3xl pointer-events-none"></div>
-        
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
-          <div>
-            <div className="flex items-center gap-2 text-emerald-400 font-mono text-xs uppercase tracking-wider font-semibold">
-              <span className="p-1 rounded-md bg-emerald-500/20 text-emerald-400">
-                <CreditCard className="w-3.5 h-3.5 animate-pulse" />
-              </span>
-              <span>BELACOM BILLING & OPERATIONS ANALYTICS</span>
+      {!hideHeader && (
+        <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+          <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-emerald-500/10 blur-3xl pointer-events-none"></div>
+          
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+            <div>
+              <div className="flex items-center gap-2 text-emerald-400 font-mono text-xs uppercase tracking-wider font-semibold">
+                <span className="p-1 rounded-md bg-emerald-500/20 text-emerald-400">
+                  <CreditCard className="w-3.5 h-3.5 animate-pulse" />
+                </span>
+                <span>BELACOM BILLING & OPERATIONS ANALYTICS</span>
+              </div>
+              
+              <h1 className="text-xl sm:text-2xl font-black text-white mt-1.5 flex items-center gap-2">
+                Dashboard Tagihan
+                <Sparkles className="w-5 h-5 text-amber-400 hidden sm:inline" />
+              </h1>
             </div>
-            
-            <h1 className="text-xl sm:text-2xl font-black text-white mt-1.5 flex items-center gap-2">
-              Dashboard Tagihan
-              <Sparkles className="w-5 h-5 text-amber-400 hidden sm:inline" />
-            </h1>
-          </div>
 
-          <div className="flex items-center gap-3">
-            <div className="px-3.5 py-2 bg-slate-950/80 border border-slate-800 rounded-xl text-right">
-              <span className="text-[10px] text-slate-400 font-mono uppercase block">SINKRONISASI AKTIF</span>
-              <span className="text-xs font-mono font-bold text-emerald-400 flex items-center gap-1.5 justify-end">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                Real-Time Data
-              </span>
+            <div className="flex items-center gap-3">
+              <div className="px-3.5 py-2 bg-slate-950/80 border border-slate-800 rounded-xl text-right">
+                <span className="text-[10px] text-slate-400 font-mono uppercase block">SINKRONISASI AKTIF</span>
+                <span className="text-xs font-mono font-bold text-emerald-400 flex items-center gap-1.5 justify-end">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                  Real-Time Data
+                </span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* 2 Primary Executive Metric Cards (Focused directly on the 2 charts) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

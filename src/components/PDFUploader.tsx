@@ -1,23 +1,26 @@
 import React, { useRef, useState } from 'react';
-import { FileText, UploadCloud, Eye, Trash2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { FileText, UploadCloud, Eye, Trash2, AlertCircle, CheckCircle2, FileCode, Image as ImageIcon, Archive, FileSpreadsheet } from 'lucide-react';
 import { PDFFileMeta } from '../types';
+import { getFileBadgeStyle } from '../utils/fileHelper';
 
 interface PDFUploaderProps {
   label: string;
   value?: PDFFileMeta;
   onChange: (file?: PDFFileMeta) => void;
-  maxSizeMB?: number; // Default 4MB for photo docs
+  maxSizeMB?: number; // Default 10MB
   required?: boolean;
   onPreview?: (file: PDFFileMeta) => void;
+  accept?: string;
 }
 
 export const PDFUploader: React.FC<PDFUploaderProps> = ({
   label,
   value,
   onChange,
-  maxSizeMB = 4,
+  maxSizeMB = 10,
   required = false,
-  onPreview
+  onPreview,
+  accept = "*/*"
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -27,27 +30,23 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-      setErrorMsg('Format file harus ber-ekstensi PDF!');
-      return;
-    }
-
     const maxSizeBytes = maxSizeMB * 1024 * 1024;
     if (file.size > maxSizeBytes) {
       setErrorMsg(`Ukuran file melebihi batas maksimal ${maxSizeMB} MB! (${(file.size / (1024 * 1024)).toFixed(2)} MB)`);
       return;
     }
 
-    const pdfMeta: PDFFileMeta = {
-      id: 'pdf-' + Math.random().toString(36).substring(2, 9),
+    const fileMeta: PDFFileMeta = {
+      id: 'doc-' + Math.random().toString(36).substring(2, 9),
       name: file.name,
       sizeBytes: file.size,
       uploadDate: new Date().toISOString().split('T')[0],
-      pages: Math.floor(Math.random() * 8) + 1,
-      url: URL.createObjectURL(file)
+      pages: Math.floor(Math.random() * 5) + 1,
+      url: URL.createObjectURL(file),
+      fileType: file.type || 'application/octet-stream'
     };
 
-    onChange(pdfMeta);
+    onChange(fileMeta);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -55,23 +54,20 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
     setErrorMsg(null);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const file = e.dataTransfer.files[0];
-      if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-        setErrorMsg('File harus berupa PDF!');
-        return;
-      }
       if (file.size > maxSizeMB * 1024 * 1024) {
-        setErrorMsg(`Ukuran PDF melebihi ${maxSizeMB} MB!`);
+        setErrorMsg(`Ukuran file melebihi batas maksimal ${maxSizeMB} MB!`);
         return;
       }
-      const pdfMeta: PDFFileMeta = {
-        id: 'pdf-' + Math.random().toString(36).substring(2, 9),
+      const fileMeta: PDFFileMeta = {
+        id: 'doc-' + Math.random().toString(36).substring(2, 9),
         name: file.name,
         sizeBytes: file.size,
         uploadDate: new Date().toISOString().split('T')[0],
         pages: Math.floor(Math.random() * 5) + 1,
-        url: URL.createObjectURL(file)
+        url: URL.createObjectURL(file),
+        fileType: file.type || 'application/octet-stream'
       };
-      onChange(pdfMeta);
+      onChange(fileMeta);
     }
   };
 
@@ -81,12 +77,16 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   };
 
-  const generateDemoPdf = () => {
+  const generateDemoFile = () => {
     setErrorMsg(null);
+    const sampleExts = ['.pdf', '.docx', '.xlsx', '.jpg', '.png', '.zip', '.dwg'];
+    const randomExt = sampleExts[Math.floor(Math.random() * sampleExts.length)];
+    const cleanLabel = label.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    
     const demoMeta: PDFFileMeta = {
-      id: 'pdf-' + Math.random().toString(36).substring(2, 9),
-      name: `${label.toLowerCase().replace(/\s+/g, '_')}_sampel.pdf`,
-      sizeBytes: Math.floor(Math.random() * (maxSizeMB * 0.8 * 1024 * 1024)) + 200000,
+      id: 'doc-' + Math.random().toString(36).substring(2, 9),
+      name: `${cleanLabel}_sampel${randomExt}`,
+      sizeBytes: Math.floor(Math.random() * (maxSizeMB * 0.5 * 1024 * 1024)) + 150000,
       uploadDate: new Date().toISOString().split('T')[0],
       pages: Math.floor(Math.random() * 4) + 1,
       url: '#'
@@ -94,20 +94,24 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
     onChange(demoMeta);
   };
 
+  const badgeStyle = value ? getFileBadgeStyle(value.name) : null;
+
   return (
-    <div className="w-full">
+    <div className="w-full font-sans">
       <div className="flex items-center justify-between mb-1.5">
         <label className="text-xs font-semibold text-slate-300 flex items-center gap-1">
           {label} {required && <span className="text-rose-400">*</span>}
         </label>
-        <span className="text-[11px] text-slate-500 font-mono">Max: {maxSizeMB} MB (PDF)</span>
+        <span className="text-[10px] text-slate-400 font-mono bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+          Maks: {maxSizeMB} MB (Semua Format)
+        </span>
       </div>
 
       <input
         type="file"
         ref={fileInputRef}
         onChange={handleFileChange}
-        accept=".pdf,application/pdf"
+        accept={accept}
         className="hidden"
       />
 
@@ -117,8 +121,8 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
           className="p-3 bg-slate-800/90 hover:bg-slate-750 hover:border-cyan-500/60 rounded-xl border border-cyan-500/30 flex items-center justify-between gap-3 shadow-inner transition-all cursor-pointer group"
         >
           <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className="p-2 bg-rose-500/10 text-rose-400 rounded-lg shrink-0 border border-rose-500/20 group-hover:scale-105 transition-transform">
-              <FileText className="w-5 h-5" />
+            <div className={`px-2 py-1 rounded-lg text-xs font-mono font-bold shrink-0 border ${badgeStyle?.bgClass} ${badgeStyle?.textClass} ${badgeStyle?.borderClass} group-hover:scale-105 transition-transform`}>
+              [{badgeStyle?.ext}]
             </div>
             <div className="overflow-hidden text-left">
               <p className="text-xs font-semibold text-slate-100 group-hover:text-cyan-300 transition-colors truncate" title={value.name}>
@@ -127,9 +131,8 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
               <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono">
                 <span>{formatSize(value.sizeBytes)}</span>
                 <span>·</span>
-                <span>{value.pages || 1} Hal</span>
-                <span className="text-emerald-400 flex items-center gap-0.5">
-                  <CheckCircle2 className="w-3 h-3 inline" /> Valid
+                <span className="text-emerald-400 flex items-center gap-0.5 font-bold">
+                  <CheckCircle2 className="w-3 h-3 inline" /> Berkas Valid
                 </span>
               </div>
             </div>
@@ -143,11 +146,12 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
                 if (onPreview) onPreview(value);
               }}
               className="px-2 py-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
-              title="Pratinjau PDF"
+              title="Pratinjau / Unduh Dokumen"
             >
               <Eye className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Pratinjau</span>
             </button>
+
             <button
               type="button"
               onClick={(e) => {
@@ -155,7 +159,7 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
                 onChange(undefined);
               }}
               className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-colors cursor-pointer"
-              title="Hapus PDF"
+              title="Hapus File"
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -170,19 +174,19 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
         >
           <div className="flex items-center justify-center gap-2 text-slate-400 group-hover:text-cyan-400">
             <UploadCloud className="w-5 h-5 shrink-0" />
-            <span className="text-xs font-medium">Klik atau seret file PDF ke sini</span>
+            <span className="text-xs font-medium">Pilih / Upload Dokumen (Semua Format)</span>
           </div>
           <div className="mt-1 flex items-center justify-center gap-2">
-            <span className="text-[11px] text-slate-500">Format PDF saja</span>
+            <span className="text-[10px] text-slate-400 font-mono">Format: PDF, DOCX, XLSX, JPG/PNG, ZIP, DWG, DLL</span>
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                generateDemoPdf();
+                generateDemoFile();
               }}
-              className="text-[10px] underline text-cyan-400 hover:text-cyan-300 font-medium cursor-pointer"
+              className="text-[10px] underline text-cyan-400 hover:text-cyan-300 font-mono font-medium cursor-pointer"
             >
-              + Buat Sampel PDF
+              + Buat Sampel Dokumen
             </button>
           </div>
         </div>

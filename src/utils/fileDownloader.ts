@@ -213,3 +213,96 @@ export const downloadAttachedFile = (fileName: string, fileDataUrl?: string): vo
     URL.revokeObjectURL(objectUrl);
   }, 1000);
 };
+
+/**
+ * Pengunduhan Rekapitulasi Data BAST Format CSV
+ */
+export const exportBASTToCSV = (items: any[], customFilename?: string): void => {
+  if (typeof document === 'undefined' || items.length === 0) return;
+
+  const headers = [
+    'No WO',
+    'Kategori WO',
+    'Uraian Pekerjaan',
+    'Tanggal Rilis',
+    'Tanggal Mulai',
+    'Tanggal Selesai',
+    'Tanggal ABD',
+    'Tanggal Core Connection',
+    'Durasi (Hari)',
+    'Titik Awal (Origin)',
+    'Koordinat Origin',
+    'Titik Akhir (Destination)',
+    'Koordinat Destination',
+    'Status BAST',
+    'Catatan'
+  ];
+
+  const rows = items.map(item => [
+    `"${item.woNumber || ''}"`,
+    `"${item.woType || ''}"`,
+    `"${(item.workType || '').replace(/"/g, '""')}"`,
+    `"${item.releaseDate || ''}"`,
+    `"${item.startDate || ''}"`,
+    `"${item.finishDate || ''}"`,
+    `"${item.abdDate || ''}"`,
+    `"${item.coreConnectionDate || ''}"`,
+    `"${item.durationDays || 1}"`,
+    `"${(item.originLocation || '').replace(/"/g, '""')}"`,
+    `"${item.originCoordinates || ''}"`,
+    `"${(item.destinationLocation || '').replace(/"/g, '""')}"`,
+    `"${item.destinationCoordinates || ''}"`,
+    `"${item.statusBast || ''}"`,
+    `"${(item.notes || '').replace(/"/g, '""')}"`
+  ]);
+
+  const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  
+  const element = document.createElement('a');
+  element.href = url;
+  element.download = customFilename || `Rekap_BAST_${items[0]?.woNumber || 'Export'}.csv`;
+  document.body.appendChild(element);
+  element.click();
+  document.body.removeChild(element);
+
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+/**
+ * Generator Direct Download URL untuk dokumen digital
+ * Menghasilkan URL publik yang otomatis memicu unduhan berkas (trigger browser download)
+ */
+export const getDirectDownloadUrl = (fileName: string, fileUrl?: string, woNumber?: string): string => {
+  const baseUrl = 'https://project-belacom-xi9s.vercel.app';
+
+  if (fileUrl && fileUrl !== '#' && !fileUrl.startsWith('blob:') && !fileUrl.startsWith('data:')) {
+    try {
+      const urlObj = new URL(fileUrl, baseUrl);
+      if (!urlObj.searchParams.has('download')) {
+        urlObj.searchParams.set('download', '1');
+      }
+      return urlObj.toString();
+    } catch {
+      return fileUrl;
+    }
+  }
+
+  const lower = fileName.toLowerCase();
+  let docType = 'doc';
+  if (lower.includes('bast')) docType = 'bast';
+  else if (lower.includes('apd')) docType = 'apd';
+  else if (lower.includes('abd')) docType = 'abd';
+  else if (lower.includes('core')) docType = 'core';
+  else if (lower.includes('foto') || lower.includes('dokumentasi') || lower.includes('splicing')) docType = 'foto';
+  else if (lower.includes('daily') || lower.includes('report')) docType = 'daily';
+  else if (lower.includes('invoice') || lower.includes('faktur')) docType = 'invoice';
+  else if (lower.includes('rfs')) docType = 'rfs';
+  else if (lower.includes('csv') || lower.includes('rekap')) docType = 'csv';
+
+  const cleanWo = woNumber ? encodeURIComponent(woNumber) : 'WO-BEL-2026';
+  const cleanName = encodeURIComponent(fileName);
+
+  return `${baseUrl}/viewer?type=${docType}&wo=${cleanWo}&file=${cleanName}&download=1`;
+};

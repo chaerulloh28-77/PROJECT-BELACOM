@@ -45,6 +45,11 @@ export const INITIAL_DAILY_REPORTS: DailyReportItem[] = [
       otdrPdf: samplePdf('Hasil_OTDR_Trace_WO0081.pdf', 2400)
     },
     remarks: 'Pekerjaan berjalan lancar, kendala cuaca hujan rintik disiasati dengan penutupan terpal fleksibel.',
+    originLocation: 'POP Sentul City / OTB-01',
+    originCoordinates: '-6.58912, 106.85231',
+    destinationLocation: 'BTS Cijayanti / Closure CL-04',
+    destinationCoordinates: '-6.59421, 106.86105',
+    routeGmapsUrl: 'https://www.google.com/maps/dir/?api=1&origin=-6.58912,106.85231&destination=-6.59421,106.86105',
     createdAt: '2026-10-01T08:30:00Z',
     updatedAt: '2026-10-15T16:00:00Z'
   },
@@ -399,6 +404,8 @@ export const INITIAL_BAST_LIST: BASTItem[] = [
     releaseDate: '2026-10-03',
     startDate: '2026-10-04',
     finishDate: '2026-10-08',
+    abdDate: '2026-10-08',
+    coreConnectionDate: '2026-10-06',
     durationDays: 4,
     estimatedDistanceMeters: 1200,
     estimatedDistancePdf: samplePdf('Est_Jarak_BAST0082.pdf', 600),
@@ -407,6 +414,11 @@ export const INITIAL_BAST_LIST: BASTItem[] = [
     fotoDokumentasiPdf: samplePdf('Foto_Dokumentasi_BAST_WO0082.pdf', 3800), // Enforce < 4MB
     statusBast: 'Done',
     notes: 'Berita Acara Serah Terima telah ditandatangani oleh Tim Belacom dan Tim Klien.',
+    originLocation: 'POP Sentul City / OTB-01',
+    originCoordinates: '-6.58912, 106.85231',
+    destinationLocation: 'BTS Cijayanti / Closure CL-04',
+    destinationCoordinates: '-6.59421, 106.86105',
+    routeGmapsUrl: 'https://www.google.com/maps/dir/?api=1&origin=-6.58912,106.85231&destination=-6.59421,106.86105',
     createdAt: '2026-10-09T09:00:00Z',
     updatedAt: '2026-10-10T14:00:00Z'
   },
@@ -421,6 +433,8 @@ export const INITIAL_BAST_LIST: BASTItem[] = [
     releaseDate: '2026-09-15',
     startDate: '2026-09-16',
     finishDate: '2026-09-25',
+    abdDate: '2026-09-25',
+    coreConnectionDate: '2026-09-21',
     durationDays: 10,
     estimatedDistanceMeters: 3800,
     estimatedDistancePdf: samplePdf('Est_Jarak_BAST0075.pdf', 1100),
@@ -429,6 +443,11 @@ export const INITIAL_BAST_LIST: BASTItem[] = [
     fotoDokumentasiPdf: samplePdf('Dokumentasi_Lengkap_WO0075.pdf', 3900),
     statusBast: 'Submit',
     notes: 'Dokumen BAST sudah dikirim ke bagian Administrasi Klien untuk verifikasi akhir.',
+    originLocation: 'POP Mini Cibinong / OTB-03',
+    originCoordinates: '-6.48123, 106.83412',
+    destinationLocation: 'BTS Pakansari / Site BTS-09',
+    destinationCoordinates: '-6.49051, 106.84233',
+    routeGmapsUrl: 'https://www.google.com/maps/dir/?api=1&origin=-6.48123,106.83412&destination=-6.49051,106.84233',
     createdAt: '2026-09-26T10:00:00Z',
     updatedAt: '2026-10-02T11:00:00Z'
   },
@@ -471,7 +490,6 @@ export const INITIAL_INVOICE_LIST: InvoiceItem[] = [
     rfsPdf: samplePdf('RFS_WO0082_Signed.pdf', 1100),
     amountRupiah: 145000000,
     issueDate: '2026-10-10',
-    dueDate: '2026-11-10',
     createdAt: '2026-10-10T11:00:00Z',
     updatedAt: '2026-10-14T15:30:00Z'
   },
@@ -489,7 +507,6 @@ export const INITIAL_INVOICE_LIST: InvoiceItem[] = [
     rfsPdf: samplePdf('RFS_WO0075.pdf', 980),
     amountRupiah: 285000000,
     issueDate: '2026-10-02',
-    dueDate: '2026-11-02',
     createdAt: '2026-10-02T13:00:00Z',
     updatedAt: '2026-10-05T10:00:00Z'
   },
@@ -507,7 +524,6 @@ export const INITIAL_INVOICE_LIST: InvoiceItem[] = [
     rfsPdf: samplePdf('RFS_Draft_WO0081.pdf', 900),
     amountRupiah: 198000000,
     issueDate: '2026-10-12',
-    dueDate: '2026-11-12',
     createdAt: '2026-10-12T14:00:00Z',
     updatedAt: '2026-10-15T09:00:00Z'
   }

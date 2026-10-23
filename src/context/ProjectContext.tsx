@@ -8,7 +8,8 @@ import {
   ActiveTab,
   FilterState,
   UserProfile,
-  SystemUser
+  SystemUser,
+  TeamItem
 } from '../types';
 import { 
   INITIAL_DAILY_REPORTS, 
@@ -64,6 +65,8 @@ interface ProjectContextType {
   // Navigation
   activeTab: ActiveTab;
   setActiveTab: (tab: ActiveTab) => void;
+  dashboardView: 'total-wo' | 'bast' | 'tagihan';
+  setDashboardView: (view: 'total-wo' | 'bast' | 'tagihan') => void;
 
   // Auto-save & Multi-Device Cloud Sync Status
   autoSaveStatus: 'saved' | 'saving' | 'idle';
@@ -118,6 +121,13 @@ interface ProjectContextType {
   drilldownFilter: DrilldownFilter | null;
   setDrilldownFilter: (filter: DrilldownFilter | null) => void;
 
+  // Undo / Redo
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  undoCount: number;
+  redoCount: number;
 }
 
 const STORAGE_KEYS = {
@@ -134,12 +144,12 @@ const STORAGE_KEYS = {
 };
 
 const DEFAULT_TEAMS: TeamItem[] = [
-  { id: 'TEAM-01', teamName: 'ABR 01', pic: 'Budi Lapangan', phone: '081234567890', area: 'Jabo 1', createdAt: '2026-01-15' },
-  { id: 'TEAM-02', teamName: 'ABR 02', pic: 'Joko Teknik', phone: '081398765432', area: 'Jabo 1', createdAt: '2026-01-16' },
-  { id: 'TEAM-03', teamName: 'ABR 03', pic: 'Irwan Setiawan', phone: '081211223344', area: 'Jabo 1', createdAt: '2026-01-18' },
-  { id: 'TEAM-04', teamName: 'ABR 04', pic: 'Dedi Sugiarto', phone: '085677889900', area: 'Jabo 2', createdAt: '2026-01-20' },
-  { id: 'TEAM-05', teamName: 'ABR 05', pic: 'Ahmad Fauzi', phone: '087855443322', area: 'Jabo 2', createdAt: '2026-01-22' },
-  { id: 'TEAM-06', teamName: 'ABR 06', pic: 'Slamet Riyadi', phone: '081900112233', area: 'Jabo 3', createdAt: '2026-01-25' }
+  { id: 'TEAM-01', teamName: 'ABR 01', picLeader: 'Budi Lapangan', helpers: ['Andi', 'Rian'], phone: '081234567890', area: 'Jabo 1', createdAt: '2026-01-15' },
+  { id: 'TEAM-02', teamName: 'ABR 02', picLeader: 'Joko Teknik', helpers: ['Doni'], phone: '081398765432', area: 'Jabo 1', createdAt: '2026-01-16' },
+  { id: 'TEAM-03', teamName: 'ABR 03', picLeader: 'Irwan Setiawan', helpers: ['Yoga', 'Fajar'], phone: '081211223344', area: 'Jabo 1', createdAt: '2026-01-18' },
+  { id: 'TEAM-04', teamName: 'ABR 04', picLeader: 'Dedi Sugiarto', helpers: ['Hendra'], phone: '085677889900', area: 'Jabo 2', createdAt: '2026-01-20' },
+  { id: 'TEAM-05', teamName: 'ABR 05', picLeader: 'Ahmad Fauzi', helpers: ['Zaki', 'Bayu'], phone: '087855443322', area: 'Jabo 2', createdAt: '2026-01-22' },
+  { id: 'TEAM-06', teamName: 'ABR 06', picLeader: 'Slamet Riyadi', helpers: ['Agus'], phone: '081900112233', area: 'Jabo 3', createdAt: '2026-01-25' }
 ];
 
 const DEFAULT_USER_PROFILE: UserProfile = {
@@ -223,6 +233,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Navigation
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
+  const [dashboardView, setDashboardView] = useState<'total-wo' | 'bast' | 'tagihan'>('total-wo');
 
   // Auto-save State
   const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'idle'>('saved');
@@ -234,6 +245,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [syncStatus, setSyncStatus] = useState<SyncConnectionStatus>(cloudSyncService.getStatus());
   const [lastCloudSyncTime, setLastCloudSyncTime] = useState<string>(cloudSyncService.getLastSyncTime());
   const isReceivingRemote = useRef(false);
+  const isCloudReady = useRef(false);
 
   // Toast System
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -316,10 +328,118 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Drilldown Filter Modal
   const [drilldownFilter, setDrilldownFilter] = useState<DrilldownFilter | null>(null);
 
+  // Time-Travel History (Undo / Redo)
+  interface ProjectStateSnapshot {
+    dailyReports: DailyReportItem[];
+    bastList: BASTItem[];
+    invoices: InvoiceItem[];
+    rfsList: RFSItem[];
+    penagihanList: PenagihanItem[];
+    teams: TeamItem[];
+  }
+
+  const [past, setPast] = useState<ProjectStateSnapshot[]>([]);
+  const [future, setFuture] = useState<ProjectStateSnapshot[]>([]);
+
+  const recordSnapshot = useCallback(() => {
+    const currentSnapshot: ProjectStateSnapshot = {
+      dailyReports: [...dailyReports],
+      bastList: [...bastList],
+      invoices: [...invoices],
+      rfsList: [...rfsList],
+      penagihanList: [...penagihanList],
+      teams: [...teams]
+    };
+    setPast(prev => [...prev.slice(-25), currentSnapshot]);
+    setFuture([]);
+  }, [dailyReports, bastList, invoices, rfsList, penagihanList, teams]);
+
+  const undo = useCallback(() => {
+    if (past.length === 0) {
+      showToast('info', 'Undo Tidak Tersedia', 'Belum ada riwayat perubahan yang bisa dibatalkan.');
+      return;
+    }
+    const previous = past[past.length - 1];
+    const newPast = past.slice(0, past.length - 1);
+    const currentSnapshot: ProjectStateSnapshot = {
+      dailyReports: [...dailyReports],
+      bastList: [...bastList],
+      invoices: [...invoices],
+      rfsList: [...rfsList],
+      penagihanList: [...penagihanList],
+      teams: [...teams]
+    };
+
+    setPast(newPast);
+    setFuture(prev => [currentSnapshot, ...prev]);
+    setDailyReports(previous.dailyReports);
+    setBastList(previous.bastList);
+    setInvoices(previous.invoices);
+    setRfsList(previous.rfsList || []);
+    setPenagihanList(previous.penagihanList);
+    setTeams(previous.teams || []);
+    showToast('success', 'Undo Berhasil', '↩️ Perubahan berhasil dibatalkan (Undo)');
+  }, [past, dailyReports, bastList, invoices, rfsList, penagihanList, teams, showToast]);
+
+  const redo = useCallback(() => {
+    if (future.length === 0) {
+      showToast('info', 'Redo Tidak Tersedia', 'Tidak ada aksi untuk di-redo.');
+      return;
+    }
+    const next = future[0];
+    const newFuture = future.slice(1);
+    const currentSnapshot: ProjectStateSnapshot = {
+      dailyReports: [...dailyReports],
+      bastList: [...bastList],
+      invoices: [...invoices],
+      rfsList: [...rfsList],
+      penagihanList: [...penagihanList],
+      teams: [...teams]
+    };
+
+    setPast(prev => [...prev, currentSnapshot]);
+    setFuture(newFuture);
+    setDailyReports(next.dailyReports);
+    setBastList(next.bastList);
+    setInvoices(next.invoices);
+    setRfsList(next.rfsList || []);
+    setPenagihanList(next.penagihanList);
+    setTeams(next.teams || []);
+    showToast('success', 'Redo Berhasil', '↪️ Aksi berhasil dipulihkan (Redo)');
+  }, [future, dailyReports, bastList, invoices, rfsList, penagihanList, teams, showToast]);
+
+  const canUndo = past.length > 0;
+  const canRedo = future.length > 0;
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isInput = activeEl && ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeEl.tagName);
+      if (isInput) return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        if (e.shiftKey) {
+          e.preventDefault();
+          redo();
+        } else {
+          e.preventDefault();
+          undo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        redo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo]);
+
   // Trigger Real-time Auto-save with debouncing & indicator + Cloud Sync Push
   const triggerAutoSave = useCallback(() => {
     setAutoSaveStatus('saving');
     const timer = setTimeout(() => {
+      localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
       localStorage.setItem(STORAGE_KEYS.DAILY_REPORTS, JSON.stringify(dailyReports));
       localStorage.setItem(STORAGE_KEYS.BAST, JSON.stringify(bastList));
       localStorage.setItem(STORAGE_KEYS.INVOICE, JSON.stringify(invoices));
@@ -332,8 +452,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setLastSavedTime(now);
       setAutoSaveStatus('saved');
 
-      // Two-way Push to Cloud (Multi-device Realtime Sync)
-      if (!isReceivingRemote.current) {
+      // Two-way Push to Cloud (Multi-device Realtime Sync) with Anti-Overwrite Protection
+      if (!isReceivingRemote.current && isCloudReady.current) {
         cloudSyncService.pushToCloud({
           dailyReports,
           bastList,
@@ -341,17 +461,18 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
           rfsList,
           penagihanList,
           userProfile,
-          systemUsers
+          systemUsers,
+          teams
         });
       }
     }, 350);
 
     return () => clearTimeout(timer);
-  }, [dailyReports, bastList, invoices, rfsList, penagihanList, userProfile, systemUsers]);
+  }, [teams, dailyReports, bastList, invoices, rfsList, penagihanList, userProfile, systemUsers]);
 
   useEffect(() => {
     triggerAutoSave();
-  }, [dailyReports, bastList, invoices, rfsList, penagihanList, userProfile, systemUsers, triggerAutoSave]);
+  }, [teams, dailyReports, bastList, invoices, rfsList, penagihanList, userProfile, systemUsers, triggerAutoSave]);
 
   // Cloud Sync Listener: Seamless Silent Pull
   useEffect(() => {
@@ -362,6 +483,10 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const unsubRemote = cloudSyncService.onRemoteData((remoteData) => {
       isReceivingRemote.current = true;
+      if (remoteData.teams && Array.isArray(remoteData.teams)) {
+        setTeams(remoteData.teams);
+        localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(remoteData.teams));
+      }
       if (remoteData.dailyReports && Array.isArray(remoteData.dailyReports)) {
         setDailyReports(remoteData.dailyReports);
         localStorage.setItem(STORAGE_KEYS.DAILY_REPORTS, JSON.stringify(remoteData.dailyReports));
@@ -396,7 +521,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }, 600);
     });
 
-    // Initial pull from cloud
+    // Initial pull from cloud with anti-overwrite protection
     cloudSyncService.pullFromCloud().then(hasData => {
       if (!hasData) {
         cloudSyncService.pushToCloud({
@@ -406,9 +531,11 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
           rfsList,
           penagihanList,
           userProfile,
-          systemUsers
+          systemUsers,
+          teams
         }, true);
       }
+      isCloudReady.current = true;
     });
 
     return () => {
@@ -427,7 +554,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       rfsList,
       penagihanList,
       userProfile,
-      systemUsers
+      systemUsers,
+      teams
     }, true);
     setAutoSaveStatus('saved');
     showToast('success', 'Sinkronisasi Cloud Berhasil', 'Data lokal kini telah disinkronkan dengan Cloud.');
@@ -503,6 +631,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Team CRUD Methods
   const addTeam = useCallback((team: Omit<TeamItem, 'id' | 'createdAt'>) => {
+    recordSnapshot();
     const newTeam: TeamItem = {
       ...team,
       id: 'TEAM-' + Math.floor(100 + Math.random() * 900),
@@ -514,18 +643,20 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return updated;
     });
     showToast('success', 'Team Ditambahkan', `Team ${team.teamName} (${team.pic}) berhasil ditambahkan!`);
-  }, [showToast]);
+  }, [recordSnapshot, showToast]);
 
   const updateTeam = useCallback((id: string, teamUpdates: Partial<TeamItem>) => {
+    recordSnapshot();
     setTeams(prev => {
       const updated = prev.map(t => t.id === id ? { ...t, ...teamUpdates } : t);
       localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(updated));
       return updated;
     });
     showToast('success', 'Team Diperbarui', `Data team berhasil diperbarui.`);
-  }, [showToast]);
+  }, [recordSnapshot, showToast]);
 
   const deleteTeam = useCallback((id: string) => {
+    recordSnapshot();
     setTeams(prev => {
       const target = prev.find(t => t.id === id);
       const updated = prev.filter(t => t.id !== id);
@@ -535,7 +666,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
       return updated;
     });
-  }, [showToast]);
+  }, [recordSnapshot, showToast]);
 
   // Auth Methods
   const login = (emailOrUser: string, pass: string): boolean => {
@@ -569,6 +700,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // CRUD Daily Report with Automatic Billing Package Sync
   const addDailyReport = (item: Omit<DailyReportItem, 'id' | 'createdAt' | 'updatedAt'>) => {
+    recordSnapshot();
     const now = new Date().toISOString();
     const newId = 'DR-' + Math.floor(100 + Math.random() * 900);
     const newRecord: DailyReportItem = {
@@ -607,6 +739,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const updateDailyReport = (id: string, item: Partial<DailyReportItem>) => {
+    recordSnapshot();
     const now = new Date().toISOString();
     setDailyReports(prev => prev.map(r => {
       if (r.id === id) {
@@ -623,6 +756,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const deleteDailyReport = (id: string) => {
+    recordSnapshot();
     const target = dailyReports.find(r => r.id === id);
     setDailyReports(prev => prev.filter(r => r.id !== id));
     if (target) {
@@ -637,6 +771,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // CRUD BAST
   const addBAST = (item: Omit<BASTItem, 'id' | 'createdAt' | 'updatedAt'>) => {
+    recordSnapshot();
     const now = new Date().toISOString();
     const newRecord: BASTItem = {
       ...item,
@@ -649,18 +784,21 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const updateBAST = (id: string, item: Partial<BASTItem>) => {
+    recordSnapshot();
     const now = new Date().toISOString();
     setBastList(prev => prev.map(b => b.id === id ? { ...b, ...item, updatedAt: now } : b));
     showToast('success', 'Dokumen BAST Diperbarui', `Perubahan BAST ID: ${id} tersimpan otomatis.`);
   };
 
   const deleteBAST = (id: string) => {
+    recordSnapshot();
     setBastList(prev => prev.filter(b => b.id !== id));
     showToast('error', 'Dokumen BAST Dihapus', `Dokumen BAST ${id} telah dihapus.`);
   };
 
   // CRUD Invoice
   const addInvoice = (item: Omit<InvoiceItem, 'id' | 'createdAt' | 'updatedAt'>) => {
+    recordSnapshot();
     const now = new Date().toISOString();
     const newRecord: InvoiceItem = {
       ...item,
@@ -673,18 +811,21 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const updateInvoice = (id: string, item: Partial<InvoiceItem>) => {
+    recordSnapshot();
     const now = new Date().toISOString();
     setInvoices(prev => prev.map(inv => inv.id === id ? { ...inv, ...item, updatedAt: now } : inv));
     showToast('success', 'Invoice Diperbarui', `Perubahan Invoice ID: ${id} tersimpan otomatis.`);
   };
 
   const deleteInvoice = (id: string) => {
+    recordSnapshot();
     setInvoices(prev => prev.filter(inv => inv.id !== id));
     showToast('error', 'Invoice Dihapus', `Invoice ID: ${id} telah dihapus.`);
   };
 
   // CRUD RFS
   const addRFS = (item: Omit<RFSItem, 'id' | 'createdAt' | 'updatedAt'>) => {
+    recordSnapshot();
     const now = new Date().toISOString();
     const newRecord: RFSItem = {
       ...item,
@@ -697,18 +838,21 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const updateRFS = (id: string, item: Partial<RFSItem>) => {
+    recordSnapshot();
     const now = new Date().toISOString();
     setRfsList(prev => prev.map(r => r.id === id ? { ...r, ...item, updatedAt: now } : r));
     showToast('success', 'Dokumen RFS Diperbarui', `Perubahan Surat RFS ID: ${id} tersimpan otomatis.`);
   };
 
   const deleteRFS = (id: string) => {
+    recordSnapshot();
     setRfsList(prev => prev.filter(r => r.id !== id));
     showToast('error', 'Dokumen RFS Dihapus', `Surat RFS ID: ${id} telah dihapus.`);
   };
 
   // CRUD Penagihan
   const addPenagihan = (item: Omit<PenagihanItem, 'id' | 'createdAt' | 'updatedAt'>) => {
+    recordSnapshot();
     const now = new Date().toISOString();
     const newRecord: PenagihanItem = {
       ...item,
@@ -721,12 +865,14 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const updatePenagihan = (id: string, item: Partial<PenagihanItem>) => {
+    recordSnapshot();
     const now = new Date().toISOString();
     setPenagihanList(prev => prev.map(p => p.id === id ? { ...p, ...item, updatedAt: now } : p));
     showToast('success', 'Paket Penagihan Diperbarui', `Checklist berkas penagihan ID: ${id} diperbarui.`);
   };
 
   const deletePenagihan = (id: string) => {
+    recordSnapshot();
     setPenagihanList(prev => prev.filter(p => p.id !== id));
     showToast('error', 'Paket Penagihan Dihapus', `Paket penagihan ID: ${id} telah dihapus.`);
   };
@@ -751,6 +897,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         logout,
         activeTab,
         setActiveTab,
+        dashboardView,
+        setDashboardView,
         autoSaveStatus,
         lastSavedTime,
         syncStatus,
@@ -783,7 +931,13 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setFilters,
         resetFilters,
         drilldownFilter,
-        setDrilldownFilter
+        setDrilldownFilter,
+        undo,
+        redo,
+        canUndo,
+        canRedo,
+        undoCount: past.length,
+        redoCount: future.length
       }}
     >
       {children}

@@ -9,25 +9,95 @@ import {
   Activity, 
   Sparkles, 
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Search,
   Filter,
   RefreshCw,
-  Tag,
   Award,
-  MousePointerClick
+  MousePointerClick,
+  CreditCard,
+  Layers,
+  ShieldCheck,
+  Receipt,
+  Tag,
+  Users,
+  Check,
+  ClipboardList,
+  RadioTower,
+  WalletCards,
+  ReceiptText
 } from 'lucide-react';
 import { useProjectContext, DrilldownFilter } from '../context/ProjectContext';
 import { DetailFilterModal } from '../components/DetailFilterModal';
-import { StatusWoPieChartCard } from '../components/StatusWoPieChartCard';
-import { TeamActivityPieChart } from '../components/TeamActivityPieChart';
-import { AreaAchievementCard } from '../components/AreaAchievementCard';
+import { InteractivePieChartCard, PieChartSliceData } from '../components/InteractivePieChartCard';
+import { ProjectDetailCardList, DetailCardItem } from '../components/ProjectDetailCardList';
+import { DashboardTagihanPage } from './DashboardTagihanPage';
+import { DailyReportItem } from '../types';
 
-export const DashboardOverviewPage: React.FC = () => {
+interface DashboardOverviewPageProps {
+  initialSubTab?: 'operational' | 'financial';
+}
+
+export const DashboardOverviewPage: React.FC<DashboardOverviewPageProps> = ({ initialSubTab = 'operational' }) => {
   const { 
     dailyReports, 
+    bastList,
+    invoices,
+    rfsList,
+    penagihanList,
     drilldownFilter,
-    setDrilldownFilter
+    setDrilldownFilter,
+    setActiveTab,
+    dashboardView,
+    setDashboardView
   } = useProjectContext();
+
+  const [isPmWidgetExpanded, setIsPmWidgetExpanded] = useState<boolean>(true);
+  const totalTagihanItems = dailyReports.length + bastList.length + invoices.length + rfsList.length + penagihanList.length;
+
+  // Sub-Tab State: 'operational' vs 'financial'
+  const [dashboardSubTab, setDashboardSubTab] = useState<'operational' | 'financial'>(initialSubTab);
+
+  React.useEffect(() => {
+    if (initialSubTab) {
+      setDashboardSubTab(initialSubTab);
+    }
+  }, [initialSubTab]);
+
+  // Accordion Open / Collapsible State
+  const [openSections, setOpenSections] = useState({
+    project: true,   // 1. Dashboard Total Project (default open)
+    bast: false,     // 2. Dashboard BAST (collapsible)
+    invoice: false,  // 3. Dashboard Invoice Penagihan (collapsible)
+  });
+
+  const toggleSection = (key: 'project' | 'bast' | 'invoice') => {
+    setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const scrollToSection = (key: 'project' | 'bast' | 'invoice') => {
+    setOpenSections(prev => ({ ...prev, [key]: true }));
+    setTimeout(() => {
+      const el = document.getElementById(`slidebar-${key}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
+  };
+
+  const handleExpandAll = () => {
+    setOpenSections({ project: true, bast: true, invoice: true });
+  };
+
+  const handleCollapseAll = () => {
+    setOpenSections({ project: false, bast: false, invoice: false });
+  };
+
+  // Interactive Pie Chart Slice Selection State
+  const [selectedProjectStatus, setSelectedProjectStatus] = useState<string | null>(null);
+  const [selectedBastStatus, setSelectedBastStatus] = useState<string | null>(null);
+  const [selectedInvoiceStatus, setSelectedInvoiceStatus] = useState<string | null>(null);
 
   // Comprehensive Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -58,6 +128,9 @@ export const DashboardOverviewPage: React.FC = () => {
     setSelectedWoType('ALL');
     setSelectedStatus('ALL');
     setSelectedMonth('ALL');
+    setSelectedProjectStatus(null);
+    setSelectedBastStatus(null);
+    setSelectedInvoiceStatus(null);
   };
 
   const isFiltered = 
@@ -87,23 +160,258 @@ export const DashboardOverviewPage: React.FC = () => {
     });
   }, [dailyReports, searchQuery, selectedArea, selectedTeam, selectedWoType, selectedStatus, selectedMonth]);
 
-  // Core Metrics Computed
+  // 1. Dashboard Total Project Metrics & Pie Data
   const totalWoCount = filteredReports.length;
-  const totalProjectsCount = filteredReports.length;
-  const notYetCount = filteredReports.filter(r => r.statusWo === 'Not Yet').length;
-  const inProgressCount = filteredReports.filter(r => r.statusWo === 'In Progress').length;
-  const cancelCount = filteredReports.filter(r => r.statusWo === 'Cancel').length;
   const doneCount = filteredReports.filter(r => r.statusWo === 'Done').length;
+  const inProgressCount = filteredReports.filter(r => r.statusWo === 'In Progress').length;
+  const notYetCount = filteredReports.filter(r => r.statusWo === 'Not Yet').length;
+  const cancelCount = filteredReports.filter(r => r.statusWo === 'Cancel').length;
 
-  // Achievement Percentage Calculation
   const achievementRate = totalWoCount > 0 
     ? Math.round((doneCount / totalWoCount) * 100) 
     : 0;
 
-  const inProgressRate = totalWoCount > 0 
-    ? Math.round((inProgressCount / totalWoCount) * 100) 
-    : 0;
+  const projectPieData: PieChartSliceData[] = [
+    {
+      id: 'Done',
+      label: 'Done (Selesai)',
+      shortLabel: 'Done',
+      value: doneCount,
+      color: '#10b981', // emerald-500
+      icon: CheckCircle2,
+      subtext: `${achievementRate}% Pencapaian`
+    },
+    {
+      id: 'In Progress',
+      label: 'In Progress',
+      shortLabel: 'In Progress',
+      value: inProgressCount,
+      color: '#06b6d4', // cyan-500
+      icon: PlayCircle,
+      subtext: 'Sedang Berjalan'
+    },
+    {
+      id: 'Not Yet',
+      label: 'Not Yet',
+      shortLabel: 'Not Yet',
+      value: notYetCount,
+      color: '#94a3b8', // slate-400
+      icon: Clock,
+      subtext: 'Belum Dimulai'
+    },
+    {
+      id: 'Cancel',
+      label: 'Cancel (Batal)',
+      shortLabel: 'Cancel',
+      value: cancelCount,
+      color: '#f43f5e', // rose-500
+      icon: XCircle,
+      subtext: 'Dibatalkan'
+    }
+  ];
 
+  // Helper BAST Status Mapper
+  const getBastStatusForReport = (r: DailyReportItem) => {
+    const bast = bastList.find(b => b.woNumber === r.woNumber);
+    if (bast) {
+      if (bast.statusBast === 'Done' || bast.statusBast === 'Submitted via Gmail' || bast.statusBast === 'Submit') {
+        return 'Sudah BAST';
+      }
+      if (bast.statusBast === 'Not Yet') {
+        return 'Draft BAST';
+      }
+    }
+    if (r.statusWo === 'Done') {
+      return 'Sudah BAST';
+    }
+    if (r.statusWo === 'In Progress') {
+      return 'Pending Review';
+    }
+    return 'Draft BAST';
+  };
+
+  // 2. Dashboard BAST Metrics & Pie Data
+  const bastSudahCount = filteredReports.filter(r => getBastStatusForReport(r) === 'Sudah BAST').length;
+  const bastDraftCount = filteredReports.filter(r => getBastStatusForReport(r) === 'Draft BAST').length;
+  const bastPendingCount = filteredReports.filter(r => getBastStatusForReport(r) === 'Pending Review').length;
+
+  const bastPieData: PieChartSliceData[] = [
+    {
+      id: 'Sudah BAST',
+      label: 'Sudah BAST',
+      shortLabel: 'Sudah BAST',
+      value: bastSudahCount,
+      color: '#10b981', // emerald-500
+      icon: ShieldCheck,
+      subtext: 'Dokumen Terbit'
+    },
+    {
+      id: 'Draft BAST',
+      label: 'Draft BAST',
+      shortLabel: 'Draft BAST',
+      value: bastDraftCount,
+      color: '#f59e0b', // amber-500
+      icon: Clock,
+      subtext: 'Dalam Penyusunan'
+    },
+    {
+      id: 'Pending Review',
+      label: 'Pending Review',
+      shortLabel: 'Pending Review',
+      value: bastPendingCount,
+      color: '#3b82f6', // blue-500
+      icon: PlayCircle,
+      subtext: 'Menunggu Verifikasi'
+    }
+  ];
+
+  // Helper Invoice Status Mapper
+  const getInvoiceStatusForReport = (r: DailyReportItem) => {
+    const p = penagihanList.find(item => item.woNumber === r.woNumber);
+    const inv = invoices.find(item => item.woNumber === r.woNumber);
+
+    if (p?.statusPenagihan === 'Lunas' || inv?.statusInvoice === 'Done') {
+      return 'Lunas';
+    }
+    if (inv?.statusInvoice === 'Submit' || p?.statusPenagihan === 'Dalam Review') {
+      return 'Dalam Verifikasi';
+    }
+    if (inv?.statusInvoice === 'Revision' || p?.statusPenagihan === 'Ditolak') {
+      return 'Kendala Administrasi';
+    }
+    return 'Belum Terbit Invoice';
+  };
+
+  const getNominalForReport = (r: DailyReportItem) => {
+    const p = penagihanList.find(item => item.woNumber === r.woNumber);
+    if (p && p.totalNominalRupiah > 0) return p.totalNominalRupiah;
+    const inv = invoices.find(item => item.woNumber === r.woNumber);
+    if (inv && inv.amountRupiah > 0) return inv.amountRupiah;
+    return r.totalDistanceMeters * 35000;
+  };
+
+  // 3. Dashboard Invoice Metrics & Pie Data
+  const invLunasCount = filteredReports.filter(r => getInvoiceStatusForReport(r) === 'Lunas').length;
+  const invVerifikasiCount = filteredReports.filter(r => getInvoiceStatusForReport(r) === 'Dalam Verifikasi').length;
+  const invBelumTerbitCount = filteredReports.filter(r => getInvoiceStatusForReport(r) === 'Belum Terbit Invoice').length;
+  const invKendalaCount = filteredReports.filter(r => getInvoiceStatusForReport(r) === 'Kendala Administrasi').length;
+
+  const totalNominalLunas = filteredReports
+    .filter(r => getInvoiceStatusForReport(r) === 'Lunas')
+    .reduce((acc, r) => acc + getNominalForReport(r), 0);
+
+  const invoicePieData: PieChartSliceData[] = [
+    {
+      id: 'Lunas',
+      label: 'Lunas (Selesai Bayar)',
+      shortLabel: 'Lunas',
+      value: invLunasCount,
+      color: '#10b981', // emerald-500
+      icon: CheckCircle2,
+      subtext: `Rp ${(totalNominalLunas / 1000000).toFixed(1)}M`
+    },
+    {
+      id: 'Dalam Verifikasi',
+      label: 'Dalam Verifikasi',
+      shortLabel: 'Verifikasi',
+      value: invVerifikasiCount,
+      color: '#06b6d4', // cyan-500
+      icon: Clock,
+      subtext: 'Proses Review Client'
+    },
+    {
+      id: 'Belum Terbit Invoice',
+      label: 'Belum Terbit Invoice',
+      shortLabel: 'Belum Terbit',
+      value: invBelumTerbitCount,
+      color: '#f59e0b', // amber-500
+      icon: Receipt,
+      subtext: 'Menunggu Pengajuan'
+    },
+    {
+      id: 'Kendala Administrasi',
+      label: 'Kendala Administrasi',
+      shortLabel: 'Kendala',
+      value: invKendalaCount,
+      color: '#f43f5e', // rose-500
+      icon: XCircle,
+      subtext: 'Perlu Revisi Dokumen'
+    }
+  ];
+
+  // Selected Detail Items Computed for Section 1 (Total Project)
+  const projectDetailItems = useMemo((): DetailCardItem[] => {
+    if (!selectedProjectStatus) return [];
+    return filteredReports
+      .filter(r => r.statusWo === selectedProjectStatus)
+      .map(r => ({
+        id: r.id,
+        woNumber: r.woNumber,
+        pic: r.pic,
+        assignment: r.assignment,
+        team: r.team,
+        workType: r.workType,
+        statusLabel: r.statusWo,
+        statusBadgeColor: 
+          r.statusWo === 'Done' ? 'bg-emerald-950 text-emerald-400 border-emerald-500/30' :
+          r.statusWo === 'In Progress' ? 'bg-cyan-950 text-cyan-400 border-cyan-500/30' :
+          r.statusWo === 'Cancel' ? 'bg-rose-950 text-rose-400 border-rose-500/30' :
+          'bg-slate-950 text-slate-400 border-slate-800',
+        estimatedDistanceMeters: r.estimatedDistanceMeters,
+        totalDistanceMeters: r.totalDistanceMeters,
+        nominal: getNominalForReport(r),
+        releaseDate: r.releaseDate
+      }));
+  }, [filteredReports, selectedProjectStatus]);
+
+  // Selected Detail Items Computed for Section 2 (BAST)
+  const bastDetailItems = useMemo((): DetailCardItem[] => {
+    if (!selectedBastStatus) return [];
+    return filteredReports
+      .filter(r => getBastStatusForReport(r) === selectedBastStatus)
+      .map(r => ({
+        id: r.id,
+        woNumber: r.woNumber,
+        pic: r.pic,
+        assignment: r.assignment,
+        team: r.team,
+        workType: r.workType,
+        statusLabel: selectedBastStatus,
+        statusBadgeColor: 
+          selectedBastStatus === 'Sudah BAST' ? 'bg-emerald-950 text-emerald-400 border-emerald-500/30' :
+          selectedBastStatus === 'Pending Review' ? 'bg-blue-950 text-blue-400 border-blue-500/30' :
+          'bg-amber-950 text-amber-400 border-amber-500/30',
+        estimatedDistanceMeters: r.estimatedDistanceMeters,
+        totalDistanceMeters: r.totalDistanceMeters,
+        nominal: getNominalForReport(r),
+        releaseDate: r.releaseDate
+      }));
+  }, [filteredReports, selectedBastStatus]);
+
+  // Selected Detail Items Computed for Section 3 (Invoice)
+  const invoiceDetailItems = useMemo((): DetailCardItem[] => {
+    if (!selectedInvoiceStatus) return [];
+    return filteredReports
+      .filter(r => getInvoiceStatusForReport(r) === selectedInvoiceStatus)
+      .map(r => ({
+        id: r.id,
+        woNumber: r.woNumber,
+        pic: r.pic,
+        assignment: r.assignment,
+        team: r.team,
+        workType: r.workType,
+        statusLabel: selectedInvoiceStatus,
+        statusBadgeColor: 
+          selectedInvoiceStatus === 'Lunas' ? 'bg-emerald-950 text-emerald-400 border-emerald-500/30' :
+          selectedInvoiceStatus === 'Dalam Verifikasi' ? 'bg-cyan-950 text-cyan-400 border-cyan-500/30' :
+          selectedInvoiceStatus === 'Kendala Administrasi' ? 'bg-rose-950 text-rose-400 border-rose-500/30' :
+          'bg-amber-950 text-amber-400 border-amber-500/30',
+        estimatedDistanceMeters: r.estimatedDistanceMeters,
+        totalDistanceMeters: r.totalDistanceMeters,
+        nominal: getNominalForReport(r),
+        releaseDate: r.releaseDate
+      }));
+  }, [filteredReports, selectedInvoiceStatus]);
 
   const handleStatCardClick = (title: string, category: DrilldownFilter['category'], value: string) => {
     setDrilldownFilter({ title, category, value });
@@ -122,10 +430,10 @@ export const DashboardOverviewPage: React.FC = () => {
               <span className="p-1 rounded-md bg-cyan-500/20 text-cyan-400">
                 <Activity className="w-3.5 h-3.5 animate-pulse" />
               </span>
-              <span>Dashboard Control & Pencapaian Work Order (WO)</span>
+              <span>Dashboard Control & Monitoring Operasional Belacom</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-white mt-1.5 flex items-center gap-2">
-              Dashboard Work Order (WO) Belacom
+              Dashboard
               <Sparkles className="w-5 h-5 text-amber-400 hidden sm:inline" />
             </h2>
           </div>
@@ -161,406 +469,316 @@ export const DashboardOverviewPage: React.FC = () => {
 
       </div>
 
-      {/* Complete Multi-Criteria Filter Panel */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3">
-        
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400">
-              <Filter className="w-4 h-4" />
-            </div>
-            <span className="text-xs font-extrabold uppercase font-mono tracking-wider text-slate-100">
-              PANEL FILTER LENGKAP DASHBOARD WO
+      {/* Modern Sub-Tab Navigation System (Pills Toggle) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/90 border border-slate-800 p-2 rounded-2xl shadow-lg backdrop-blur-md">
+        <div className="flex items-center gap-2 p-1 bg-slate-950/80 rounded-xl border border-slate-800/80 w-full sm:w-auto">
+          {/* Sub-Tab 1: Operasional & Pencapaian WO */}
+          <button
+            type="button"
+            onClick={() => setDashboardSubTab('operational')}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              dashboardSubTab === 'operational'
+                ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-md shadow-cyan-950/50 border border-cyan-400/40'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+            }`}
+          >
+            <Activity className="w-4 h-4 text-cyan-300" />
+            <span>Operasional & Pencapaian WO</span>
+            <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${
+              dashboardSubTab === 'operational' ? 'bg-cyan-900/60 text-cyan-200' : 'bg-slate-800 text-slate-400'
+            }`}>
+              {dailyReports.length}
             </span>
-          </div>
+          </button>
 
-          {isFiltered && (
-            <button
-              onClick={handleResetFilters}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-750 text-cyan-400 hover:text-white rounded-xl text-xs font-mono transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 border border-slate-700/60"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Reset Seluruh Filter</span>
-            </button>
-          )}
+          {/* Sub-Tab 2: Finansial & Tagihan WO */}
+          <button
+            type="button"
+            onClick={() => setDashboardSubTab('financial')}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              dashboardSubTab === 'financial'
+                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-950/50 border border-emerald-400/40'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+            }`}
+          >
+            <CreditCard className="w-4 h-4 text-emerald-300" />
+            <span>Finansial & Tagihan WO</span>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-extrabold ${
+              dashboardSubTab === 'financial' ? 'bg-emerald-900/70 text-emerald-200' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+            }`}>
+              {penagihanList.length} Aktif
+            </span>
+          </button>
         </div>
 
-        {/* Filter Inputs Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5 text-xs font-mono">
+        <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-slate-950/60 rounded-xl border border-slate-800/60 text-[11px] font-mono text-slate-400">
+          <Layers className="w-3.5 h-3.5 text-cyan-400" />
+          <span>Mode Tampilan: <strong className="text-slate-200">{dashboardSubTab === 'operational' ? 'Analitik Accordion Terstruktur' : 'Analitik Finansial & Tagihan'}</strong></span>
+        </div>
+      </div>
+
+      {dashboardSubTab === 'operational' ? (
+        <div className="space-y-6">
           
-          {/* 1. Global Search */}
-          <div className="relative lg:col-span-2">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Cari Nomor WO / PIC / Tim / Uraian..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 text-xs text-slate-100 placeholder-slate-500 rounded-xl pl-8 pr-3 py-2.5 outline-none transition-all"
-            />
+          {/* Global Search & Complete Filter Panel */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400">
+                  <Filter className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-extrabold uppercase font-mono tracking-wider text-slate-100">
+                  PANEL FILTER DASHBOARD ACCORDION
+                </span>
+              </div>
+
+              {isFiltered && (
+                <button
+                  onClick={handleResetFilters}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-750 text-cyan-400 hover:text-white rounded-xl text-xs font-mono transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 border border-slate-700/60"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Reset Seluruh Filter</span>
+                </button>
+              )}
+            </div>
+
+            {/* Filter Inputs Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5 text-xs font-mono">
+              <div className="relative lg:col-span-2">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Cari Nomor WO / PIC / Tim / Uraian..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 text-xs text-slate-100 placeholder-slate-500 rounded-xl pl-8 pr-3 py-2.5 outline-none transition-all"
+                />
+              </div>
+
+              <div>
+                <select
+                  value={selectedArea}
+                  onChange={(e) => setSelectedArea(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 text-xs text-slate-200 rounded-xl p-2.5 outline-none"
+                >
+                  <option value="ALL">Semua Area</option>
+                  <option value="Jabo 1">Jabo 1</option>
+                  <option value="Jabo 2">Jabo 2</option>
+                  <option value="Jabo 3">Jabo 3</option>
+                </select>
+              </div>
+
+              <div>
+                <select
+                  value={selectedTeam}
+                  onChange={(e) => setSelectedTeam(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 text-xs text-slate-200 rounded-xl p-2.5 outline-none"
+                >
+                  <option value="ALL">Semua Tim Pelaksana</option>
+                  {availableTeams.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <select
+                  value={selectedWoType}
+                  onChange={(e) => setSelectedWoType(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 text-xs text-slate-200 rounded-xl p-2.5 outline-none"
+                >
+                  <option value="ALL">Semua Kategori WO</option>
+                  {availableWoTypes.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 text-xs text-slate-200 rounded-xl p-2.5 outline-none"
+                >
+                  <option value="ALL">Semua Bulan Release</option>
+                  {availableMonths.map(m => (
+                    <option key={m} value={m}>Bulan: {m}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
 
-          {/* 2. Area Filter */}
-          <div>
-            <select
-              value={selectedArea}
-              onChange={(e) => setSelectedArea(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 text-xs text-slate-200 rounded-xl p-2.5 outline-none"
-            >
-              <option value="ALL">Semua Area</option>
-              <option value="Jabo 1">Jabo 1</option>
-              <option value="Jabo 2">Jabo 2</option>
-              <option value="Jabo 3">Jabo 3</option>
-            </select>
-          </div>
+          {/* DYNAMIC ACTIVE DASHBOARD VIEW (Total WO, BAST, or Tagihan) */}
+          {dashboardView === 'total-wo' && (
+            <div className="bg-slate-900 border border-cyan-500/50 ring-1 ring-cyan-500/20 rounded-2xl overflow-hidden shadow-2xl p-4 sm:p-6 animate-fadeIn space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-4 gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                    <FolderKanban className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-base sm:text-lg text-white font-mono">
+                      Dashboard Total WO
+                    </h3>
+                    <span className="text-xs text-slate-400 font-mono">
+                      Visualisasi status siklus hidup seluruh Work Order (WO)
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 font-mono text-xs">
+                  <span className="px-3 py-1 rounded-lg bg-slate-950 text-cyan-400 border border-slate-800 font-bold">
+                    Total: {totalWoCount} WO
+                  </span>
+                  <span className="px-3 py-1 rounded-lg bg-emerald-950 text-emerald-400 border border-emerald-500/30 font-bold">
+                    Done: {doneCount}
+                  </span>
+                </div>
+              </div>
 
-          {/* 3. Team Filter */}
-          <div>
-            <select
-              value={selectedTeam}
-              onChange={(e) => setSelectedTeam(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 text-xs text-slate-200 rounded-xl p-2.5 outline-none"
-            >
-              <option value="ALL">Semua Tim Pelaksana</option>
-              {availableTeams.map(t => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-          </div>
+              <div className="max-w-2xl mx-auto w-full">
+                <InteractivePieChartCard
+                  title="STATUS PENCAPAIAN WORK ORDER"
+                  subtitle="Kelompok status pekerjaan (Done, In Progress, Not Yet, Cancel)"
+                  total={totalWoCount}
+                  data={projectPieData}
+                  selectedId={selectedProjectStatus}
+                  onSelectSlice={(id) => setSelectedProjectStatus(id)}
+                  centerTitle={`${achievementRate}%`}
+                  centerSubtitle="PENCAPAIAN DONE"
+                />
+              </div>
 
-          {/* 4. WO Category / Type Filter */}
-          <div>
-            <select
-              value={selectedWoType}
-              onChange={(e) => setSelectedWoType(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 text-xs text-slate-200 rounded-xl p-2.5 outline-none"
-            >
-              <option value="ALL">Semua Kategori WO</option>
-              {availableWoTypes.map(t => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* 5. Month Release Filter */}
-          <div>
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 text-xs text-slate-200 rounded-xl p-2.5 outline-none"
-            >
-              <option value="ALL">Semua Bulan Release</option>
-              {availableMonths.map(m => (
-                <option key={m} value={m}>Bulan: {m}</option>
-              ))}
-            </select>
-          </div>
-
-        </div>
-
-        {/* Quick Status Preset Pills */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/80 text-[11px] font-mono">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-slate-400 font-semibold mr-1">Status Quick Pills:</span>
-            
-            <button
-              onClick={() => setSelectedStatus('ALL')}
-              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                selectedStatus === 'ALL'
-                  ? 'bg-cyan-500 text-slate-950 font-bold'
-                  : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
-              }`}
-            >
-              Semua Status ({dailyReports.length})
-            </button>
-
-            <button
-              onClick={() => setSelectedStatus('Done')}
-              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                selectedStatus === 'Done'
-                  ? 'bg-emerald-500 text-slate-950 font-bold'
-                  : 'bg-slate-950 text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/30'
-              }`}
-            >
-              Done Only ({dailyReports.filter(r => r.statusWo === 'Done').length})
-            </button>
-
-            <button
-              onClick={() => setSelectedStatus('In Progress')}
-              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                selectedStatus === 'In Progress'
-                  ? 'bg-cyan-400 text-slate-950 font-bold'
-                  : 'bg-slate-950 text-cyan-400 hover:bg-cyan-500/10 border border-cyan-500/30'
-              }`}
-            >
-              In Progress ({dailyReports.filter(r => r.statusWo === 'In Progress').length})
-            </button>
-
-            <button
-              onClick={() => setSelectedStatus('Not Yet')}
-              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                selectedStatus === 'Not Yet'
-                  ? 'bg-slate-400 text-slate-950 font-bold'
-                  : 'bg-slate-950 text-slate-400 hover:bg-slate-800 border border-slate-800'
-              }`}
-            >
-              Not Yet ({dailyReports.filter(r => r.statusWo === 'Not Yet').length})
-            </button>
-
-            <button
-              onClick={() => setSelectedStatus('Cancel')}
-              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                selectedStatus === 'Cancel'
-                  ? 'bg-rose-500 text-white font-bold'
-                  : 'bg-slate-950 text-rose-400 hover:bg-rose-500/10 border border-rose-500/30'
-              }`}
-            >
-              Cancel ({dailyReports.filter(r => r.statusWo === 'Cancel').length})
-            </button>
-          </div>
-
-          {/* Filter Status Badge */}
-          {isFiltered && (
-            <span className="text-[10px] text-cyan-400 font-bold">
-              Terfilter {filteredReports.length} dari {dailyReports.length} WO
-            </span>
+              {selectedProjectStatus && (
+                <div className="w-full mt-6 animate-fadeIn">
+                  <ProjectDetailCardList
+                    title="DETAIL PROJECT BERDASARKAN STATUS"
+                    statusName={selectedProjectStatus}
+                    count={projectDetailItems.length}
+                    items={projectDetailItems}
+                    onClose={() => setSelectedProjectStatus(null)}
+                    onSelectWo={(wo) => handleStatCardClick(`Detail WO ${wo}`, 'wo', wo)}
+                  />
+                </div>
+              )}
+            </div>
           )}
+
+          {dashboardView === 'bast' && (
+            <div className="bg-slate-900 border border-emerald-500/50 ring-1 ring-emerald-500/20 rounded-2xl overflow-hidden shadow-2xl p-4 sm:p-6 animate-fadeIn space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-4 gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-base sm:text-lg text-white font-mono">
+                      Dashboard BAST
+                    </h3>
+                    <span className="text-xs text-slate-400 font-mono">
+                      Visualisasi status penerbitan & verifikasi dokumen BAST
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 font-mono text-xs">
+                  <span className="px-3 py-1 rounded-lg bg-emerald-950 text-emerald-400 border border-emerald-500/30 font-bold">
+                    Sudah BAST: {bastSudahCount}
+                  </span>
+                  <span className="px-3 py-1 rounded-lg bg-amber-950 text-amber-300 border border-amber-500/30 font-bold">
+                    Draft: {bastDraftCount}
+                  </span>
+                </div>
+              </div>
+
+              <div className="max-w-2xl mx-auto w-full">
+                <InteractivePieChartCard
+                  title="STATUS DOKUMEN BAST"
+                  subtitle="Kelompok status BAST (Sudah BAST, Draft BAST, Pending Review)"
+                  total={totalWoCount}
+                  data={bastPieData}
+                  selectedId={selectedBastStatus}
+                  onSelectSlice={(id) => setSelectedBastStatus(id)}
+                  centerTitle={`${bastSudahCount}`}
+                  centerSubtitle="SUDAH BAST"
+                />
+              </div>
+
+              {selectedBastStatus && (
+                <div className="w-full mt-6 animate-fadeIn">
+                  <ProjectDetailCardList
+                    title="DETAIL PROYEK BAST"
+                    statusName={selectedBastStatus}
+                    count={bastDetailItems.length}
+                    items={bastDetailItems}
+                    onClose={() => setSelectedBastStatus(null)}
+                    onSelectWo={(wo) => handleStatCardClick(`Detail BAST ${wo}`, 'bast', wo)}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {dashboardView === 'tagihan' && (
+            <div className="bg-slate-900 border border-amber-500/50 ring-1 ring-amber-500/20 rounded-2xl overflow-hidden shadow-2xl p-4 sm:p-6 animate-fadeIn space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-4 gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                    <CreditCard className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-base sm:text-lg text-white font-mono">
+                      Dashboard Tagihan
+                    </h3>
+                    <span className="text-xs text-slate-400 font-mono">
+                      Visualisasi status pembayaran & penagihan keuangan paket
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 font-mono text-xs">
+                  <span className="px-3 py-1 rounded-lg bg-emerald-950 text-emerald-400 border border-emerald-500/30 font-bold">
+                    Lunas: {invLunasCount}
+                  </span>
+                  <span className="px-3 py-1 rounded-lg bg-cyan-950 text-cyan-300 border border-cyan-500/30 font-bold">
+                    Verifikasi: {invVerifikasiCount}
+                  </span>
+                </div>
+              </div>
+
+              <div className="max-w-2xl mx-auto w-full">
+                <InteractivePieChartCard
+                  title="STATUS PEMBAYARAN & PENAGIHAN"
+                  subtitle="Kelompok status (Lunas, Dalam Verifikasi, Belum Terbit Invoice, Kendala)"
+                  total={totalWoCount}
+                  data={invoicePieData}
+                  selectedId={selectedInvoiceStatus}
+                  onSelectSlice={(id) => setSelectedInvoiceStatus(id)}
+                  centerTitle={`Rp ${(totalNominalLunas / 1000000).toFixed(0)}M`}
+                  centerSubtitle="LUNAS TERBAYAR"
+                />
+              </div>
+
+              {selectedInvoiceStatus && (
+                <div className="w-full mt-6 animate-fadeIn">
+                  <ProjectDetailCardList
+                    title="DETAIL STATUS PENAGIHAN INVOICE"
+                    statusName={selectedInvoiceStatus}
+                    count={invoiceDetailItems.length}
+                    items={invoiceDetailItems}
+                    onClose={() => setSelectedInvoiceStatus(null)}
+                    onSelectWo={(wo) => handleStatCardClick(`Detail Penagihan ${wo}`, 'penagihan', wo)}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
-
-        {/* Active Filter Criteria Summary */}
-        {isFiltered && (
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800/80 text-[11px] font-mono">
-            <span className="text-slate-500 flex items-center gap-1 font-semibold">
-              <Tag className="w-3 h-3 text-cyan-400" /> Filter Aktif:
-            </span>
-            {searchQuery && (
-              <span className="px-2 py-0.5 bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 rounded-md">
-                Pencarian: "{searchQuery}"
-              </span>
-            )}
-            {selectedArea !== 'ALL' && (
-              <span className="px-2 py-0.5 bg-blue-500/10 text-blue-300 border border-blue-500/20 rounded-md">
-                Area: {selectedArea}
-              </span>
-            )}
-            {selectedTeam !== 'ALL' && (
-              <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 rounded-md">
-                Tim: {selectedTeam}
-              </span>
-            )}
-            {selectedWoType !== 'ALL' && (
-              <span className="px-2 py-0.5 bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 rounded-md truncate max-w-[180px]">
-                Kategori: {selectedWoType}
-              </span>
-            )}
-            {selectedStatus !== 'ALL' && (
-              <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 rounded-md">
-                Status: {selectedStatus}
-              </span>
-            )}
-            {selectedMonth !== 'ALL' && (
-              <span className="px-2 py-0.5 bg-amber-500/10 text-amber-300 border border-amber-500/20 rounded-md">
-                Bulan: {selectedMonth}
-              </span>
-            )}
-          </div>
-        )}
-
-      </div>
-
-      {/* Primary 6 WO Structure Stat Cards Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-        
-        {/* 1. Total WO */}
-        <button
-          onClick={() => handleStatCardClick('Daftar Seluruh Work Order (WO)', 'wo', 'Semua WO')}
-          className="bg-slate-900 border border-slate-800 hover:border-cyan-500/60 p-4 rounded-2xl shadow-xl transition-all duration-200 text-left group cursor-pointer active:scale-95 flex flex-col justify-between min-h-[140px]"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-mono font-bold uppercase text-slate-400">TOTAL WO</span>
-            <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 group-hover:scale-110 group-hover:rotate-6 transition-all">
-              <FileSpreadsheet className="w-5 h-5" />
-            </div>
-          </div>
-          <div>
-            <span className="text-2xl sm:text-3xl font-black text-cyan-400 font-mono block">
-              {totalWoCount}
-            </span>
-            <span className="text-[10px] text-slate-400 mt-1 block font-mono">
-              {isFiltered ? `Saringan dari ${dailyReports.length}` : 'Work Order Rilis'}
-            </span>
-          </div>
-          <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-cyan-400 font-mono">
-            <span className="flex items-center gap-1"><MousePointerClick className="w-3 h-3" /> Klik Detail</span>
-            <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-          </div>
-        </button>
-
-        {/* 2. Total Project */}
-        <button
-          onClick={() => handleStatCardClick('Ringkasan Seluruh Project Belacom', 'project', 'Semua Project Aktif')}
-          className="bg-slate-900 border border-slate-800 hover:border-blue-500/60 p-4 rounded-2xl shadow-xl transition-all duration-200 text-left group cursor-pointer active:scale-95 flex flex-col justify-between min-h-[140px]"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-mono font-bold uppercase text-slate-400">TOTAL PROJECT</span>
-            <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400 group-hover:scale-110 group-hover:rotate-6 transition-all">
-              <FolderKanban className="w-5 h-5" />
-            </div>
-          </div>
-          <div>
-            <span className="text-2xl sm:text-3xl font-black text-blue-400 font-mono block">
-              {totalProjectsCount}
-            </span>
-            <span className="text-[10px] text-slate-400 mt-1 block font-mono">
-              Proyek Aktif
-            </span>
-          </div>
-          <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-blue-400 font-mono">
-            <span className="flex items-center gap-1"><MousePointerClick className="w-3 h-3" /> Klik Detail</span>
-            <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-          </div>
-        </button>
-
-        {/* 3. Not Yet */}
-        <button
-          onClick={() => handleStatCardClick('Detail WO Status Not Yet', 'statusWo', 'Not Yet')}
-          className="bg-slate-900 border border-slate-800 hover:border-slate-500/60 p-4 rounded-2xl shadow-xl transition-all duration-200 text-left group cursor-pointer active:scale-95 flex flex-col justify-between min-h-[140px]"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-mono font-bold uppercase text-slate-400">NOT YET</span>
-            <div className="p-2 rounded-xl bg-slate-800 text-slate-400 group-hover:scale-110 group-hover:rotate-6 transition-all">
-              <Clock className="w-5 h-5" />
-            </div>
-          </div>
-          <div>
-            <span className="text-2xl sm:text-3xl font-black text-slate-300 font-mono block">
-              {notYetCount}
-            </span>
-            <span className="text-[10px] text-slate-400 mt-1 block font-mono">
-              Belum Dimulai
-            </span>
-          </div>
-          <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400 font-mono">
-            <span className="flex items-center gap-1"><MousePointerClick className="w-3 h-3" /> Klik Detail</span>
-            <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-          </div>
-        </button>
-
-        {/* 4. In Progress */}
-        <button
-          onClick={() => handleStatCardClick('Detail WO Status In Progress', 'statusWo', 'In Progress')}
-          className="bg-slate-900 border border-slate-800 hover:border-cyan-500/60 p-4 rounded-2xl shadow-xl transition-all duration-200 text-left group cursor-pointer active:scale-95 flex flex-col justify-between min-h-[140px]"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-mono font-bold uppercase text-slate-400">IN PROGRESS</span>
-            <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 group-hover:scale-110 group-hover:rotate-6 transition-all">
-              <PlayCircle className="w-5 h-5" />
-            </div>
-          </div>
-          <div>
-            <span className="text-2xl sm:text-3xl font-black text-cyan-400 font-mono block">
-              {inProgressCount}
-            </span>
-            <span className="text-[10px] text-slate-400 mt-1 block font-mono">
-              {inProgressRate}% Sedang Berjalan
-            </span>
-          </div>
-          <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-cyan-400 font-mono">
-            <span className="flex items-center gap-1"><MousePointerClick className="w-3 h-3" /> Klik Detail</span>
-            <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-          </div>
-        </button>
-
-        {/* 5. Cancel */}
-        <button
-          onClick={() => handleStatCardClick('Detail WO Status Cancel', 'statusWo', 'Cancel')}
-          className="bg-slate-900 border border-slate-800 hover:border-rose-500/60 p-4 rounded-2xl shadow-xl transition-all duration-200 text-left group cursor-pointer active:scale-95 flex flex-col justify-between min-h-[140px]"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-mono font-bold uppercase text-slate-400">CANCEL</span>
-            <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400 group-hover:scale-110 group-hover:rotate-6 transition-all">
-              <XCircle className="w-5 h-5" />
-            </div>
-          </div>
-          <div>
-            <span className="text-2xl sm:text-3xl font-black text-rose-400 font-mono block">
-              {cancelCount}
-            </span>
-            <span className="text-[10px] text-slate-400 mt-1 block font-mono">
-              Dibatalkan
-            </span>
-          </div>
-          <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-rose-400 font-mono">
-            <span className="flex items-center gap-1"><MousePointerClick className="w-3 h-3" /> Klik Detail</span>
-            <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-          </div>
-        </button>
-
-        {/* 6. Done */}
-        <button
-          onClick={() => handleStatCardClick('Detail WO Status Done', 'statusWo', 'Done')}
-          className="bg-slate-900 border border-slate-800 hover:border-emerald-500/60 p-4 rounded-2xl shadow-xl transition-all duration-200 text-left group cursor-pointer active:scale-95 flex flex-col justify-between min-h-[140px]"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-mono font-bold uppercase text-slate-400">DONE</span>
-            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 group-hover:scale-110 group-hover:rotate-6 transition-all">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
-          </div>
-          <div>
-            <span className="text-2xl sm:text-3xl font-black text-emerald-400 font-mono block">
-              {doneCount}
-            </span>
-            <span className="text-[10px] text-emerald-400 mt-1 block font-mono font-bold">
-              {achievementRate}% Pencapaian
-            </span>
-          </div>
-          <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-emerald-400 font-mono">
-            <span className="flex items-center gap-1"><MousePointerClick className="w-3 h-3" /> Klik Detail</span>
-            <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-          </div>
-        </button>
-
-      </div>
-
-      {/* Visual Analytics 3-Card Grid Matching User Request & Reference Image */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 pt-2">
-        
-        {/* Card 1: PENCAPAIAN STATUS WO (PIE CHART) */}
-        <StatusWoPieChartCard
-          total={totalWoCount}
-          doneCount={doneCount}
-          inProgressCount={inProgressCount}
-          notYetCount={notYetCount}
-          cancelCount={cancelCount}
-          achievementRate={achievementRate}
-          onStatusClick={(status) => {
-            handleStatCardClick(`Detail WO Status ${status}`, 'statusWo', status);
-          }}
-        />
-
-        {/* Card 2: STATUS AKTIVITAS TEAM DARI TOTAL WO (PIE CHART) */}
-        <TeamActivityPieChart
-          reports={filteredReports}
-          onTeamClick={(teamName) => {
-            handleStatCardClick(`Rincian Dokumen WO - ${teamName}`, 'team', teamName);
-          }}
-          onStatusClick={(statusName) => {
-            handleStatCardClick(`Detail WO Status ${statusName}`, 'statusWo', statusName);
-          }}
-        />
-
-        {/* Card 3: PENCAPAIAN DOKUMEN WO PER AREA */}
-        <AreaAchievementCard
-          reports={filteredReports}
-          onAreaClick={(areaName) => {
-            handleStatCardClick(`Rincian Dokumen WO - Wilayah ${areaName}`, 'area', areaName);
-          }}
-        />
-
-      </div>
-
-
+      ) : (
+        <div className="animate-fadeIn">
+          <DashboardTagihanPage hideHeader />
+        </div>
+      )}
 
       {/* Drilldown Filter Modal with Tutup Button */}
       <DetailFilterModal

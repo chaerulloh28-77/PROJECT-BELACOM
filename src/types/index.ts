@@ -9,7 +9,8 @@ export type WOOption =
   | 'Plan Network Interconection POP'
   | 'Splice Interconnection POP Mini'
   | 'Splice Interconnection Site'
-  | 'Splice Interconnection POP';
+  | 'Splice Interconnection POP'
+  | string;
 
 export type StatusWO = 'Not Yet' | 'In Progress' | 'Done' | 'Cancel';
 
@@ -32,6 +33,8 @@ export interface PDFFileMeta {
   uploadDate: string;
   url?: string;
   pages?: number;
+  fileType?: string;
+  mimeType?: string;
 }
 
 export interface PhotoDocumentation {
@@ -64,6 +67,12 @@ export interface DailyReportItem {
   pathLengthMeters: number;
   documentation: PhotoDocumentation;
   remarks: string;
+  // Tagging End to End Location
+  originLocation?: string;
+  originCoordinates?: string;
+  destinationLocation?: string;
+  destinationCoordinates?: string;
+  routeGmapsUrl?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -80,7 +89,10 @@ export interface BASTItem {
   releaseDate: string;
   startDate: string;
   finishDate: string;
+  abdDate?: string;
+  coreConnectionDate?: string;
   durationDays: number;
+  durasiDate?: number | string;
   estimatedDistanceMeters: number;
   estimatedDistancePdf?: PDFFileMeta;
   totalDistanceMeters: number;
@@ -88,6 +100,12 @@ export interface BASTItem {
   fotoDokumentasiPdf?: PDFFileMeta; // Max 4MB enforce
   statusBast: StatusBAST;
   notes?: string;
+  // Tagging End to End Location
+  originLocation?: string;
+  originCoordinates?: string;
+  destinationLocation?: string;
+  destinationCoordinates?: string;
+  routeGmapsUrl?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -106,7 +124,6 @@ export interface InvoiceItem {
   rfsPdf?: PDFFileMeta;
   amountRupiah: number;
   issueDate: string;
-  dueDate: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -147,20 +164,21 @@ export interface PenagihanItem {
   statusPenagihan: StatusPenagihan;
   invoicePdf?: PDFFileMeta;
   bastPdf?: PDFFileMeta;
+  kwitansiPdf?: PDFFileMeta;
   apdPdf?: PDFFileMeta;
   abdPdf?: PDFFileMeta;
   coreConnectionPdf?: PDFFileMeta;
   fotoDokumentasiPdf?: PDFFileMeta; // Max 4MB enforce
   
-  // Daily report team details
-  dailyReportWorkType: string;
-  dailyReportReleaseDate: string;
-  dailyReportStartDate: string;
-  dailyReportFinishDate: string;
-  dailyReportDurationDays: number;
-  dailyReportEstimatedDistanceMeters: number;
+  // Daily report team details (Optional)
+  dailyReportWorkType?: string;
+  dailyReportReleaseDate?: string;
+  dailyReportStartDate?: string;
+  dailyReportFinishDate?: string;
+  dailyReportDurationDays?: number;
+  dailyReportEstimatedDistanceMeters?: number;
   dailyReportEstimatedDistancePdf?: PDFFileMeta;
-  dailyReportTotalDistanceMeters: number;
+  dailyReportTotalDistanceMeters?: number;
   dailyReportTotalDistancePdf?: PDFFileMeta;
   
   poPdf?: PDFFileMeta;
@@ -208,10 +226,12 @@ export interface SystemUser {
 export interface TeamItem {
   id: string;
   teamName: string;
-  pic: string;
+  picLeader: string;
+  helpers: string[];
   phone: string;
   area: string;
   createdAt: string;
+  pic?: string;
 }
 
 export interface FilterState {

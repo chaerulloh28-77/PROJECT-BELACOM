@@ -6,8 +6,9 @@ import {
   ReceiptText, 
   RadioTower, 
   WalletCards,
-  ChevronDown,
   CreditCard,
+  ChevronDown,
+  FolderKanban,
   PieChart,
   UserCog,
   Cloud,
@@ -20,6 +21,8 @@ export const Sidebar: React.FC = () => {
   const { 
     activeTab, 
     setActiveTab, 
+    dashboardView,
+    setDashboardView,
     dailyReports, 
     bastList, 
     invoices, 
@@ -30,16 +33,18 @@ export const Sidebar: React.FC = () => {
     triggerManualSync
   } = useProjectContext();
 
+  const [isDashboardExpanded, setIsDashboardExpanded] = useState(true);
   const [isTagihanExpanded, setIsTagihanExpanded] = useState(true);
 
   const isTagihanActive = 
+    activeTab === 'daily-report' ||
     activeTab === 'dashboard-tagihan' ||
     activeTab === 'rfs' ||
     activeTab === 'bast' ||
     activeTab === 'invoice' ||
     activeTab === 'penagihan';
 
-  const totalTagihanItems = penagihanList.length + invoices.length + bastList.length + rfsList.length;
+  const totalTagihanItems = dailyReports.length + penagihanList.length + invoices.length + bastList.length + rfsList.length;
 
   return (
     <aside className="w-full lg:w-64 bg-slate-900 border-b lg:border-b-0 lg:border-r border-slate-800 shrink-0 select-none">
@@ -48,88 +53,139 @@ export const Sidebar: React.FC = () => {
         {/* Mobile horizontal scroll / Desktop vertical stack */}
         <nav className="flex lg:flex-col gap-1.5 overflow-x-auto pb-2 lg:pb-0 scrollbar-none">
           
-          {/* 1. Dashboard WO */}
-          <button
-            onClick={() => setActiveTab('overview')}
-            className={`flex items-center justify-between gap-3 px-3.5 py-3 rounded-xl font-medium text-xs lg:text-sm transition-all duration-200 select-none cursor-pointer whitespace-nowrap lg:whitespace-normal group active:scale-95 relative overflow-hidden ${
-              activeTab === 'overview'
-                ? 'bg-gradient-to-r from-cyan-600 via-cyan-700 to-blue-700 text-white shadow-lg shadow-cyan-950/60 font-bold border border-cyan-400/30'
-                : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 border border-transparent'
-            }`}
-          >
-            {activeTab === 'overview' && (
-              <div className="absolute left-0 top-1 bottom-1 w-1 bg-white rounded-r-full shadow-glow"></div>
-            )}
-            <div className="flex items-center gap-3">
-              <div className={`p-1 rounded-lg transition-transform duration-200 group-hover:scale-110 ${
-                activeTab === 'overview' ? 'text-white' : 'text-cyan-400 group-hover:text-white'
-              }`}>
-                <LayoutDashboard className="w-5 h-5" />
-              </div>
-              <span className="tracking-wide">Dashboard WO</span>
-            </div>
-            <span className={`px-2 py-0.5 rounded-md text-[11px] font-mono font-bold ${
-              activeTab === 'overview' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'bg-slate-950/80 text-slate-400 border border-slate-800'
-            }`}>
-              {dailyReports.length}
-            </span>
-          </button>
-
-          {/* 2. Daily Report (as positioned in image right below Dashboard WO) */}
-          <button
-            onClick={() => setActiveTab('daily-report')}
-            className={`flex items-center justify-between gap-3 px-3.5 py-3 rounded-xl font-medium text-xs lg:text-sm transition-all duration-200 select-none cursor-pointer whitespace-nowrap lg:whitespace-normal group active:scale-95 relative overflow-hidden ${
-              activeTab === 'daily-report'
-                ? 'bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 text-white shadow-lg shadow-blue-950/60 font-bold border border-blue-400/30'
-                : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 border border-transparent'
-            }`}
-          >
-            {activeTab === 'daily-report' && (
-              <div className="absolute left-0 top-1 bottom-1 w-1 bg-white rounded-r-full shadow-glow"></div>
-            )}
-            <div className="flex items-center gap-3">
-              <div className={`p-1 rounded-lg transition-transform duration-200 group-hover:scale-110 ${
-                activeTab === 'daily-report' ? 'text-white' : 'text-blue-400 group-hover:text-white'
-              }`}>
-                <ClipboardList className="w-5 h-5" />
-              </div>
-              <span className="tracking-wide">Daily Report</span>
-            </div>
-            <span className={`px-2 py-0.5 rounded-md text-[11px] font-mono font-bold ${
-              activeTab === 'daily-report' ? 'bg-white/20 text-white' : 'bg-slate-950/80 text-slate-400 border border-slate-800'
-            }`}>
-              {dailyReports.length}
-            </span>
-          </button>
-
-          {/* 3. Dashboard Tagihan (Sub-items: Ringkasan Analytics, BAST, Invoice, RFS, Paket Penagihan) */}
+          {/* 1. Dashboard (Sub-items: Dashboard Total WO, Dashboard BAST, Dashboard Tagihan) */}
           <div className="flex flex-col gap-1">
             <button
               onClick={() => {
-                setActiveTab('dashboard-tagihan');
-                setIsTagihanExpanded(prev => !prev);
+                if (activeTab !== 'overview') {
+                  setActiveTab('overview');
+                }
+                setDashboardView('total-wo');
+                setIsDashboardExpanded(prev => !prev);
               }}
               className={`flex items-center justify-between gap-3 px-3.5 py-3 rounded-xl font-medium text-xs lg:text-sm transition-all duration-200 select-none cursor-pointer whitespace-nowrap lg:whitespace-normal group active:scale-95 relative overflow-hidden ${
-                isTagihanActive
-                  ? 'bg-gradient-to-r from-emerald-600 via-teal-700 to-cyan-700 text-white shadow-lg shadow-emerald-950/60 font-bold border border-emerald-400/40'
+                activeTab === 'overview'
+                  ? 'bg-gradient-to-r from-cyan-600 via-cyan-700 to-blue-700 text-white shadow-lg shadow-cyan-950/60 font-bold border border-cyan-400/30'
                   : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 border border-transparent'
               }`}
             >
-              {isTagihanActive && (
+              {activeTab === 'overview' && (
                 <div className="absolute left-0 top-1 bottom-1 w-1 bg-white rounded-r-full shadow-glow"></div>
               )}
               <div className="flex items-center gap-3">
                 <div className={`p-1 rounded-lg transition-transform duration-200 group-hover:scale-110 ${
-                  isTagihanActive ? 'text-white' : 'text-emerald-400 group-hover:text-white'
+                  activeTab === 'overview' ? 'text-white' : 'text-cyan-400 group-hover:text-white'
                 }`}>
-                  <CreditCard className="w-5 h-5" />
+                  <LayoutDashboard className="w-5 h-5" />
                 </div>
-                <span className="tracking-wide">Dashboard Tagihan</span>
+                <span className="tracking-wide">Dashboard</span>
+              </div>
+              
+              <div className="flex items-center gap-1.5">
+                <ChevronDown className={`w-4 h-4 hidden lg:block transition-transform duration-200 ${
+                  isDashboardExpanded ? 'rotate-180' : ''
+                }`} />
+              </div>
+            </button>
+
+            {/* Sub-menu Navigation for Dashboard */}
+            {isDashboardExpanded && (
+              <div className="hidden lg:flex flex-col gap-1 pl-4 pt-1 border-l-2 border-slate-800/80 ml-5 my-0.5">
+
+                {/* Sub-item 1: Dashboard Total WO */}
+                <button
+                  onClick={() => {
+                    setActiveTab('overview');
+                    setDashboardView('total-wo');
+                  }}
+                  className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    activeTab === 'overview' && dashboardView === 'total-wo'
+                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold'
+                      : 'text-slate-400 hover:text-cyan-300 hover:bg-slate-850'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <FolderKanban className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Dashboard Total WO</span>
+                  </div>
+                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-950 text-cyan-400 border border-slate-800">
+                    {dailyReports.length}
+                  </span>
+                </button>
+
+                {/* Sub-item 2: Dashboard BAST */}
+                <button
+                  onClick={() => {
+                    setActiveTab('overview');
+                    setDashboardView('bast');
+                  }}
+                  className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    activeTab === 'overview' && dashboardView === 'bast'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold'
+                      : 'text-slate-400 hover:text-emerald-300 hover:bg-slate-850'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Dashboard BAST</span>
+                  </div>
+                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-950 text-emerald-400 border border-slate-800">
+                    {bastList.length}
+                  </span>
+                </button>
+
+                {/* Sub-item 3: Dashboard Tagihan */}
+                <button
+                  onClick={() => {
+                    setActiveTab('overview');
+                    setDashboardView('tagihan');
+                  }}
+                  className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    activeTab === 'overview' && dashboardView === 'tagihan'
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold'
+                      : 'text-slate-400 hover:text-amber-300 hover:bg-slate-850'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Dashboard Tagihan</span>
+                  </div>
+                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-950 text-amber-400 border border-slate-800">
+                    {penagihanList.length}
+                  </span>
+                </button>
+
+              </div>
+            )}
+          </div>
+
+          {/* 2. Project Management (Sub-items: Daily Report, BAST, Invoice, RFS, Paket Penagihan) */}
+          <div className="flex flex-col gap-1">
+            <button
+              onClick={() => {
+                setIsTagihanExpanded(prev => !prev);
+              }}
+              className={`flex items-center justify-between gap-3 px-3.5 py-3 rounded-xl font-medium text-xs lg:text-sm transition-all duration-200 select-none cursor-pointer whitespace-nowrap lg:whitespace-normal group active:scale-95 relative overflow-hidden ${
+                isTagihanActive && activeTab !== 'dashboard-tagihan'
+                  ? 'bg-gradient-to-r from-emerald-600 via-teal-700 to-cyan-700 text-white shadow-lg shadow-emerald-950/60 font-bold border border-emerald-400/40'
+                  : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 border border-transparent'
+              }`}
+            >
+              {isTagihanActive && activeTab !== 'dashboard-tagihan' && (
+                <div className="absolute left-0 top-1 bottom-1 w-1 bg-white rounded-r-full shadow-glow"></div>
+              )}
+              <div className="flex items-center gap-3">
+                <div className={`p-1 rounded-lg transition-transform duration-200 group-hover:scale-110 ${
+                  isTagihanActive && activeTab !== 'dashboard-tagihan' ? 'text-white' : 'text-emerald-400 group-hover:text-white'
+                }`}>
+                  <FolderKanban className="w-5 h-5" />
+                </div>
+                <span className="tracking-wide">Project Management</span>
               </div>
               
               <div className="flex items-center gap-1.5">
                 <span className={`px-2 py-0.5 rounded-md text-[11px] font-mono font-bold ${
-                  isTagihanActive ? 'bg-white/20 text-white' : 'bg-slate-950/80 text-emerald-400 border border-slate-800'
+                  isTagihanActive && activeTab !== 'dashboard-tagihan' ? 'bg-white/20 text-white' : 'bg-slate-950/80 text-emerald-400 border border-slate-800'
                 }`}>
                   {totalTagihanItems}
                 </span>
@@ -139,25 +195,25 @@ export const Sidebar: React.FC = () => {
               </div>
             </button>
 
-            {/* Sub-menu Navigation matching image */}
+            {/* Sub-menu Navigation for Project Management */}
             {isTagihanExpanded && (
               <div className="hidden lg:flex flex-col gap-1 pl-4 pt-1 border-l-2 border-slate-800/80 ml-5 my-0.5">
-                
-                {/* 1. Sub-item: Ringkasan Analytics */}
+
+                {/* 1. Sub-item: Daily Report */}
                 <button
-                  onClick={() => setActiveTab('dashboard-tagihan')}
+                  onClick={() => setActiveTab('daily-report')}
                   className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                    activeTab === 'dashboard-tagihan'
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold'
+                    activeTab === 'daily-report'
+                      ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold'
                       : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    <PieChart className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Ringkasan Analytics</span>
+                    <ClipboardList className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Daily Report</span>
                   </div>
-                  <span className="text-[10px] font-mono text-emerald-400 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
-                    Overview
+                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-950 text-blue-400 border border-slate-800">
+                    {dailyReports.length}
                   </span>
                 </button>
 
@@ -215,7 +271,7 @@ export const Sidebar: React.FC = () => {
                   </span>
                 </button>
 
-                {/* 5. Sub-item: Paket Penagihan */}
+                {/* 5. Sub-item: Tagihan */}
                 <button
                   onClick={() => setActiveTab('penagihan')}
                   className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
@@ -226,7 +282,7 @@ export const Sidebar: React.FC = () => {
                 >
                   <div className="flex items-center gap-2">
                     <WalletCards className="w-3.5 h-3.5 text-purple-400" />
-                    <span>Paket Penagihan</span>
+                    <span>Tagihan</span>
                   </div>
                   <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-950 text-purple-400 border border-slate-800">
                     {penagihanList.length}

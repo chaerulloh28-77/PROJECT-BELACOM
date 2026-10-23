@@ -10,7 +10,8 @@ import {
   RFSItem, 
   PenagihanItem, 
   UserProfile, 
-  SystemUser 
+  SystemUser,
+  TeamItem
 } from '../types';
 
 export type SyncConnectionStatus = 'connected' | 'syncing' | 'offline' | 'error';
@@ -23,6 +24,7 @@ export interface SyncDataBundle {
   penagihanList: PenagihanItem[];
   userProfile: UserProfile;
   systemUsers: SystemUser[];
+  teams: TeamItem[];
 }
 
 export interface CloudSyncEnvelope {
@@ -52,7 +54,7 @@ function getDeviceId(): string {
 
 // Configurable endpoint with default shared public Firebase RTDB database
 export const DEFAULT_FIREBASE_RTDB_ENDPOINT = 
-  'https://belacom-controlling-default-rtdb.asia-southeast1.firebasedatabase.app/project_data.json';
+  'https://project-belacom-default-rtdb.asia-southeast1.firebasedatabase.app/project_data.json';
 export const SERVER_ENDPOINT = '/api/sync/data';
 
 class CloudSyncService {
@@ -69,8 +71,9 @@ class CloudSyncService {
   private deviceId = getDeviceId();
 
   constructor() {
-    // Ensure default shared Firebase RTDB endpoint is set if not present
-    if (!localStorage.getItem(STORAGE_KEYS.ENDPOINT)) {
+    // Ensure default shared Firebase RTDB endpoint is set or migrated to new endpoint
+    const currentEndpoint = localStorage.getItem(STORAGE_KEYS.ENDPOINT);
+    if (!currentEndpoint || currentEndpoint.includes('belacom-controlling-default-rtdb') || currentEndpoint === SERVER_ENDPOINT) {
       localStorage.setItem(STORAGE_KEYS.ENDPOINT, DEFAULT_FIREBASE_RTDB_ENDPOINT);
     }
     this.initEventListeners();

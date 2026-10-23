@@ -13,7 +13,8 @@ import {
   AlignJustify,
   CheckCircle2,
   FileCheck2,
-  RotateCcw
+  RotateCcw,
+  Copy
 } from 'lucide-react';
 import { TouchButton } from './TouchButton';
 import { 
@@ -23,7 +24,7 @@ import {
   generateOfficialEmailPlainText,
   formatFileSize 
 } from '../utils/emailTemplate';
-import { downloadAttachedFile } from '../utils/fileDownloader';
+import { downloadAttachedFile, getDirectDownloadUrl } from '../utils/fileDownloader';
 import { isValidEmail, validateEmailList } from '../utils/validation';
 import { useProjectContext } from '../context/ProjectContext';
 
@@ -338,6 +339,82 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
     const formatted = createFormattedBody();
     setUserNotes(formatted);
     showToast('success', 'Format Dirapihkan', 'Format surat telah dirapihkan rata kiri dan kanan dengan posisi titik dua sejajar.');
+  };
+
+  // Helper to copy Rich HTML Email Cards to Clipboard for pasting into Gmail Web
+  const handleCopyRichCardHtml = async () => {
+    try {
+      const getBadgeType = (fileName: string) => {
+        const lower = fileName.toLowerCase();
+        if (lower.includes('bast')) return 'BAST';
+        if (lower.includes('apd')) return 'APD';
+        if (lower.includes('abd')) return 'ABD';
+        if (lower.includes('core')) return 'CORE';
+        if (lower.includes('foto') || lower.includes('splicing')) return 'FOTO';
+        if (lower.includes('daily') || lower.includes('report')) return 'DAILY';
+        if (lower.includes('invoice') || lower.includes('faktur')) return 'INV';
+        if (lower.includes('rfs')) return 'RFS';
+        if (lower.includes('csv') || lower.includes('rekap')) return 'CSV';
+        return 'DOC';
+      };
+
+      const cardItemsHtml = selectedAttachments.map(att => {
+        const directUrl = getDirectDownloadUrl(att.name, att.url, woNumber);
+        const badge = getBadgeType(att.name);
+        return `
+          <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 10px; padding: 12px 16px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse;">
+              <tr>
+                <td width="54" style="vertical-align: middle;">
+                  <div style="background-color: #2563eb; color: #ffffff; font-weight: 800; font-size: 11px; padding: 8px 6px; text-align: center; border-radius: 6px; text-transform: uppercase; font-family: monospace;">
+                    ${badge}
+                  </div>
+                </td>
+                <td style="padding-left: 12px; vertical-align: middle;">
+                  <div style="font-size: 13px; font-weight: bold; color: #0f172a; font-family: Arial, sans-serif;">${att.name}</div>
+                  <div style="font-size: 11px; color: #64748b; font-family: monospace; margin-top: 2px;">
+                    No. WO: ${woNumber} | Ukuran: ${formatFileSize(att.sizeBytes)}
+                  </div>
+                </td>
+                <td align="right" style="vertical-align: middle;">
+                  <a href="${directUrl}" download="${att.name}" target="_blank" style="background-color: #2563eb; color: #ffffff; text-decoration: none; font-weight: bold; font-size: 12px; padding: 8px 16px; border-radius: 6px; display: inline-block; font-family: Arial, sans-serif;">
+                    ⬇ Unduh Dokumen
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </div>
+        `;
+      }).join('');
+
+      const fullCardHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 620px; padding: 18px; background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; margin: 16px 0;">
+          <div style="font-size: 14px; font-weight: bold; color: #0f172a; margin-bottom: 12px; font-family: Arial, sans-serif;">
+            📁 Berkas Dokumen & Link Unduhan Langsung (${selectedAttachments.length} Dokumen):
+          </div>
+          ${cardItemsHtml}
+          <div style="font-size: 11px; color: #64748b; margin-top: 10px; font-style: italic; font-family: Arial, sans-serif;">
+            *Catatan: Seluruh dokumen pendukung tersimpan di cloud server dan dapat langsung diunduh melalui tombol di atas.*
+          </div>
+        </div>
+      `;
+
+      const blobHtml = new Blob([fullCardHtml], { type: 'text/html' });
+      const blobText = new Blob([userNotes], { type: 'text/plain' });
+      const item = new ClipboardItem({
+        'text/html': blobHtml,
+        'text/plain': blobText
+      });
+      await navigator.clipboard.write([item]);
+      showToast('success', 'Format Kartu Disalin', 'Kartu unduhan bercetak tebal dan berwarna telah disalin ke clipboard! Langsung tempelkan (Ctrl+V) di editor Gmail Anda.');
+    } catch (err) {
+      try {
+        await navigator.clipboard.writeText(userNotes);
+        showToast('success', 'Teks Surat Disalin', 'Teks draf surat telah disalin ke clipboard.');
+      } catch {
+        showToast('error', 'Gagal Menyalin', 'Tidak dapat mengakses clipboard browser.');
+      }
+    }
   };
 
   const emailData: EmailSubmissionData = {
@@ -1101,6 +1178,17 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleCopyRichCardHtml}
+              className="px-3.5 py-2 rounded-xl bg-blue-950/80 hover:bg-blue-900/80 text-cyan-300 border border-blue-500/40 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-sm hover:scale-102 active:scale-98"
+              title="Salin Kartu Email Unduhan HTML Berwarna ke Clipboard untuk Ditempel (Paste) di Gmail"
+            >
+              <Copy className="w-4 h-4 text-cyan-400" />
+              <span className="hidden sm:inline">📋 Salin Format Kartu (Rich HTML)</span>
+              <span className="sm:hidden">📋 Salin Kartu HTML</span>
+            </button>
+
             <TouchButton 
               variant="secondary" 
               size="md" 

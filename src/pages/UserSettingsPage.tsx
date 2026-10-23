@@ -67,8 +67,9 @@ export const UserSettingsPage: React.FC = () => {
   // Team CRUD Modal State
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
-  const [teamNameInput, setTeamNameInput] = useState('');
-  const [teamPicInput, setTeamPicInput] = useState('');
+  const [teamNameInput, setTeamNameInput] = useState('ABR 01');
+  const [teamPicLeaderInput, setTeamPicLeaderInput] = useState('');
+  const [teamHelpersInput, setTeamHelpersInput] = useState<string[]>(['']);
   const [teamPhoneInput, setTeamPhoneInput] = useState('');
   const [teamAreaInput, setTeamAreaInput] = useState('Jabo 1');
   const [teamModalError, setTeamModalError] = useState('');
@@ -182,16 +183,32 @@ export const UserSettingsPage: React.FC = () => {
     setIsAddUserModalOpen(false);
   };
 
+  const handleAddHelper = () => {
+    setTeamHelpersInput(prev => [...prev, '']);
+  };
+
+  const handleRemoveHelper = (index: number) => {
+    setTeamHelpersInput(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleHelperChange = (index: number, value: string) => {
+    setTeamHelpersInput(prev => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
+  };
+
   const handleTeamSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setTeamModalError('');
 
     if (!teamNameInput.trim()) {
-      setTeamModalError('Nama Team wajib diisi.');
+      setTeamModalError('Nama Team wajib dipilih.');
       return;
     }
-    if (!teamPicInput.trim()) {
-      setTeamModalError('Nama PIC / Teknisi wajib diisi.');
+    if (!teamPicLeaderInput.trim()) {
+      setTeamModalError('PIC Leader wajib diisi.');
       return;
     }
     if (!teamPhoneInput.trim()) {
@@ -199,25 +216,32 @@ export const UserSettingsPage: React.FC = () => {
       return;
     }
 
+    const cleanedHelpers = teamHelpersInput.map(h => h.trim()).filter(Boolean);
+
     if (editingTeamId) {
       updateTeam(editingTeamId, {
         teamName: teamNameInput.trim(),
-        pic: teamPicInput.trim(),
+        picLeader: teamPicLeaderInput.trim(),
+        helpers: cleanedHelpers,
         phone: teamPhoneInput.trim(),
-        area: teamAreaInput
+        area: teamAreaInput,
+        pic: teamPicLeaderInput.trim()
       });
     } else {
       addTeam({
         teamName: teamNameInput.trim(),
-        pic: teamPicInput.trim(),
+        picLeader: teamPicLeaderInput.trim(),
+        helpers: cleanedHelpers,
         phone: teamPhoneInput.trim(),
-        area: teamAreaInput
+        area: teamAreaInput,
+        pic: teamPicLeaderInput.trim()
       });
     }
 
     // Reset & close
-    setTeamNameInput('');
-    setTeamPicInput('');
+    setTeamNameInput('ABR 01');
+    setTeamPicLeaderInput('');
+    setTeamHelpersInput(['']);
     setTeamPhoneInput('');
     setTeamAreaInput('Jabo 1');
     setEditingTeamId(null);
@@ -226,8 +250,9 @@ export const UserSettingsPage: React.FC = () => {
 
   const openAddTeamModal = () => {
     setEditingTeamId(null);
-    setTeamNameInput('');
-    setTeamPicInput('');
+    setTeamNameInput('ABR 01');
+    setTeamPicLeaderInput('');
+    setTeamHelpersInput(['']);
     setTeamPhoneInput('');
     setTeamAreaInput('Jabo 1');
     setTeamModalError('');
@@ -236,9 +261,10 @@ export const UserSettingsPage: React.FC = () => {
 
   const openEditTeamModal = (team: TeamItem) => {
     setEditingTeamId(team.id);
-    setTeamNameInput(team.teamName);
-    setTeamPicInput(team.pic);
-    setTeamPhoneInput(team.phone);
+    setTeamNameInput(team.teamName || 'ABR 01');
+    setTeamPicLeaderInput(team.picLeader || team.pic || '');
+    setTeamHelpersInput(team.helpers && team.helpers.length > 0 ? team.helpers : ['']);
+    setTeamPhoneInput(team.phone || '');
     setTeamAreaInput(team.area || 'Jabo 1');
     setTeamModalError('');
     setIsTeamModalOpen(true);
@@ -554,13 +580,13 @@ export const UserSettingsPage: React.FC = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-950/70 border-b border-slate-800 text-[11px] uppercase tracking-wider text-slate-400 font-semibold font-mono">
-                <th className="py-3 px-4">Pengguna / Nama</th>
-                <th className="py-3 px-4">Username & Email</th>
-                <th className="py-3 px-4">Peran (Role)</th>
-                <th className="py-3 px-4">Area Penugasan</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4">Aktivitas Terakhir</th>
-                <th className="py-3 px-4 text-center">Tindakan</th>
+                <th className="py-2.5 px-3">Pengguna / Nama</th>
+                <th className="py-2.5 px-3">Username & Email</th>
+                <th className="py-2.5 px-3">Peran (Role)</th>
+                <th className="py-2.5 px-3">Area Penugasan</th>
+                <th className="py-2.5 px-3">Status</th>
+                <th className="py-2.5 px-3">Aktivitas Terakhir</th>
+                <th className="py-2.5 px-3 text-center">Tindakan</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 text-xs">
@@ -569,7 +595,7 @@ export const UserSettingsPage: React.FC = () => {
                 return (
                   <tr key={user.id} className="hover:bg-slate-800/40 transition-colors">
                     {/* Name */}
-                    <td className="py-3.5 px-4">
+                    <td className="py-2.5 px-3">
                       <div className="flex items-center gap-2.5">
                         <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
                           isSuperAdmin 
@@ -590,13 +616,13 @@ export const UserSettingsPage: React.FC = () => {
                     </td>
 
                     {/* Username & Email */}
-                    <td className="py-3.5 px-4">
+                    <td className="py-2.5 px-3">
                       <p className="font-mono text-cyan-300 font-medium">@{user.username}</p>
                       <p className="text-slate-400 text-[11px] font-mono">{user.email}</p>
                     </td>
 
                     {/* Role */}
-                    <td className="py-3.5 px-4">
+                    <td className="py-2.5 px-3">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
                         isSuperAdmin
                           ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
@@ -610,7 +636,7 @@ export const UserSettingsPage: React.FC = () => {
                     </td>
 
                     {/* Area */}
-                    <td className="py-3.5 px-4 text-slate-300">
+                    <td className="py-2.5 px-3 text-slate-300">
                       <div className="flex items-center gap-1.5 text-[11px]">
                         <MapPin className="w-3 h-3 text-slate-500" />
                         <span>{user.area || 'Semua Area'}</span>
@@ -618,7 +644,7 @@ export const UserSettingsPage: React.FC = () => {
                     </td>
 
                     {/* Status */}
-                    <td className="py-3.5 px-4">
+                    <td className="py-2.5 px-3">
                       <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                         {user.status}
@@ -626,7 +652,7 @@ export const UserSettingsPage: React.FC = () => {
                     </td>
 
                     {/* Last Login */}
-                    <td className="py-3.5 px-4 text-slate-400 font-mono text-[11px]">
+                    <td className="py-2.5 px-3 text-slate-400 font-mono text-[11px]">
                       <div className="flex items-center gap-1">
                         <Clock className="w-3 h-3 text-slate-500" />
                         <span>{user.lastLogin}</span>
@@ -634,7 +660,7 @@ export const UserSettingsPage: React.FC = () => {
                     </td>
 
                     {/* Actions */}
-                    <td className="py-3.5 px-4 text-center">
+                    <td className="py-2.5 px-3 text-center">
                       {user.id === 'usr-1' || isSuperAdmin ? (
                         <span className="px-2 py-1 bg-slate-800 text-slate-400 rounded-lg text-[10px] font-mono font-semibold">
                           Protected
@@ -693,28 +719,39 @@ export const UserSettingsPage: React.FC = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-950/70 border-b border-slate-800 text-[11px] uppercase tracking-wider text-slate-400 font-semibold font-mono">
-                <th className="py-3 px-4">Nama Team</th>
-                <th className="py-3 px-4">PIC / Teknisi Lapangan</th>
-                <th className="py-3 px-4">Nomor Telepon (WhatsApp)</th>
-                <th className="py-3 px-4">Area Penugasan</th>
-                <th className="py-3 px-4 text-center">Tindakan (CRUD)</th>
+                <th className="py-2.5 px-3">Team</th>
+                <th className="py-2.5 px-3">PIC Leader</th>
+                <th className="py-2.5 px-3">No.Telp</th>
+                <th className="py-2.5 px-3">Assignment</th>
+                <th className="py-2.5 px-3 text-center">Tindakan (CRUD)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 text-xs">
               {teams.map((t) => (
                 <tr key={t.id} className="hover:bg-slate-800/40 transition-colors">
-                  <td className="py-3.5 px-4 font-bold text-cyan-300 font-mono flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
+                  <td className="py-2.5 px-3 font-bold text-cyan-300 font-mono">
                     {t.teamName}
                   </td>
-                  <td className="py-3.5 px-4 text-slate-200 font-medium">{t.pic}</td>
-                  <td className="py-3.5 px-4 text-slate-300 font-mono">{t.phone}</td>
-                  <td className="py-3.5 px-4">
+                  <td className="py-2.5 px-3">
+                    <p className="font-semibold text-slate-100">{t.picLeader || t.pic || '-'}</p>
+                    {t.helpers && t.helpers.length > 0 && (
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Helper: <span className="text-slate-300">{t.helpers.join(', ')}</span>
+                      </p>
+                    )}
+                  </td>
+                  <td className="py-2.5 px-3 font-mono text-slate-300">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-emerald-400 text-sm" title="WhatsApp">💬</span>
+                      <span>{t.phone}</span>
+                    </div>
+                  </td>
+                  <td className="py-2.5 px-3">
                     <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
                       {t.area || 'Jabo 1'}
                     </span>
                   </td>
-                  <td className="py-3.5 px-4 text-center">
+                  <td className="py-2.5 px-3 text-center">
                     <div className="flex items-center justify-center gap-2">
                       <button
                         type="button"
@@ -727,7 +764,7 @@ export const UserSettingsPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => {
-                          if (window.confirm(`Yakin ingin menghapus team ${t.teamName} (${t.pic})?`)) {
+                          if (window.confirm(`Yakin ingin menghapus team ${t.teamName}?`)) {
                             deleteTeam(t.id);
                           }
                         }}
@@ -912,59 +949,99 @@ export const UserSettingsPage: React.FC = () => {
             <form onSubmit={handleTeamSubmit} className="space-y-4">
               <div>
                 <label className="text-xs font-semibold text-slate-300 block mb-1">
-                  Nama Team
+                  Team
                 </label>
-                <input
-                  type="text"
-                  required
+                <select
                   value={teamNameInput}
                   onChange={(e) => setTeamNameInput(e.target.value)}
-                  placeholder="Contoh: ABR 13 / Team Alpha"
-                  className="w-full bg-slate-950 border border-slate-700/80 focus:border-cyan-500 text-sm text-slate-100 font-mono rounded-xl px-3.5 py-2.5 outline-none transition-all focus:ring-1 focus:ring-cyan-500"
-                />
+                  className="w-full bg-slate-950 border border-slate-700/80 focus:border-cyan-500 text-sm text-cyan-300 font-mono font-bold rounded-xl px-3 py-2.5 outline-none"
+                >
+                  {['ABR 01', 'ABR 02', 'ABR 03', 'ABR 04', 'ABR 05', 'ABR 06', 'ABR 07', 'ABR 08', 'ABR 09', 'ABR 10'].map(ab => (
+                    <option key={ab} value={ab}>{ab}</option>
+                  ))}
+                </select>
               </div>
 
               <div>
                 <label className="text-xs font-semibold text-slate-300 block mb-1">
-                  PIC / Teknisi Utama
+                  PIC Leader
                 </label>
                 <input
                   type="text"
                   required
-                  value={teamPicInput}
-                  onChange={(e) => setTeamPicInput(e.target.value)}
-                  placeholder="Contoh: Rudi Lapangan"
-                  className="w-full bg-slate-950 border border-slate-700/80 focus:border-cyan-500 text-sm text-slate-100 rounded-xl px-3.5 py-2.5 outline-none transition-all focus:ring-1 focus:ring-cyan-500"
+                  value={teamPicLeaderInput}
+                  onChange={(e) => setTeamPicLeaderInput(e.target.value)}
+                  placeholder=""
+                  className="w-full bg-slate-950 border border-slate-700/80 focus:border-cyan-500 text-sm text-slate-100 rounded-xl px-3.5 py-2.5 outline-none"
                 />
               </div>
 
               <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-slate-300">
+                    Helper
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleAddHelper}
+                    className="text-[10px] text-cyan-400 hover:text-cyan-300 font-mono font-bold px-2 py-0.5 rounded bg-cyan-950/60 border border-cyan-800/50 cursor-pointer"
+                  >
+                    + Tambah Helper
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {teamHelpersInput.map((helper, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={helper}
+                        onChange={(e) => handleHelperChange(idx, e.target.value)}
+                        placeholder=""
+                        className="w-full bg-slate-950 border border-slate-700/80 text-xs text-slate-100 rounded-xl px-3 py-2 outline-none"
+                      />
+                      {teamHelpersInput.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveHelper(idx)}
+                          className="p-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-xl text-xs cursor-pointer"
+                          title="Hapus Helper"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
                 <label className="text-xs font-semibold text-slate-300 block mb-1">
-                  Nomor Telepon (WhatsApp)
+                  No.Telp
                 </label>
-                <input
-                  type="text"
-                  required
-                  value={teamPhoneInput}
-                  onChange={(e) => setTeamPhoneInput(e.target.value)}
-                  placeholder="Contoh: 081234567890"
-                  className="w-full bg-slate-950 border border-slate-700/80 focus:border-cyan-500 text-sm text-slate-100 font-mono rounded-xl px-3.5 py-2.5 outline-none transition-all focus:ring-1 focus:ring-cyan-500"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    value={teamPhoneInput}
+                    onChange={(e) => setTeamPhoneInput(e.target.value)}
+                    placeholder=""
+                    className="w-full bg-slate-950 border border-slate-700/80 focus:border-cyan-500 text-sm text-slate-100 font-mono rounded-xl px-3.5 py-2.5 outline-none"
+                  />
+                </div>
               </div>
 
               <div>
                 <label className="text-xs font-semibold text-slate-300 block mb-1">
-                  Area Wilayah Penugasan
+                  Assignment
                 </label>
                 <select
                   value={teamAreaInput}
                   onChange={(e) => setTeamAreaInput(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700/80 focus:border-cyan-500 text-sm text-slate-100 rounded-xl px-3 py-2.5 outline-none transition-all focus:ring-1 focus:ring-cyan-500"
+                  className="w-full bg-slate-950 border border-slate-700/80 focus:border-cyan-500 text-sm text-slate-100 rounded-xl px-3 py-2.5 outline-none"
                 >
                   <option value="Jabo 1">Jabo 1</option>
                   <option value="Jabo 2">Jabo 2</option>
                   <option value="Jabo 3">Jabo 3</option>
-                  <option value="HQ / Nasional">HQ / Nasional</option>
                 </select>
               </div>
 

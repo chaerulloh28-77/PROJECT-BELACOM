@@ -8,7 +8,10 @@ import {
   FileSpreadsheet,
   Download,
   X,
-  FileText
+  FileText,
+  MapPin,
+  Navigation,
+  ExternalLink
 } from 'lucide-react';
 import { useProjectContext } from '../context/ProjectContext';
 import { 
@@ -24,6 +27,38 @@ import { TouchButton } from '../components/TouchButton';
 import { PDFUploader } from '../components/PDFUploader';
 import { PDFViewerModal } from '../components/PDFViewerModal';
 import { DeleteConfirmModal } from '../components/DeleteConfirmModal';
+import { getFileBadgeStyle } from '../utils/fileHelper';
+
+export const getGoogleMapsRouteUrl = (
+  origCoord?: string,
+  origLoc?: string,
+  destCoord?: string,
+  destLoc?: string
+): string | null => {
+  const orig = origCoord?.trim() || origLoc?.trim();
+  const dest = destCoord?.trim() || destLoc?.trim();
+  if (!orig || !dest) return null;
+  return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(orig)}&destination=${encodeURIComponent(dest)}`;
+};
+
+export const getDefaultWorkTypeForWoOption = (woOption: string): string => {
+  if (!woOption || !woOption.trim()) {
+    return 'Pencarian Core, Penarikan Kabel FO & Splicing Lapangan';
+  }
+  const clean = woOption.trim();
+  switch (clean) {
+    case 'Plan Network Interconection POP':
+      return 'Planning & Installation Network Interconnection Fiber Core POP';
+    case 'Splice Interconnection POP Mini':
+      return 'Pencarian Core & Splicing Core FO Interkoneksi POP Mini';
+    case 'Splice Interconnection Site':
+      return 'Interkoneksi Site BTS ke POP Mini dengan Kabel Feeder';
+    case 'Splice Interconnection POP':
+      return 'Pencarian Core Rute Utama & Joint Closure Splicing';
+    default:
+      return 'Pencarian Core, Penarikan Kabel FO & Splicing Lapangan';
+  }
+};
 
 export const DailyReportPage: React.FC = () => {
   const { 
@@ -41,6 +76,7 @@ export const DailyReportPage: React.FC = () => {
   // Modal Form State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isCustomWoType, setIsCustomWoType] = useState<boolean>(false);
 
   // PDF Preview Modal
   const [previewPdf, setPreviewPdf] = useState<PDFFileMeta | null>(null);
@@ -48,7 +84,7 @@ export const DailyReportPage: React.FC = () => {
   // Delete Confirm Modal State
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; woNumber: string } | null>(null);
 
-  // Form Fields State (19 fields)
+  // Form Fields State
   const [formData, setFormData] = useState<Omit<DailyReportItem, 'id' | 'createdAt' | 'updatedAt'>>({
     woType: 'Plan Network Interconection POP',
     monthReleaseWo: new Date().toISOString().substring(0, 7),
@@ -56,16 +92,14 @@ export const DailyReportPage: React.FC = () => {
     team: 'ABR 03',
     statusWo: 'In Progress',
     pic: '',
-    workType: 'Penarikan Core Fiber Optic & Splicing Interkoneksi POP',
+    workType: '',
     releaseDate: new Date().toISOString().substring(0, 10),
     startDate: new Date().toISOString().substring(0, 10),
     finishDate: new Date(Date.now() + 7 * 86400000).toISOString().substring(0, 10),
     durationDays: 7,
     woNumber: 'WO-BEL-2026-0090',
     estimatedDistanceMeters: 1500,
-    estimatedDistancePdf: undefined,
     totalDistanceMeters: 1490,
-    totalDistancePdf: undefined,
     statusTeamProject: 'On Schedule',
     pathLengthMeters: 1490,
     documentation: {
@@ -75,39 +109,95 @@ export const DailyReportPage: React.FC = () => {
       btsPdf: undefined,
       otdrPdf: undefined
     },
-    remarks: ''
+    remarks: '',
+    originLocation: '',
+    originCoordinates: '',
+    destinationLocation: '',
+    destinationCoordinates: '',
+    routeGmapsUrl: ''
   });
+
+  const defaultWOOptions: WOOption[] = [
+    'Plan Network Interconection POP',
+    'Splice Interconnection POP Mini',
+    'Splice Interconnection Site',
+    'Splice Interconnection POP'
+  ];
+
+  const handleGetBrowserLocation = (type: 'origin' | 'destination') => {
+    if (!navigator.geolocation) {
+      showToast('error', 'GPS Tidak Didukung', 'Browser Anda tidak mendukung Geolocation API.');
+      return;
+    }
+    showToast('info', 'Mendapatkan Lokasi', 'Mengambil koordinat GPS saat ini dari peranti...');
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude.toFixed(5);
+        const lng = position.coords.longitude.toFixed(5);
+        const coordsString = `${lat}, ${lng}`;
+        if (type === 'origin') {
+          setFormData(prev => ({
+            ...prev,
+            originCoordinates: coordsString
+          }));
+        } else {
+          setFormData(prev => ({
+            ...prev,
+            destinationCoordinates: coordsString
+          }));
+        }
+        showToast('success', 'GPS Berhasil', `Koordinat ${type === 'origin' ? 'Titik Awal' : 'Titik Akhir'} terisi: ${coordsString}`);
+      },
+      (error) => {
+        showToast('error', 'Gagal Ambil GPS', error.message || 'Izin lokasi ditolak atau GPS tidak aktif.');
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   const handleOpenAddModal = () => {
     setEditingId(null);
+    setIsCustomWoType(false);
+    const initialWo = 'Plan Network Interconection POP';
     setFormData({
-      woType: 'Plan Network Interconection POP',
+      woType: initialWo,
       monthReleaseWo: new Date().toISOString().substring(0, 7),
       assignment: 'Jabo 1',
       team: 'ABR 03',
       statusWo: 'In Progress',
       pic: 'Operator Belacom',
-      workType: 'Pencarian Core & Splicing Core FO 24/48',
+      workType: '',
       releaseDate: new Date().toISOString().substring(0, 10),
       startDate: new Date().toISOString().substring(0, 10),
       finishDate: new Date(Date.now() + 5 * 86400000).toISOString().substring(0, 10),
       durationDays: 5,
       woNumber: `WO-BEL-2026-${Math.floor(1000 + Math.random() * 9000)}`,
       estimatedDistanceMeters: 2000,
-      estimatedDistancePdf: undefined,
       totalDistanceMeters: 1980,
-      totalDistancePdf: undefined,
       statusTeamProject: 'On Schedule',
       pathLengthMeters: 1980,
       documentation: {},
-      remarks: ''
+      remarks: '',
+      originLocation: '',
+      originCoordinates: '',
+      destinationLocation: '',
+      destinationCoordinates: '',
+      routeGmapsUrl: ''
     });
     setIsModalOpen(true);
   };
 
   const handleOpenEditModal = (report: DailyReportItem) => {
     setEditingId(report.id);
-    setFormData({ ...report });
+    setIsCustomWoType(!defaultWOOptions.includes(report.woType));
+    setFormData({
+      ...report,
+      originLocation: report.originLocation || '',
+      originCoordinates: report.originCoordinates || '',
+      destinationLocation: report.destinationLocation || '',
+      destinationCoordinates: report.destinationCoordinates || '',
+      routeGmapsUrl: report.routeGmapsUrl || ''
+    });
     setIsModalOpen(true);
   };
 
@@ -118,31 +208,108 @@ export const DailyReportPage: React.FC = () => {
       return;
     }
 
+    const calculatedRouteUrl = getGoogleMapsRouteUrl(
+      formData.originCoordinates,
+      formData.originLocation,
+      formData.destinationCoordinates,
+      formData.destinationLocation
+    ) || formData.routeGmapsUrl || '';
+
+    const payload = {
+      ...formData,
+      routeGmapsUrl: calculatedRouteUrl
+    };
+
     if (editingId) {
-      updateDailyReport(editingId, formData);
+      updateDailyReport(editingId, payload);
     } else {
-      addDailyReport(formData);
+      addDailyReport(payload);
     }
     setIsModalOpen(false);
   };
 
-  // Auto calculate duration when start or finish date changes
-  const calculateDuration = (start: string, finish: string) => {
-    if (!start || !finish) return 1;
-    const d1 = new Date(start).getTime();
-    const d2 = new Date(finish).getTime();
-    const diff = Math.max(1, Math.ceil((d2 - d1) / (1000 * 3600 * 24)));
-    return isNaN(diff) ? 1 : diff;
+  // Auto calculate duration in days (inclusive)
+  const calculateDurationDays = (startStr: string, finishStr: string): number => {
+    if (!startStr || !finishStr) return 1;
+    const start = new Date(startStr);
+    const finish = new Date(finishStr);
+    if (isNaN(start.getTime()) || isNaN(finish.getTime())) return 1;
+    if (finish < start) return 1;
+    const diffMs = finish.getTime() - start.getTime();
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1;
+    return diffDays > 0 ? diffDays : 1;
+  };
+
+  // Auto calculate finish date given start date and duration days
+  const calculateFinishDate = (startStr: string, durationDays: number): string => {
+    if (!startStr) return new Date().toISOString().substring(0, 10);
+    const start = new Date(startStr);
+    if (isNaN(start.getTime())) return new Date().toISOString().substring(0, 10);
+    const validDuration = Math.max(1, durationDays);
+    const finish = new Date(start.getTime() + (validDuration - 1) * 24 * 60 * 60 * 1000);
+    return finish.toISOString().substring(0, 10);
+  };
+
+  const handleReleaseDateChange = (val: string) => {
+    setFormData(prev => {
+      let newStart = prev.startDate;
+      if (!newStart || newStart < val) {
+        newStart = val;
+      }
+      const dur = calculateDurationDays(newStart, prev.finishDate);
+      const newFinish = dur < 1 || prev.finishDate < newStart ? calculateFinishDate(newStart, dur) : prev.finishDate;
+      return {
+        ...prev,
+        releaseDate: val,
+        startDate: newStart,
+        finishDate: newFinish,
+        durationDays: calculateDurationDays(newStart, newFinish)
+      };
+    });
   };
 
   const handleStartDateChange = (val: string) => {
-    const dur = calculateDuration(val, formData.finishDate);
-    setFormData(prev => ({ ...prev, startDate: val, durationDays: dur }));
+    setFormData(prev => {
+      let newFinish = prev.finishDate;
+      if (!newFinish || newFinish < val) {
+        newFinish = calculateFinishDate(val, prev.durationDays || 1);
+      }
+      const dur = calculateDurationDays(val, newFinish);
+      return {
+        ...prev,
+        startDate: val,
+        finishDate: newFinish,
+        durationDays: dur
+      };
+    });
   };
 
   const handleFinishDateChange = (val: string) => {
-    const dur = calculateDuration(formData.startDate, val);
-    setFormData(prev => ({ ...prev, finishDate: val, durationDays: dur }));
+    setFormData(prev => {
+      let newStart = prev.startDate;
+      if (!newStart || val < newStart) {
+        newStart = val;
+      }
+      const dur = calculateDurationDays(newStart, val);
+      return {
+        ...prev,
+        startDate: newStart,
+        finishDate: val,
+        durationDays: dur
+      };
+    });
+  };
+
+  const handleDurationChange = (val: number) => {
+    const validDur = Math.max(1, val);
+    setFormData(prev => {
+      const newFinish = calculateFinishDate(prev.startDate, validDur);
+      return {
+        ...prev,
+        durationDays: validDur,
+        finishDate: newFinish
+      };
+    });
   };
 
   const handleConfirmDelete = () => {
@@ -158,6 +325,8 @@ export const DailyReportPage: React.FC = () => {
       report.woNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       report.pic.toLowerCase().includes(searchQuery.toLowerCase()) ||
       report.workType.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (report.originLocation && report.originLocation.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (report.destinationLocation && report.destinationLocation.toLowerCase().includes(searchQuery.toLowerCase())) ||
       report.remarks.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesWO = selectedWOType === 'ALL' || report.woType === selectedWOType;
@@ -167,7 +336,7 @@ export const DailyReportPage: React.FC = () => {
   });
 
   const exportToCSV = () => {
-    const headers = ["ID", "No WO", "WO Type", "Month Release", "Assignment", "Team", "PIC", "Work Type", "Status WO", "Start Date", "Finish Date", "Duration (Days)"];
+    const headers = ["ID", "No WO", "WO Type", "Month Release", "Assignment", "Team", "PIC", "Work Type", "Titik Awal (Origin)", "Koordinat Origin", "Titik Akhir (Destination)", "Koordinat Destination", "Google Maps Route URL", "Status WO", "Start Date", "Finish Date", "Duration (Days)"];
     const rows = filteredReports.map(r => [
       r.id,
       r.woNumber,
@@ -177,6 +346,11 @@ export const DailyReportPage: React.FC = () => {
       r.team,
       `"${r.pic}"`,
       `"${r.workType}"`,
+      `"${r.originLocation || ''}"`,
+      `"${r.originCoordinates || ''}"`,
+      `"${r.destinationLocation || ''}"`,
+      `"${r.destinationCoordinates || ''}"`,
+      `"${r.routeGmapsUrl || getGoogleMapsRouteUrl(r.originCoordinates, r.originLocation, r.destinationCoordinates, r.destinationLocation) || ''}"`,
       r.statusWo,
       r.startDate,
       r.finishDate,
@@ -192,25 +366,15 @@ export const DailyReportPage: React.FC = () => {
     document.body.removeChild(link);
   };
 
-  const woOptions: WOOption[] = [
-    'Plan Network Interconection POP',
-    'Splice Interconnection POP Mini',
-    'Splice Interconnection Site',
-    'Splice Interconnection POP'
-  ];
+  const allWOTypeFilterOptions: string[] = Array.from(
+    new Set([...defaultWOOptions, ...dailyReports.map(r => r.woType).filter(Boolean)])
+  );
+  const woOptions: WOOption[] = allWOTypeFilterOptions;
 
   const assignmentOptions: AssignmentArea[] = ['Jabo 1', 'Jabo 2', 'Jabo 3'];
-  const teamOptions: TeamCode[] = ['ABR 03', 'ABR 04', 'ABR 05', 'ABR 06', 'ABR 07', 'ABR 08', 'ABR 09'];
+  const teamOptions: TeamCode[] = ['ABR 01', 'ABR 02', 'ABR 03', 'ABR 04', 'ABR 05', 'ABR 06', 'ABR 07', 'ABR 08', 'ABR 09', 'ABR 10'];
   const statusWoOptions: StatusWO[] = ['Not Yet', 'In Progress', 'Done'];
   const statusTeamProjectOptions: StatusTeamProject[] = ['Not Yet', 'Waiting Schedule', 'On Schedule'];
-
-  const coreSuggestions = [
-    'Pencarian Core Rute Utama POP Interconnection',
-    'Penarikan Core Fiber Optic 24 Core & Splicing',
-    'Splicing FO Core 48 & Commissioning OTDR Test',
-    'Interkoneksi Site BTS ke POP Mini Kabel Feeder',
-    'Pengetesan Power Optic OPM & Light Source OLS'
-  ];
 
   return (
     <div className="space-y-6 pb-8">
@@ -292,14 +456,14 @@ export const DailyReportPage: React.FC = () => {
           <table className="w-full text-left text-xs text-slate-300">
             <thead className="bg-slate-950/90 text-slate-400 font-mono text-[11px] uppercase tracking-wider border-b border-slate-800">
               <tr>
-                <th className="py-3.5 px-4 font-semibold">No. WO & Release</th>
-                <th className="py-3.5 px-4 font-semibold">WO Type</th>
-                <th className="py-3.5 px-4 font-semibold">Area & Tim</th>
-                <th className="py-3.5 px-4 font-semibold">PIC & Pekerjaan</th>
-                <th className="py-3.5 px-4 font-semibold">Tanggal & Durasi</th>
-                <th className="py-3.5 px-4 font-semibold">Dokumentasi & Jarak PDF</th>
-                <th className="py-3.5 px-4 font-semibold text-center">Status WO</th>
-                <th className="py-3.5 px-4 font-semibold text-right">Aksi</th>
+                <th className="py-2.5 px-3 font-semibold">No. WO & Release</th>
+                <th className="py-2.5 px-3 font-semibold">WO Type</th>
+                <th className="py-2.5 px-3 font-semibold">Area & Tim</th>
+                <th className="py-2.5 px-3 font-semibold">PIC & Pekerjaan</th>
+                <th className="py-2.5 px-3 font-semibold">Tanggal & Durasi</th>
+                <th className="py-2.5 px-3 font-semibold">Dokumentasi & Jarak PDF</th>
+                <th className="py-2.5 px-3 font-semibold text-center">Status WO</th>
+                <th className="py-2.5 px-3 font-semibold text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 font-sans">
@@ -308,117 +472,130 @@ export const DailyReportPage: React.FC = () => {
                 return (
                   <tr key={report.id} className="hover:bg-slate-850/60 transition-colors group">
                     
-                    <td className="py-3.5 px-4">
+                    <td className="py-2.5 px-3">
                       <span className="font-bold text-cyan-400 font-mono block">{report.woNumber}</span>
                       <span className="text-[10px] text-slate-500 font-mono">Bulan: {report.monthReleaseWo}</span>
                     </td>
 
-                    <td className="py-3.5 px-4">
+                    <td className="py-2.5 px-3">
                       <span className="font-medium text-slate-200 block max-w-[180px] truncate" title={report.woType}>
                         {report.woType}
                       </span>
                       <span className="text-[10px] text-slate-500 font-mono">Alur: {report.pathLengthMeters}m</span>
                     </td>
 
-                    <td className="py-3.5 px-4 font-mono">
+                    <td className="py-2.5 px-3 font-mono">
                       <span className="px-2 py-0.5 bg-slate-950 rounded text-cyan-300 border border-slate-800 text-[11px] inline-block mb-1">
                         {report.assignment}
                       </span>
                       <div className="text-[10px] text-slate-400">Tim: <strong className="text-slate-200">{report.team}</strong></div>
                     </td>
 
-                    <td className="py-3.5 px-4">
+                    <td className="py-2.5 px-3">
                       <span className="font-semibold text-white block">{report.pic}</span>
                       <span className="text-[11px] text-slate-400 block max-w-[220px] truncate" title={report.workType}>
                         {report.workType}
                       </span>
+                      {(report.originLocation || report.destinationLocation || report.originCoordinates || report.destinationCoordinates) && (
+                        <div className="mt-1 flex items-center gap-1.5 text-[10px] font-mono bg-slate-950/80 px-2 py-0.5 rounded-lg border border-slate-800 text-slate-300">
+                          <MapPin className="w-3 h-3 text-rose-400 shrink-0" />
+                          <span className="font-semibold text-slate-200 truncate max-w-[95px]" title={report.originLocation || report.originCoordinates}>
+                            {report.originLocation || report.originCoordinates || 'Awal'}
+                          </span>
+                          <span className="text-cyan-400 font-bold">➔</span>
+                          <span className="font-semibold text-slate-200 truncate max-w-[95px]" title={report.destinationLocation || report.destinationCoordinates}>
+                            {report.destinationLocation || report.destinationCoordinates || 'Akhir'}
+                          </span>
+                          {(report.routeGmapsUrl || getGoogleMapsRouteUrl(report.originCoordinates, report.originLocation, report.destinationCoordinates, report.destinationLocation)) && (
+                            <a
+                              href={report.routeGmapsUrl || getGoogleMapsRouteUrl(report.originCoordinates, report.originLocation, report.destinationCoordinates, report.destinationLocation)!}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="ml-0.5 text-emerald-400 hover:text-emerald-300 transition-colors p-0.5 rounded"
+                              title="Lihat Rute di Google Maps"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
+                        </div>
+                      )}
                     </td>
 
-                    <td className="py-3.5 px-4 font-mono text-[11px]">
+                    <td className="py-2.5 px-3 font-mono text-[11px]">
                       <span className="block text-slate-300">{report.startDate} s/d {report.finishDate}</span>
                       <span className="text-amber-400 font-bold">{report.durationDays} Hari Kerja</span>
                     </td>
 
                     {/* Interactive Individual Click-to-View PDF Badges */}
-                    <td className="py-3.5 px-4 font-mono">
+                    <td className="py-2.5 px-3 font-mono">
                       <div className="flex flex-wrap gap-1 text-[10px]">
-                        {report.estimatedDistancePdf && (
-                          <button
-                            onClick={() => setPreviewPdf(report.estimatedDistancePdf!)}
-                            className="px-1.5 py-0.5 bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 rounded hover:bg-cyan-500/20 flex items-center gap-1 cursor-pointer"
-                            title="Pratinjau PDF Estimasi Jarak"
-                          >
-                            <Eye className="w-3 h-3 text-cyan-400" /> Est Jarak
-                          </button>
-                        )}
-
-                        {report.totalDistancePdf && (
-                          <button
-                            onClick={() => setPreviewPdf(report.totalDistancePdf!)}
-                            className="px-1.5 py-0.5 bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 rounded hover:bg-cyan-500/20 flex items-center gap-1 cursor-pointer"
-                            title="Pratinjau PDF Total Jarak"
-                          >
-                            <Eye className="w-3 h-3 text-cyan-400" /> Tot Jarak
-                          </button>
-                        )}
-
                         {docs.fotoClosurePdf && (
                           <button
                             onClick={() => setPreviewPdf(docs.fotoClosurePdf!)}
-                            className="px-1.5 py-0.5 bg-rose-500/10 text-rose-300 border border-rose-500/20 rounded hover:bg-rose-500/20 flex items-center gap-1 cursor-pointer"
-                            title="Pratinjau Closure PDF"
+                            className="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-slate-750 rounded flex items-center gap-1 cursor-pointer transition-colors"
+                            title={`Lihat ${docs.fotoClosurePdf.name}`}
                           >
-                            <FileText className="w-3 h-3" /> Closure
+                            <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(docs.fotoClosurePdf.name).bgClass} ${getFileBadgeStyle(docs.fotoClosurePdf.name).textClass}`}>
+                              [{getFileBadgeStyle(docs.fotoClosurePdf.name).ext}]
+                            </span> Closure
                           </button>
                         )}
 
                         {docs.opmPdf && (
                           <button
                             onClick={() => setPreviewPdf(docs.opmPdf!)}
-                            className="px-1.5 py-0.5 bg-rose-500/10 text-rose-300 border border-rose-500/20 rounded hover:bg-rose-500/20 flex items-center gap-1 cursor-pointer"
-                            title="Pratinjau OPM PDF"
+                            className="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-slate-750 rounded flex items-center gap-1 cursor-pointer transition-colors"
+                            title={`Lihat ${docs.opmPdf.name}`}
                           >
-                            <FileText className="w-3 h-3" /> OPM
+                            <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(docs.opmPdf.name).bgClass} ${getFileBadgeStyle(docs.opmPdf.name).textClass}`}>
+                              [{getFileBadgeStyle(docs.opmPdf.name).ext}]
+                            </span> OPM
                           </button>
                         )}
 
                         {docs.olsPdf && (
                           <button
                             onClick={() => setPreviewPdf(docs.olsPdf!)}
-                            className="px-1.5 py-0.5 bg-rose-500/10 text-rose-300 border border-rose-500/20 rounded hover:bg-rose-500/20 flex items-center gap-1 cursor-pointer"
-                            title="Pratinjau OLS PDF"
+                            className="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-slate-750 rounded flex items-center gap-1 cursor-pointer transition-colors"
+                            title={`Lihat ${docs.olsPdf.name}`}
                           >
-                            <FileText className="w-3 h-3" /> OLS
+                            <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(docs.olsPdf.name).bgClass} ${getFileBadgeStyle(docs.olsPdf.name).textClass}`}>
+                              [{getFileBadgeStyle(docs.olsPdf.name).ext}]
+                            </span> OLS
                           </button>
                         )}
 
                         {docs.btsPdf && (
                           <button
                             onClick={() => setPreviewPdf(docs.btsPdf!)}
-                            className="px-1.5 py-0.5 bg-rose-500/10 text-rose-300 border border-rose-500/20 rounded hover:bg-rose-500/20 flex items-center gap-1 cursor-pointer"
-                            title="Pratinjau BTS PDF"
+                            className="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-slate-750 rounded flex items-center gap-1 cursor-pointer transition-colors"
+                            title={`Lihat ${docs.btsPdf.name}`}
                           >
-                            <FileText className="w-3 h-3" /> BTS
+                            <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(docs.btsPdf.name).bgClass} ${getFileBadgeStyle(docs.btsPdf.name).textClass}`}>
+                              [{getFileBadgeStyle(docs.btsPdf.name).ext}]
+                            </span> BTS
                           </button>
                         )}
 
                         {docs.otdrPdf && (
                           <button
                             onClick={() => setPreviewPdf(docs.otdrPdf!)}
-                            className="px-1.5 py-0.5 bg-rose-500/10 text-rose-300 border border-rose-500/20 rounded hover:bg-rose-500/20 flex items-center gap-1 cursor-pointer"
-                            title="Pratinjau OTDR Trace PDF"
+                            className="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-slate-750 rounded flex items-center gap-1 cursor-pointer transition-colors"
+                            title={`Lihat ${docs.otdrPdf.name}`}
                           >
-                            <FileText className="w-3 h-3" /> OTDR
+                            <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(docs.otdrPdf.name).bgClass} ${getFileBadgeStyle(docs.otdrPdf.name).textClass}`}>
+                              [{getFileBadgeStyle(docs.otdrPdf.name).ext}]
+                            </span> OTDR
                           </button>
                         )}
 
-                        {!report.estimatedDistancePdf && !report.totalDistancePdf && Object.values(docs).filter(Boolean).length === 0 && (
-                          <span className="text-slate-600 text-[10px]">Belum ada PDF</span>
+                        {Object.values(docs).filter(Boolean).length === 0 && (
+                          <span className="text-slate-600 text-[10px]">Belum ada berkas</span>
                         )}
                       </div>
                     </td>
 
-                    <td className="py-3.5 px-4 text-center">
+                    <td className="py-2.5 px-3 text-center">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold ${
                         report.statusWo === 'Done' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
                         report.statusWo === 'In Progress' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' :
@@ -428,7 +605,7 @@ export const DailyReportPage: React.FC = () => {
                       </span>
                     </td>
 
-                    <td className="py-3.5 px-4 text-right">
+                    <td className="py-2.5 px-3 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => handleOpenEditModal(report)}
@@ -491,16 +668,72 @@ export const DailyReportPage: React.FC = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
-                    <label className="text-xs font-semibold text-slate-300 block mb-1">1. WO Option</label>
-                    <select
-                      value={formData.woType}
-                      onChange={(e) => setFormData(p => ({ ...p, woType: e.target.value as WOOption }))}
-                      className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none font-mono"
-                    >
-                      {woOptions.map(wo => (
-                        <option key={wo} value={wo}>{wo}</option>
-                      ))}
-                    </select>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-semibold text-slate-300">1. WO Option</label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextCustom = !isCustomWoType;
+                          setIsCustomWoType(nextCustom);
+                          if (nextCustom) {
+                            setFormData(p => ({ ...p, woType: p.woType || '' }));
+                          } else {
+                            const presetWo = defaultWOOptions[0];
+                            setFormData(p => ({ ...p, woType: presetWo }));
+                          }
+                        }}
+                        className="text-[10px] text-cyan-400 hover:text-cyan-300 font-mono flex items-center gap-1 cursor-pointer font-medium bg-cyan-950/60 hover:bg-cyan-900/60 px-2 py-0.5 rounded-md border border-cyan-800/50 transition-colors"
+                      >
+                        {isCustomWoType ? '← Pilih Preset' : '+ Input Manual'}
+                      </button>
+                    </div>
+                    {isCustomWoType ? (
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ketik WO Option / Kategori WO baru..."
+                        value={formData.woType}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setFormData(p => ({
+                            ...p,
+                            woType: val as WOOption
+                          }));
+                        }}
+                        className="w-full bg-slate-950 border border-cyan-500/80 text-xs text-cyan-300 font-mono rounded-xl p-2.5 outline-none font-bold focus:ring-1 focus:ring-cyan-500"
+                      />
+                    ) : (
+                      <select
+                        value={formData.woType}
+                        onChange={(e) => {
+                          if (e.target.value === '__CUSTOM_MANUAL__') {
+                            setIsCustomWoType(true);
+                            setFormData(p => ({ ...p, woType: '' }));
+                          } else {
+                            const val = e.target.value as WOOption;
+                            setFormData(p => ({
+                              ...p,
+                              woType: val
+                            }));
+                          }
+                        }}
+                        className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none font-mono"
+                      >
+                        <optgroup label="Preset Standar">
+                          {defaultWOOptions.map(wo => (
+                            <option key={wo} value={wo}>{wo}</option>
+                          ))}
+                        </optgroup>
+                        {allWOTypeFilterOptions.filter(o => !defaultWOOptions.includes(o)).length > 0 && (
+                          <optgroup label="Kustom / Inputan Lainnya">
+                            {allWOTypeFilterOptions.filter(o => !defaultWOOptions.includes(o)).map(wo => (
+                              <option key={wo} value={wo}>{wo}</option>
+                            ))}
+                          </optgroup>
+                        )}
+                        <option value="__CUSTOM_MANUAL__" className="text-cyan-400 font-bold">+ Input Manual (Ketik Sendiri)...</option>
+                      </select>
+                    )}
                   </div>
 
                   <div>
@@ -539,7 +772,7 @@ export const DailyReportPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-300 block mb-1">4. Team Option</label>
+                    <label className="text-xs font-semibold text-slate-300 block mb-1">4. Team</label>
                     <select
                       value={formData.team}
                       onChange={(e) => setFormData(p => ({ ...p, team: e.target.value as TeamCode }))}
@@ -573,29 +806,35 @@ export const DailyReportPage: React.FC = () => {
 
                 <div className="space-y-3">
                   <div>
-                    <label className="text-xs font-semibold text-slate-300 block mb-1">
-                      7. Work Type (Pencarian Core & Input Manual)
-                    </label>
-                    <input
-                      type="text"
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-semibold text-slate-300">
+                        7. Work Type (Text Area Deskripsi Pekerjaan)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const autoType = getDefaultWorkTypeForWoOption(formData.woType);
+                          setFormData(p => ({ ...p, workType: autoType }));
+                        }}
+                        className="text-[10px] text-cyan-400 hover:text-cyan-300 font-mono flex items-center gap-1 cursor-pointer font-medium bg-cyan-950/60 hover:bg-cyan-900/60 px-2 py-0.5 rounded-md border border-cyan-800/50 transition-colors"
+                        title="Isi ulang otomatis berdasarkan WO Option"
+                      >
+                        ⚡ Isi Ulang Otomatis dari WO
+                      </button>
+                    </div>
+                    <textarea
+                      rows={3}
                       required
                       value={formData.workType}
                       onChange={(e) => setFormData(p => ({ ...p, workType: e.target.value }))}
-                      placeholder="Contoh: Splicing Interconnection Core 24/48..."
-                      className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none mb-1.5"
+                      placeholder="Ketik deskripsi jenis pekerjaan / Work Type secara manual..."
+                      className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-3 outline-none resize-y focus:border-cyan-500 font-mono focus:ring-1 focus:ring-cyan-500 transition-all mb-1"
                     />
-                    <div className="flex flex-wrap gap-1 text-[10px]">
-                      <span className="text-slate-500 py-0.5">Saran pencarian core:</span>
-                      {coreSuggestions.map(sug => (
-                        <button
-                          key={sug}
-                          type="button"
-                          onClick={() => setFormData(p => ({ ...p, workType: sug }))}
-                          className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded cursor-pointer"
-                        >
-                          {sug}
-                        </button>
-                      ))}
+                    <div className="flex items-center gap-1.5 text-[10px] text-cyan-400 font-mono">
+                      <span className="bg-slate-800 border border-slate-700 text-cyan-300 px-1.5 py-0.5 rounded font-bold flex items-center gap-1">
+                        ✍️ Siap Diisi Manual
+                      </span>
+                      <span className="text-slate-400">Bidang teks bersih tanpa teks bawaan dan siap diisi deskripsi pekerjaan secara bebas</span>
                     </div>
                   </div>
 
@@ -605,7 +844,7 @@ export const DailyReportPage: React.FC = () => {
                       <input
                         type="date"
                         value={formData.releaseDate}
-                        onChange={(e) => setFormData(p => ({ ...p, releaseDate: e.target.value }))}
+                        onChange={(e) => handleReleaseDateChange(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none font-mono"
                       />
                     </div>
@@ -631,16 +870,24 @@ export const DailyReportPage: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="text-xs font-semibold text-slate-300 block mb-1">11. Durasi (Hari)</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs font-semibold text-slate-300">11. Durasi (Hari)</label>
+                        <span className="text-[10px] text-cyan-400 font-mono font-bold bg-cyan-950/80 px-1.5 py-0.5 rounded border border-cyan-800/60">
+                          ⚡ Otomatis
+                        </span>
+                      </div>
                       <input
                         type="number"
                         min={1}
                         value={formData.durationDays}
-                        onChange={(e) => setFormData(p => ({ ...p, durationDays: parseInt(e.target.value) || 1 }))}
-                        className="w-full bg-slate-950 border border-slate-800 text-xs text-amber-400 font-bold rounded-xl p-2.5 outline-none font-mono"
+                        onChange={(e) => handleDurationChange(parseInt(e.target.value) || 1)}
+                        className="w-full bg-slate-950 border border-cyan-500/50 text-xs text-amber-400 font-extrabold rounded-xl p-2.5 outline-none font-mono focus:ring-1 focus:ring-cyan-500"
                       />
                     </div>
                   </div>
+                  <p className="text-[10px] text-slate-400 font-mono italic mt-1">
+                    * Durasi (Hari) dihitung otomatis dari (Finish Date - Start Date + 1). Mengubah durasi juga memperbarui Finish Date secara otomatis.
+                  </p>
                 </div>
               </div>
 
@@ -657,13 +904,7 @@ export const DailyReportPage: React.FC = () => {
                       type="number"
                       value={formData.estimatedDistanceMeters}
                       onChange={(e) => setFormData(p => ({ ...p, estimatedDistanceMeters: parseInt(e.target.value) || 0 }))}
-                      className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none font-mono mb-2"
-                    />
-                    <PDFUploader
-                      label="Upload PDF Estimasi Jarak"
-                      value={formData.estimatedDistancePdf}
-                      onChange={(file) => setFormData(p => ({ ...p, estimatedDistancePdf: file }))}
-                      onPreview={(f) => setPreviewPdf(f)}
+                      className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none font-mono"
                     />
                   </div>
 
@@ -673,13 +914,7 @@ export const DailyReportPage: React.FC = () => {
                       type="number"
                       value={formData.totalDistanceMeters}
                       onChange={(e) => setFormData(p => ({ ...p, totalDistanceMeters: parseInt(e.target.value) || 0 }))}
-                      className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none font-mono mb-2"
-                    />
-                    <PDFUploader
-                      label="Upload PDF Total Jarak"
-                      value={formData.totalDistancePdf}
-                      onChange={(file) => setFormData(p => ({ ...p, totalDistancePdf: file }))}
-                      onPreview={(f) => setPreviewPdf(f)}
+                      className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none font-mono"
                     />
                   </div>
                 </div>
@@ -723,39 +958,153 @@ export const DailyReportPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Section 4: 18. Foto Dokumentasi PDF Uploads */}
+              {/* Tagging End to End Location Section */}
+              <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800/80 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+                  <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-wider font-mono flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-rose-400 shrink-0" />
+                    TAGGING END TO END LOCATION (RUTE & TITIK KOORDINAT)
+                  </h4>
+                  {getGoogleMapsRouteUrl(
+                    formData.originCoordinates,
+                    formData.originLocation,
+                    formData.destinationCoordinates,
+                    formData.destinationLocation
+                  ) && (
+                    <a
+                      href={getGoogleMapsRouteUrl(
+                        formData.originCoordinates,
+                        formData.originLocation,
+                        formData.destinationCoordinates,
+                        formData.destinationLocation
+                      )!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] font-mono font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-950/80 hover:bg-emerald-900/80 px-2.5 py-1 rounded-lg border border-emerald-800/80 flex items-center gap-1.5 transition-colors self-start sm:self-auto"
+                    >
+                      <Navigation className="w-3.5 h-3.5" />
+                      🗺️ Lihat Rute di Google Maps
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Kolom Kiri — Titik Awal (Origin / Site A) */}
+                  <div className="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse"></span>
+                        Titik Awal (Origin / Site A)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => handleGetBrowserLocation('origin')}
+                        className="text-[10px] text-cyan-400 hover:text-cyan-300 font-mono flex items-center gap-1 bg-slate-800 hover:bg-slate-750 px-2 py-0.5 rounded border border-slate-700 cursor-pointer transition-colors"
+                        title="Gunakan Geolocation browser untuk ambil koordinat saat ini"
+                      >
+                        📍 Ambil GPS Saat Ini
+                      </button>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] text-slate-400 block mb-1">Nama Site / Titik Awal (Origin)</label>
+                      <input
+                        type="text"
+                        value={formData.originLocation || ''}
+                        onChange={(e) => setFormData(p => ({ ...p, originLocation: e.target.value }))}
+                        placeholder="Contoh: POP Sentul City / OTB-01"
+                        className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none focus:border-cyan-500 font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] text-slate-400 block mb-1">Koordinat GPS Titik Awal (Lat, Long)</label>
+                      <input
+                        type="text"
+                        value={formData.originCoordinates || ''}
+                        onChange={(e) => setFormData(p => ({ ...p, originCoordinates: e.target.value }))}
+                        placeholder="-6.58912, 106.85231"
+                        className="w-full bg-slate-950 border border-slate-800 text-xs text-emerald-400 font-bold rounded-xl p-2.5 outline-none focus:border-cyan-500 font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Kolom Kanan — Titik Akhir (Destination / Site B) */}
+                  <div className="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-rose-400 inline-block animate-pulse"></span>
+                        Titik Akhir (Destination / Site B)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => handleGetBrowserLocation('destination')}
+                        className="text-[10px] text-cyan-400 hover:text-cyan-300 font-mono flex items-center gap-1 bg-slate-800 hover:bg-slate-750 px-2 py-0.5 rounded border border-slate-700 cursor-pointer transition-colors"
+                        title="Gunakan Geolocation browser untuk ambil koordinat saat ini"
+                      >
+                        📍 Ambil GPS Saat Ini
+                      </button>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] text-slate-400 block mb-1">Nama Site / Titik Akhir (Destination)</label>
+                      <input
+                        type="text"
+                        value={formData.destinationLocation || ''}
+                        onChange={(e) => setFormData(p => ({ ...p, destinationLocation: e.target.value }))}
+                        placeholder="Contoh: BTS Cijayanti / Closure CL-04"
+                        className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none focus:border-cyan-500 font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] text-slate-400 block mb-1">Koordinat GPS Titik Akhir (Lat, Long)</label>
+                      <input
+                        type="text"
+                        value={formData.destinationCoordinates || ''}
+                        onChange={(e) => setFormData(p => ({ ...p, destinationCoordinates: e.target.value }))}
+                        placeholder="-6.59421, 106.86105"
+                        className="w-full bg-slate-950 border border-slate-800 text-xs text-emerald-400 font-bold rounded-xl p-2.5 outline-none focus:border-cyan-500 font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 4: 18. Dokumen & Foto Dokumentasi Uploads */}
               <div>
                 <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-wider font-mono border-b border-slate-800 pb-2 mb-3">
-                  18. Foto Dokumentasi (Upload PDF)
+                  18. DOKUMEN & FOTO DOKUMENTASI (UPLOAD FILE)
                 </h4>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   <PDFUploader
-                    label="Foto Closure PDF"
+                    label="Foto Closure Doc"
                     value={formData.documentation.fotoClosurePdf}
                     onChange={(file) => setFormData(p => ({ ...p, documentation: { ...p.documentation, fotoClosurePdf: file } }))}
                     onPreview={(f) => setPreviewPdf(f)}
                   />
                   <PDFUploader
-                    label="OPM PDF"
+                    label="Pengujian OPM Doc"
                     value={formData.documentation.opmPdf}
                     onChange={(file) => setFormData(p => ({ ...p, documentation: { ...p.documentation, opmPdf: file } }))}
                     onPreview={(f) => setPreviewPdf(f)}
                   />
                   <PDFUploader
-                    label="OLS PDF"
+                    label="Pengujian OLS Doc"
                     value={formData.documentation.olsPdf}
                     onChange={(file) => setFormData(p => ({ ...p, documentation: { ...p.documentation, olsPdf: file } }))}
                     onPreview={(f) => setPreviewPdf(f)}
                   />
                   <PDFUploader
-                    label="BTS PDF"
+                    label="Dokumentasi BTS Doc"
                     value={formData.documentation.btsPdf}
                     onChange={(file) => setFormData(p => ({ ...p, documentation: { ...p.documentation, btsPdf: file } }))}
                     onPreview={(f) => setPreviewPdf(f)}
                   />
                   <PDFUploader
-                    label="OTDR PDF"
+                    label="OTDR Trace Test Doc"
                     value={formData.documentation.otdrPdf}
                     onChange={(file) => setFormData(p => ({ ...p, documentation: { ...p.documentation, otdrPdf: file } }))}
                     onPreview={(f) => setPreviewPdf(f)}

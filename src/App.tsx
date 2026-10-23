@@ -24,7 +24,7 @@ const MainApp: React.FC = () => {
       case 'overview':
         return <DashboardOverviewPage />;
       case 'dashboard-tagihan':
-        return <DashboardTagihanPage />;
+        return <DashboardOverviewPage initialSubTab="financial" />;
       case 'daily-report':
         return <DailyReportPage />;
       case 'bast':

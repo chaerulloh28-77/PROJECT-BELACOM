@@ -1,3 +1,5 @@
+import { getDirectDownloadUrl } from './fileDownloader';
+
 export interface EmailAttachment {
   name: string;
   url?: string;
@@ -41,6 +43,20 @@ export const formatFileSize = (bytes?: number): string => {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 };
 
+export const formatAttachmentLinesForEmail = (
+  attachments?: EmailAttachment[], 
+  defaultWoNumber?: string
+): string => {
+  if (!attachments || attachments.length === 0) {
+    return '- Document terlampir';
+  }
+
+  return '- Dokumen Berkas & Tautan Unduh Langsung:\n' + attachments.map((att, idx) => {
+    const directUrl = getDirectDownloadUrl(att.name, att.url, defaultWoNumber);
+    return `  ${idx + 1}. ${att.name} : [Klik untuk Download Berkas Langsung] (${directUrl})`;
+  }).join('\n');
+};
+
 /**
  * 1. Format Draf Surat Resmi Pengajuan BAST (Rata Kiri & Kanan, Titik Dua Sejajar)
  */
@@ -64,12 +80,7 @@ export const generateBastEmailPlainText = (params: {
   const jarak = params.realisasiJarak || '';
   const noDok = params.nomorDokumen || '';
 
-  let lampiranText = '- Document terlampir';
-  if (params.attachments && params.attachments.length > 0) {
-    lampiranText = '- Document terlampir:\n' + params.attachments
-      .map((att, idx) => `  ${idx + 1}. ${att.name}${att.sizeBytes ? ` (${formatFileSize(att.sizeBytes)})` : ''}`)
-      .join('\n');
-  }
+  const lampiranText = formatAttachmentLinesForEmail(params.attachments, wo);
 
   return `Kepada Yth.
 ${recipient || ''}${company}
@@ -84,8 +95,10 @@ Sehubungan dengan selesainya pelaksanaan fisik pekerjaan di lapangan, bersama in
 • Realisasi Jarak : ${jarak}
 • Nomor Dokumen   : ${noDok}
 
-Bersama email ini kami lampirkan dokumen BAST resmi beserta lampiran teknis pendukung:
+Bersama email ini kami lampirkan tautan resmi dokumen BAST beserta berkas pendukung:
 ${lampiranText}
+
+*Catatan: Seluruh dokumen pendukung tersimpan aman di cloud server dan dapat langsung diakses/diunduh melalui tautan di atas.*
 
 Mohon kesediaan Bapak beserta tim untuk melakukan verifikasi berkas dan melanjutkan prosesnya.
 
@@ -118,12 +131,7 @@ export const generateInvoiceEmailPlainText = (params: {
   const wilayah = params.wilayahOperasi || 'Area Jabodetabek';
   const bastAcuan = params.nomorBastAcuan || `BAST/${wo}/BELACOM/${new Date().getFullYear()}`;
 
-  let lampiranText = '- Document terlampir';
-  if (params.attachments && params.attachments.length > 0) {
-    lampiranText = '- Document terlampir:\n' + params.attachments
-      .map((att, idx) => `  ${idx + 1}. ${att.name}${att.sizeBytes ? ` (${formatFileSize(att.sizeBytes)})` : ''}`)
-      .join('\n');
-  }
+  const lampiranText = formatAttachmentLinesForEmail(params.attachments, wo);
 
   return `Kepada Yth.
 ${recipient}
@@ -138,8 +146,10 @@ Merujuk pada pekerjaan yang telah selesai dan BAST yang telah terbit, kami menga
 • Wilayah Operasi : ${wilayah}
 • Nomor BAST Acuan: ${bastAcuan}
 
-Terlampir pada email ini berkas kelengkapan penagihan keuangan:
+Terlampir pada email ini berkas kelengkapan penagihan keuangan & tautan unduh langsung:
 ${lampiranText}
+
+*Catatan: Seluruh dokumen pendukung tersimpan aman di cloud server dan dapat langsung diakses/diunduh melalui tautan di atas.*
 
 Mohon bantuan Bapak/Ibu untuk memproses berkas tagihan ini ke tahap verifikasi keuangan dan penjadwalan pembayaran sesuai term of payment yang berlaku.
 
@@ -172,12 +182,7 @@ export const generateRfsEmailPlainText = (params: {
   const segmen = params.segmenJaringan || '';
   const status = params.statusJaringan || 'Request For Service (RFS) - Aktif Normal';
 
-  let lampiranText = '- Dokument terlampir';
-  if (params.attachments && params.attachments.length > 0) {
-    lampiranText = '- Dokument terlampir:\n' + params.attachments
-      .map((att, idx) => `  ${idx + 1}. ${att.name}${att.sizeBytes ? ` (${formatFileSize(att.sizeBytes)})` : ''}`)
-      .join('\n');
-  }
+  const lampiranText = formatAttachmentLinesForEmail(params.attachments, wo);
 
   return `Kepada Yth.
 ${recipient}${company}
@@ -191,8 +196,10 @@ Kami menginformasikan bahwa infrastruktur jaringan pada paket pekerjaan di bawah
 • Segmen Jaringan : ${segmen}
 • Status Jaringan : ${status}
 
-Bersama ini kami lampirkan berkas pengujian teknis:
+Bersama ini kami lampirkan berkas pengujian teknis & tautan unduh langsung:
 ${lampiranText}
+
+*Catatan: Seluruh dokumen pendukung tersimpan aman di cloud server dan dapat langsung diakses/diunduh melalui tautan di atas.*
 
 Seluruh jalur telah memenuhi parameter standar kualitas. Mohon konfirmasi penerimaan teknis agar jaringan dapat diintegrasikan sepenuhnya ke live network.
 
@@ -225,12 +232,7 @@ export const generatePenagihanEmailPlainText = (params: {
   const mitra = params.mitraPelaksana || 'PT. Belacom Indonesia Telecom';
   const status = params.statusDokumen || 'Lengkap 13 Checklist (Terverifikasi)';
 
-  let lampiranText = '- Document terlampi';
-  if (params.attachments && params.attachments.length > 0) {
-    lampiranText = '- Document terlampir:\n' + params.attachments
-      .map((att, idx) => `  ${idx + 1}. ${att.name}${att.sizeBytes ? ` (${formatFileSize(att.sizeBytes)})` : ''}`)
-      .join('\n');
-  }
+  const lampiranText = formatAttachmentLinesForEmail(params.attachments, wo);
 
   return `Kepada Yth.
 ${recipient}
@@ -245,8 +247,10 @@ Untuk melengkapi syarat administrasi pencairan dan penagihan proyek, kami menyam
 • Mitra Pelaksana : ${mitra}
 • Status Dokumen  : ${status}
 
-Daftar berkas terlampir dalam bundel penagihan:
+Daftar berkas terlampir dalam bundel penagihan & tautan unduh langsung:
 ${lampiranText}
+
+*Catatan: Seluruh dokumen pendukung tersimpan aman di cloud server dan dapat langsung diakses/diunduh melalui tautan di atas.*
 
 Mohon perkenan tim penagihan untuk memeriksa kelengkapan bundel berkas ini agar proses pembayaran dapat diteruskan ke bagian perbendaharaan/kasir.
 
@@ -357,7 +361,7 @@ export const generateSubmissionEmailHtml = (data: EmailSubmissionData): string =
     ? data.attachments.map((att, idx) => {
         const downloadHref = att.base64
           ? `data:application/pdf;base64,${att.base64}`
-          : (att.url && att.url !== '#' ? att.url : '#');
+          : getDirectDownloadUrl(att.name, att.url, data.woNumber);
 
         return `
         <li style="margin-bottom: 8px; color: #1e293b; font-size: 13px; text-align: left;">
@@ -366,11 +370,12 @@ export const generateSubmissionEmailHtml = (data: EmailSubmissionData): string =
              download="${att.name}"
              data-download="true"
              data-filename="${att.name}" 
-             data-fileurl="${att.url || '#'}" 
+             data-fileurl="${downloadHref}" 
              style="color: #0284c7; text-decoration: underline; font-weight: 600; font-family: monospace;"
-             onclick="if(window.__belacomDownload) { window.__belacomDownload('${att.name}', '${att.url || ''}'); } return true;">
+             onclick="if(window.__belacomDownload) { window.__belacomDownload('${att.name}', '${downloadHref}'); } return true;">
             ${att.name}
           </a> 
+          <span style="color: #2563eb; font-weight: 600; font-size: 11px;"> : [Klik untuk Download Berkas Langsung]</span>
           <span style="color: #94a3b8; font-size: 11px; font-family: monospace;">(${formatFileSize(att.sizeBytes)})</span>
         </li>
       `;

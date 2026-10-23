@@ -55,8 +55,7 @@ export const InvoicePage: React.FC = () => {
     rfsNumber: 'RFS-BEL-2026-050',
     rfsPdf: undefined,
     amountRupiah: 150000000,
-    issueDate: new Date().toISOString().substring(0, 10),
-    dueDate: new Date(Date.now() + 30 * 86400000).toISOString().substring(0, 10)
+    issueDate: new Date().toISOString().substring(0, 10)
   });
 
   const handleOpenAddModal = () => {
@@ -73,8 +72,7 @@ export const InvoicePage: React.FC = () => {
       rfsNumber: `RFS-BEL-2026-${Math.floor(100 + Math.random() * 900)}`,
       rfsPdf: undefined,
       amountRupiah: 175000000,
-      issueDate: new Date().toISOString().substring(0, 10),
-      dueDate: new Date(Date.now() + 30 * 86400000).toISOString().substring(0, 10)
+      issueDate: new Date().toISOString().substring(0, 10)
     });
     setIsModalOpen(true);
   };
@@ -157,34 +155,33 @@ export const InvoicePage: React.FC = () => {
           <table className="w-full text-left text-xs text-slate-300">
             <thead className="bg-slate-950/90 text-slate-400 font-mono text-[11px] uppercase tracking-wider border-b border-slate-800">
               <tr>
-                <th className="py-3.5 px-4 font-semibold">No Invoice & Ref WO</th>
-                <th className="py-3.5 px-4 font-semibold">Nominal Rupiah</th>
-                <th className="py-3.5 px-4 font-semibold">Detail PO & Faktur Pajak</th>
-                <th className="py-3.5 px-4 font-semibold">Dokumen PDF (BOQ, PO, FP, RFS)</th>
-                <th className="py-3.5 px-4 font-semibold text-center">Status Invoice</th>
-                <th className="py-3.5 px-4 font-semibold text-right">Aksi</th>
+                <th className="py-2.5 px-3 font-semibold">No Invoice & Ref WO</th>
+                <th className="py-2.5 px-3 font-semibold">Nominal Rupiah</th>
+                <th className="py-2.5 px-3 font-semibold">Detail PO & Faktur Pajak</th>
+                <th className="py-2.5 px-3 font-semibold">Dokumen PDF (BOQ, PO, FP, RFS)</th>
+                <th className="py-2.5 px-3 font-semibold text-center">Status Invoice</th>
+                <th className="py-2.5 px-3 font-semibold text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 font-sans">
               {filteredInvoices.map((inv) => (
                 <tr key={inv.id} className="hover:bg-slate-850/60 transition-colors">
                   
-                  <td className="py-3.5 px-4">
+                  <td className="py-2.5 px-3">
                     <span className="font-bold text-cyan-400 font-mono block">{inv.invoiceNumber}</span>
                     <span className="text-[10px] text-slate-500 font-mono">Ref WO: {inv.woNumber}</span>
                   </td>
 
-                  <td className="py-3.5 px-4 font-mono font-bold text-emerald-400 text-sm">
+                  <td className="py-2.5 px-3 font-mono font-bold text-emerald-400 text-sm">
                     Rp {inv.amountRupiah.toLocaleString('id-ID')}
-                    <span className="text-[10px] text-slate-500 font-normal block">Jatuh Tempo: {inv.dueDate}</span>
                   </td>
 
-                  <td className="py-3.5 px-4 font-mono text-[11px]">
+                  <td className="py-2.5 px-3 font-mono text-[11px]">
                     <div className="text-slate-200">PO: {inv.poNumber}</div>
                     <div className="text-slate-400 text-[10px]">FP: {inv.fakturPajakNumber || '-'}</div>
                   </td>
 
-                  <td className="py-3.5 px-4 font-mono">
+                  <td className="py-2.5 px-3 font-mono">
                     <div className="flex flex-wrap gap-1 text-[10px]">
                       {inv.boqPdf && (
                         <button onClick={() => setPreviewPdf(inv.boqPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat BOQ PDF">
@@ -209,7 +206,7 @@ export const InvoicePage: React.FC = () => {
                     </div>
                   </td>
 
-                  <td className="py-3.5 px-4 text-center">
+                  <td className="py-2.5 px-3 text-center">
                     <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold ${
                       inv.statusInvoice === 'Done' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
                       inv.statusInvoice === 'Submit' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' :
@@ -220,7 +217,7 @@ export const InvoicePage: React.FC = () => {
                     </span>
                   </td>
 
-                  <td className="py-3.5 px-4 text-right">
+                  <td className="py-2.5 px-3 text-right">
                     <div className="flex items-center justify-end gap-1.5">
                       <button
                         type="button"
@@ -391,7 +388,7 @@ export const InvoicePage: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-slate-300 block mb-1">Nominal Tagihan (Rupiah)</label>
                   <input
@@ -407,15 +404,6 @@ export const InvoicePage: React.FC = () => {
                     type="date"
                     value={formData.issueDate}
                     onChange={(e) => setFormData(p => ({ ...p, issueDate: e.target.value }))}
-                    className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1">Tanggal Jatuh Tempo</label>
-                  <input
-                    type="date"
-                    value={formData.dueDate}
-                    onChange={(e) => setFormData(p => ({ ...p, dueDate: e.target.value }))}
                     className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none font-mono"
                   />
                 </div>
