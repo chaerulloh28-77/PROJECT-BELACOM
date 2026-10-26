@@ -7,8 +7,7 @@ import {
   Search, 
   X,
   Clock,
-  Eye,
-  Mail
+  Eye
 } from 'lucide-react';
 import { useProjectContext } from '../context/ProjectContext';
 import { RFSItem, StatusRFS, PDFFileMeta } from '../types';
@@ -16,8 +15,6 @@ import { TouchButton } from '../components/TouchButton';
 import { PDFUploader } from '../components/PDFUploader';
 import { PDFViewerModal } from '../components/PDFViewerModal';
 import { DeleteConfirmModal } from '../components/DeleteConfirmModal';
-import { SendEmailModal } from '../components/SendEmailModal';
-import { EmailAttachment } from '../utils/emailTemplate';
 
 export const RFSPage: React.FC = () => {
   const { rfsList, addRFS, updateRFS, deleteRFS, showToast, dailyReports } = useProjectContext();
@@ -26,20 +23,6 @@ export const RFSPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [previewPdf, setPreviewPdf] = useState<PDFFileMeta | null>(null);
-
-  // Email Submission Modal State
-  const [emailModalData, setEmailModalData] = useState<{
-    requestType: 'RFS';
-    woNumber: string;
-    projectName: string;
-    vendorName?: string;
-    lingkupTugas?: string;
-    segmenJaringan?: string;
-    statusJaringan?: string;
-    defaultRecipient?: string;
-    defaultRecipientName?: string;
-    availableAttachments: EmailAttachment[];
-  } | null>(null);
 
   // Delete Target Modal State
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; rfsNumber: string } | null>(null);
@@ -226,47 +209,6 @@ export const RFSPage: React.FC = () => {
             <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
               <span className="text-[10px] text-slate-500 font-mono">Diserahkan: {rfs.submissionDate}</span>
               <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const attachments: EmailAttachment[] = [];
-                    if (rfs.boqPdf) attachments.push({ name: rfs.boqPdf.name, url: rfs.boqPdf.url, sizeBytes: rfs.boqPdf.sizeBytes });
-                    if (rfs.sphPdf) attachments.push({ name: rfs.sphPdf.name, url: rfs.sphPdf.url, sizeBytes: rfs.sphPdf.sizeBytes });
-                    if (rfs.timelinePdf) attachments.push({ name: rfs.timelinePdf.name, url: rfs.timelinePdf.url, sizeBytes: rfs.timelinePdf.sizeBytes });
-
-                    if (attachments.length === 0) {
-                      attachments.push(
-                        { name: `Surat_RFS_${rfs.rfsNumber}.pdf`, sizeBytes: 1350000 },
-                        { name: `BOQ_Final_${rfs.woNumber}.pdf`, sizeBytes: 940000 },
-                        { name: `SPH_Pengajuan_${rfs.rfsNumber}.pdf`, sizeBytes: 780000 },
-                        { name: `Jadwal_Pelaksanaan_${rfs.woNumber}.pdf`, sizeBytes: 1150000 }
-                      );
-                    }
-
-                    const relatedDaily = dailyReports.find(d => d.woNumber === rfs.woNumber);
-                    const lingkup = rfs.scopeOfService || relatedDaily?.workType || 'Instalasi & Pengujian Fiber Optic';
-                    const segmen = relatedDaily?.assignment ? `Segmen Area ${relatedDaily.assignment}` : 'Segmen Distribusi Fiber Optic';
-                    const status = rfs.statusRfs === 'Done' ? 'Request For Service (RFS) - Aktif 100%' : 'Request For Service (RFS) - Aktif Normal';
-
-                    setEmailModalData({
-                      requestType: 'RFS',
-                      woNumber: rfs.woNumber,
-                      projectName: lingkup,
-                      vendorName: 'Belacom',
-                      lingkupTugas: lingkup,
-                      segmenJaringan: segmen,
-                      statusJaringan: status,
-                      defaultRecipient: 'noc.operations@telkom.co.id',
-                      defaultRecipientName: rfs.clientInfo?.picName || 'Tim Pengawas & Operasional Jaringan',
-                      availableAttachments: attachments
-                    });
-                  }}
-                  className="px-2 py-1.5 rounded-lg bg-blue-600/10 text-blue-400 hover:bg-blue-600/20 border border-blue-500/20 cursor-pointer flex items-center gap-1 text-[11px] font-semibold transition-colors"
-                  title="Kirim Email Resmi RFS ke SAP"
-                >
-                  <Mail className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Kirim Email</span>
-                </button>
                 <button onClick={() => handleOpenEditModal(rfs)} className="p-1.5 rounded-lg bg-slate-800 text-cyan-400 hover:bg-cyan-500/20 cursor-pointer" title="Edit RFS">
                   <Edit3 className="w-3.5 h-3.5" />
                 </button>
@@ -401,19 +343,19 @@ export const RFSPage: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <PDFUploader
-                  label="4. BOQ Upload PDF"
+                  label="4. Dokumen BOQ"
                   value={formData.boqPdf}
                   onChange={(f) => setFormData(p => ({ ...p, boqPdf: f }))}
                   onPreview={(f) => setPreviewPdf(f)}
                 />
                 <PDFUploader
-                  label="4. SPH Upload PDF"
+                  label="5. Dokumen SPH"
                   value={formData.sphPdf}
                   onChange={(f) => setFormData(p => ({ ...p, sphPdf: f }))}
                   onPreview={(f) => setPreviewPdf(f)}
                 />
                 <PDFUploader
-                  label="5. Timeline Upload PDF"
+                  label="6. Dokumen Timeline"
                   value={formData.timelinePdf}
                   onChange={(f) => setFormData(p => ({ ...p, timelinePdf: f }))}
                   onPreview={(f) => setPreviewPdf(f)}
@@ -458,15 +400,6 @@ export const RFSPage: React.FC = () => {
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
-
-      {/* Send Email Modal */}
-      {emailModalData && (
-        <SendEmailModal
-          isOpen={true}
-          onClose={() => setEmailModalData(null)}
-          defaultData={emailModalData}
-        />
-      )}
 
     </div>
   );

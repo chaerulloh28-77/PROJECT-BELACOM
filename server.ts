@@ -2,7 +2,6 @@ import express from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { sendEmailHandler } from './api/send-email.js';
 import { handleGetCloudSync, handlePostCloudSync, handleGetSyncStatus } from './api/cloud-sync.js';
 
 dotenv.config();
@@ -17,11 +16,6 @@ async function startServer() {
   // Body parser with 25mb limit for PDF Base64 attachments
   app.use(express.json({ limit: '25mb' }));
   app.use(express.urlencoded({ extended: true, limit: '25mb' }));
-
-  // API Route: Send Email with Attachments via Resend
-  app.post('/api/send-email', (req, res) => {
-    sendEmailHandler(req, res);
-  });
 
   // API Routes: Multi-Device Real-Time Cloud Sync
   app.get('/api/sync/data', handleGetCloudSync);

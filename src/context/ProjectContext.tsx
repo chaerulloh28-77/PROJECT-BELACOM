@@ -140,7 +140,8 @@ const STORAGE_KEYS = {
   USER_PROFILE: 'belacom_user_profile_v1',
   PASSWORD: 'belacom_password_v1',
   SYSTEM_USERS: 'belacom_system_users_v1',
-  TEAMS: 'belacom_teams_list_v1'
+  TEAMS: 'belacom_teams_list_v1',
+  TOMBSTONES: 'belacom_tombstones_v1'
 };
 
 const DEFAULT_TEAMS: TeamItem[] = [
@@ -153,9 +154,9 @@ const DEFAULT_TEAMS: TeamItem[] = [
 ];
 
 const DEFAULT_USER_PROFILE: UserProfile = {
-  username: 'adminbelacom',
-  fullName: 'Administrator Utama',
-  email: '',
+  username: 'belacom',
+  fullName: 'Admin Belacom',
+  email: 'belacom@belacom.co.id',
   role: 'Super Admin',
   updatedAt: new Date().toISOString()
 };
@@ -163,9 +164,9 @@ const DEFAULT_USER_PROFILE: UserProfile = {
 const DEFAULT_SYSTEM_USERS: SystemUser[] = [
   {
     id: 'usr-1',
-    username: 'adminbelacom',
-    fullName: 'Administrator Utama',
-    email: '',
+    username: 'belacom',
+    fullName: 'Admin Belacom',
+    email: 'belacom@belacom.co.id',
     role: 'Super Admin',
     area: 'Semua Area (HQ)',
     status: 'Aktif',
@@ -182,8 +183,32 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return localStorage.getItem(STORAGE_KEYS.AUTH) === 'true';
   });
   const [currentUserEmail, setCurrentUserEmail] = useState<string>(() => {
-    return localStorage.getItem('belacom_user_email') || 'admin@belacom.co.id';
+    return localStorage.getItem('belacom_user_email') || 'belacom@belacom.co.id';
   });
+
+  // Tombstone Tracking for Anti-Reappearance of Deleted Data
+  const [tombstones, setTombstones] = useState<string[]>(() => {
+    const local = localStorage.getItem(STORAGE_KEYS.TOMBSTONES);
+    if (local) {
+      try {
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {
+        // fallback
+      }
+    }
+    return [];
+  });
+
+  const addTombstoneIds = useCallback((ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    setTombstones(prev => {
+      const set = new Set([...prev, ...ids]);
+      const updated = Array.from(set);
+      localStorage.setItem(STORAGE_KEYS.TOMBSTONES, JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
 
   // User Profile with localStorage persistence
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
@@ -191,11 +216,10 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (local) {
       try {
         const parsed = JSON.parse(local);
-        if (parsed.email === 'admin@belacom.co.id') {
-          parsed.email = '';
-        }
-        if (!parsed.username || parsed.username === 'admindsb') {
-          parsed.username = 'adminbelacom';
+        if (parsed.username !== 'belacom') {
+          parsed.username = 'belacom';
+          parsed.fullName = 'Admin Belacom';
+          parsed.email = 'belacom@belacom.co.id';
         }
         return parsed;
       } catch (e) {
@@ -205,30 +229,38 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return DEFAULT_USER_PROFILE;
   });
 
-  // System Users List with localStorage persistence (keeping only usr-1 and newly created)
+  // System Users List with localStorage persistence & Tombstone filtering
   const [systemUsers, setSystemUsers] = useState<SystemUser[]>(() => {
+    const tombstoneSet = new Set(
+      (() => {
+        try {
+          const l = localStorage.getItem(STORAGE_KEYS.TOMBSTONES);
+          return l ? JSON.parse(l) : [];
+        } catch (e) {
+          return [];
+        }
+      })()
+    );
+
     const local = localStorage.getItem(STORAGE_KEYS.SYSTEM_USERS);
+    let list: SystemUser[] = DEFAULT_SYSTEM_USERS;
     if (local) {
       try {
         const parsed = JSON.parse(local);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Filter out dummy users usr-2, usr-3, usr-4, usr-5 permanently
-          const filtered = parsed.filter((u: SystemUser) => !['usr-2', 'usr-3', 'usr-4', 'usr-5'].includes(u.id));
-          const updated = filtered.map((u: SystemUser) => {
-            if (u.id === 'usr-1' && (u.username === 'admindsb' || !u.username)) {
-              return { ...u, username: 'adminbelacom', email: '' };
-            }
-            return u;
-          });
-          localStorage.setItem(STORAGE_KEYS.SYSTEM_USERS, JSON.stringify(updated.length > 0 ? updated : DEFAULT_SYSTEM_USERS));
-          return updated.length > 0 ? updated : DEFAULT_SYSTEM_USERS;
+          list = parsed.filter((u: SystemUser) => !['usr-2', 'usr-3', 'usr-4', 'usr-5'].includes(u.id));
         }
       } catch (e) {
         // fallback
       }
     }
-    localStorage.setItem(STORAGE_KEYS.SYSTEM_USERS, JSON.stringify(DEFAULT_SYSTEM_USERS));
-    return DEFAULT_SYSTEM_USERS;
+    list = list.map((u: SystemUser) => {
+      if (u.id === 'usr-1') {
+        return { ...u, username: 'belacom', fullName: 'Admin Belacom', email: 'belacom@belacom.co.id' };
+      }
+      return u;
+    });
+    return list.filter(u => !tombstoneSet.has(u.id));
   });
 
   // Navigation
@@ -264,44 +296,66 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
 
-  // Datasets
+  // Datasets with Tombstone Anti-Reappearance Filter
+  const getStoredTombstoneSet = (): Set<string> => {
+    try {
+      const l = localStorage.getItem(STORAGE_KEYS.TOMBSTONES);
+      return new Set(l ? JSON.parse(l) : []);
+    } catch (e) {
+      return new Set();
+    }
+  };
+
   const [teams, setTeams] = useState<TeamItem[]>(() => {
+    const tombstonesSet = getStoredTombstoneSet();
     const local = localStorage.getItem(STORAGE_KEYS.TEAMS);
-    return local ? JSON.parse(local) : DEFAULT_TEAMS;
+    const list: TeamItem[] = local ? JSON.parse(local) : DEFAULT_TEAMS;
+    return list.filter(t => !tombstonesSet.has(t.id));
   });
+
   const [dailyReports, setDailyReports] = useState<DailyReportItem[]>(() => {
+    const tombstonesSet = getStoredTombstoneSet();
     const local = localStorage.getItem(STORAGE_KEYS.DAILY_REPORTS);
-    return local ? JSON.parse(local) : INITIAL_DAILY_REPORTS;
+    const list: DailyReportItem[] = local ? JSON.parse(local) : INITIAL_DAILY_REPORTS;
+    return list.filter(r => !tombstonesSet.has(r.id) && !tombstonesSet.has(r.woNumber));
   });
 
   const [bastList, setBastList] = useState<BASTItem[]>(() => {
+    const tombstonesSet = getStoredTombstoneSet();
     const local = localStorage.getItem(STORAGE_KEYS.BAST);
-    return local ? JSON.parse(local) : INITIAL_BAST_LIST;
+    const list: BASTItem[] = local ? JSON.parse(local) : INITIAL_BAST_LIST;
+    return list.filter(b => !tombstonesSet.has(b.id) && !tombstonesSet.has(b.woNumber));
   });
 
   const [invoices, setInvoices] = useState<InvoiceItem[]>(() => {
+    const tombstonesSet = getStoredTombstoneSet();
     const local = localStorage.getItem(STORAGE_KEYS.INVOICE);
-    return local ? JSON.parse(local) : INITIAL_INVOICE_LIST;
+    const list: InvoiceItem[] = local ? JSON.parse(local) : INITIAL_INVOICE_LIST;
+    return list.filter(i => !tombstonesSet.has(i.id) && !tombstonesSet.has(i.woNumber));
   });
 
   const [rfsList, setRfsList] = useState<RFSItem[]>(() => {
+    const tombstonesSet = getStoredTombstoneSet();
     const local = localStorage.getItem(STORAGE_KEYS.RFS);
-    return local ? JSON.parse(local) : INITIAL_RFS_LIST;
+    const list: RFSItem[] = local ? JSON.parse(local) : INITIAL_RFS_LIST;
+    return list.filter(r => !tombstonesSet.has(r.id) && !tombstonesSet.has(r.woNumber));
   });
 
   const [penagihanList, setPenagihanList] = useState<PenagihanItem[]>(() => {
+    const tombstonesSet = getStoredTombstoneSet();
     const local = localStorage.getItem(STORAGE_KEYS.PENAGIHAN);
+    let list: PenagihanItem[] = INITIAL_PENAGIHAN_LIST;
     if (local) {
       try {
         const parsed = JSON.parse(local);
-        if (Array.isArray(parsed) && parsed.length >= INITIAL_PENAGIHAN_LIST.length) {
-          return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          list = parsed;
         }
       } catch (e) {
         // fallback to initial
       }
     }
-    return INITIAL_PENAGIHAN_LIST;
+    return list.filter(p => !tombstonesSet.has(p.id) && !tombstonesSet.has(p.woNumber));
   });
 
   // Global Filters
@@ -328,7 +382,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Drilldown Filter Modal
   const [drilldownFilter, setDrilldownFilter] = useState<DrilldownFilter | null>(null);
 
-  // Time-Travel History (Undo / Redo)
+  // Time-Travel History (Undo / Redo for Typing/Editing Only)
   interface ProjectStateSnapshot {
     dailyReports: DailyReportItem[];
     bastList: BASTItem[];
@@ -354,9 +408,27 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setFuture([]);
   }, [dailyReports, bastList, invoices, rfsList, penagihanList, teams]);
 
+  // Purge deleted items from past & future history so Undo can NEVER restore deleted records
+  const purgeHistoryForDeleted = useCallback((deletedIds: string[], deletedWoNumbers: string[] = []) => {
+    const idSet = new Set(deletedIds);
+    const woSet = new Set(deletedWoNumbers);
+
+    const cleanSnapshot = (snap: ProjectStateSnapshot): ProjectStateSnapshot => ({
+      dailyReports: snap.dailyReports.filter(r => !idSet.has(r.id) && !woSet.has(r.woNumber)),
+      bastList: snap.bastList.filter(b => !idSet.has(b.id) && !woSet.has(b.woNumber)),
+      invoices: snap.invoices.filter(i => !idSet.has(i.id) && !woSet.has(i.woNumber)),
+      rfsList: snap.rfsList.filter(r => !idSet.has(r.id) && !woSet.has(r.woNumber)),
+      penagihanList: snap.penagihanList.filter(p => !idSet.has(p.id) && !woSet.has(p.woNumber)),
+      teams: snap.teams.filter(t => !idSet.has(t.id))
+    });
+
+    setPast(prev => prev.map(cleanSnapshot));
+    setFuture(prev => prev.map(cleanSnapshot));
+  }, []);
+
   const undo = useCallback(() => {
     if (past.length === 0) {
-      showToast('info', 'Undo Tidak Tersedia', 'Belum ada riwayat perubahan yang bisa dibatalkan.');
+      showToast('info', 'Undo Tidak Tersedia', 'Belum ada riwayat editan teks yang bisa dibatalkan.');
       return;
     }
     const previous = past[past.length - 1];
@@ -372,18 +444,22 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     setPast(newPast);
     setFuture(prev => [currentSnapshot, ...prev]);
-    setDailyReports(previous.dailyReports);
-    setBastList(previous.bastList);
-    setInvoices(previous.invoices);
-    setRfsList(previous.rfsList || []);
-    setPenagihanList(previous.penagihanList);
-    setTeams(previous.teams || []);
-    showToast('success', 'Undo Berhasil', '↩️ Perubahan berhasil dibatalkan (Undo)');
-  }, [past, dailyReports, bastList, invoices, rfsList, penagihanList, teams, showToast]);
+
+    // Ensure undo respects tombstones
+    const tombstoneSet = new Set(tombstones);
+    setDailyReports(previous.dailyReports.filter(r => !tombstoneSet.has(r.id) && !tombstoneSet.has(r.woNumber)));
+    setBastList(previous.bastList.filter(b => !tombstoneSet.has(b.id) && !tombstoneSet.has(b.woNumber)));
+    setInvoices(previous.invoices.filter(i => !tombstoneSet.has(i.id) && !tombstoneSet.has(i.woNumber)));
+    setRfsList((previous.rfsList || []).filter(r => !tombstoneSet.has(r.id) && !tombstoneSet.has(r.woNumber)));
+    setPenagihanList(previous.penagihanList.filter(p => !tombstoneSet.has(p.id) && !tombstoneSet.has(p.woNumber)));
+    setTeams((previous.teams || []).filter(t => !tombstoneSet.has(t.id)));
+
+    showToast('success', 'Undo Berhasil', '↩️ Edit teks berhasil dibatalkan (Undo)');
+  }, [past, dailyReports, bastList, invoices, rfsList, penagihanList, teams, tombstones, showToast]);
 
   const redo = useCallback(() => {
     if (future.length === 0) {
-      showToast('info', 'Redo Tidak Tersedia', 'Tidak ada aksi untuk di-redo.');
+      showToast('info', 'Redo Tidak Tersedia', 'Tidak ada editan teks untuk dipulihkan.');
       return;
     }
     const next = future[0];
@@ -399,14 +475,18 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     setPast(prev => [...prev, currentSnapshot]);
     setFuture(newFuture);
-    setDailyReports(next.dailyReports);
-    setBastList(next.bastList);
-    setInvoices(next.invoices);
-    setRfsList(next.rfsList || []);
-    setPenagihanList(next.penagihanList);
-    setTeams(next.teams || []);
-    showToast('success', 'Redo Berhasil', '↪️ Aksi berhasil dipulihkan (Redo)');
-  }, [future, dailyReports, bastList, invoices, rfsList, penagihanList, teams, showToast]);
+
+    // Ensure redo respects tombstones
+    const tombstoneSet = new Set(tombstones);
+    setDailyReports(next.dailyReports.filter(r => !tombstoneSet.has(r.id) && !tombstoneSet.has(r.woNumber)));
+    setBastList(next.bastList.filter(b => !tombstoneSet.has(b.id) && !tombstoneSet.has(b.woNumber)));
+    setInvoices(next.invoices.filter(i => !tombstoneSet.has(i.id) && !tombstoneSet.has(i.woNumber)));
+    setRfsList((next.rfsList || []).filter(r => !tombstoneSet.has(r.id) && !tombstoneSet.has(r.woNumber)));
+    setPenagihanList(next.penagihanList.filter(p => !tombstoneSet.has(p.id) && !tombstoneSet.has(p.woNumber)));
+    setTeams((next.teams || []).filter(t => !tombstoneSet.has(t.id)));
+
+    showToast('success', 'Redo Berhasil', '↪️ Edit teks berhasil dipulihkan (Redo)');
+  }, [future, dailyReports, bastList, invoices, rfsList, penagihanList, teams, tombstones, showToast]);
 
   const canUndo = past.length > 0;
   const canRedo = future.length > 0;
@@ -439,6 +519,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const triggerAutoSave = useCallback(() => {
     setAutoSaveStatus('saving');
     const timer = setTimeout(() => {
+      localStorage.setItem(STORAGE_KEYS.TOMBSTONES, JSON.stringify(tombstones));
       localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
       localStorage.setItem(STORAGE_KEYS.DAILY_REPORTS, JSON.stringify(dailyReports));
       localStorage.setItem(STORAGE_KEYS.BAST, JSON.stringify(bastList));
@@ -452,7 +533,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setLastSavedTime(now);
       setAutoSaveStatus('saved');
 
-      // Two-way Push to Cloud (Multi-device Realtime Sync) with Anti-Overwrite Protection
+      // Two-way Push to Cloud (Multi-device Realtime Sync)
       if (!isReceivingRemote.current && isCloudReady.current) {
         cloudSyncService.pushToCloud({
           dailyReports,
@@ -468,13 +549,13 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }, 350);
 
     return () => clearTimeout(timer);
-  }, [teams, dailyReports, bastList, invoices, rfsList, penagihanList, userProfile, systemUsers]);
+  }, [tombstones, teams, dailyReports, bastList, invoices, rfsList, penagihanList, userProfile, systemUsers]);
 
   useEffect(() => {
     triggerAutoSave();
-  }, [teams, dailyReports, bastList, invoices, rfsList, penagihanList, userProfile, systemUsers, triggerAutoSave]);
+  }, [tombstones, teams, dailyReports, bastList, invoices, rfsList, penagihanList, userProfile, systemUsers, triggerAutoSave]);
 
-  // Cloud Sync Listener: Seamless Silent Pull
+  // Cloud Sync Listener with Tombstone Protection
   useEffect(() => {
     const unsubStatus = cloudSyncService.onStatusChange((status, time) => {
       setSyncStatus(status);
@@ -484,35 +565,43 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const unsubRemote = cloudSyncService.onRemoteData((remoteData) => {
       try {
         isReceivingRemote.current = true;
+        const tsSet = new Set(tombstones);
+
         const teamsArr = remoteData?.teams ?? [];
         if (Array.isArray(teamsArr)) {
-          setTeams(teamsArr);
-          localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teamsArr));
+          const filtered = teamsArr.filter(t => !tsSet.has(t.id));
+          setTeams(filtered);
+          localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(filtered));
         }
         const drArr = remoteData?.dailyReports ?? [];
         if (Array.isArray(drArr)) {
-          setDailyReports(drArr);
-          localStorage.setItem(STORAGE_KEYS.DAILY_REPORTS, JSON.stringify(drArr));
+          const filtered = drArr.filter(r => !tsSet.has(r.id) && !tsSet.has(r.woNumber));
+          setDailyReports(filtered);
+          localStorage.setItem(STORAGE_KEYS.DAILY_REPORTS, JSON.stringify(filtered));
         }
         const bastArr = remoteData?.bastList ?? [];
         if (Array.isArray(bastArr)) {
-          setBastList(bastArr);
-          localStorage.setItem(STORAGE_KEYS.BAST, JSON.stringify(bastArr));
+          const filtered = bastArr.filter(b => !tsSet.has(b.id) && !tsSet.has(b.woNumber));
+          setBastList(filtered);
+          localStorage.setItem(STORAGE_KEYS.BAST, JSON.stringify(filtered));
         }
         const invArr = remoteData?.invoices ?? [];
         if (Array.isArray(invArr)) {
-          setInvoices(invArr);
-          localStorage.setItem(STORAGE_KEYS.INVOICE, JSON.stringify(invArr));
+          const filtered = invArr.filter(i => !tsSet.has(i.id) && !tsSet.has(i.woNumber));
+          setInvoices(filtered);
+          localStorage.setItem(STORAGE_KEYS.INVOICE, JSON.stringify(filtered));
         }
         const rfsArr = remoteData?.rfsList ?? [];
         if (Array.isArray(rfsArr)) {
-          setRfsList(rfsArr);
-          localStorage.setItem(STORAGE_KEYS.RFS, JSON.stringify(rfsArr));
+          const filtered = rfsArr.filter(r => !tsSet.has(r.id) && !tsSet.has(r.woNumber));
+          setRfsList(filtered);
+          localStorage.setItem(STORAGE_KEYS.RFS, JSON.stringify(filtered));
         }
         const pngArr = remoteData?.penagihanList ?? [];
         if (Array.isArray(pngArr)) {
-          setPenagihanList(pngArr);
-          localStorage.setItem(STORAGE_KEYS.PENAGIHAN, JSON.stringify(pngArr));
+          const filtered = pngArr.filter(p => !tsSet.has(p.id) && !tsSet.has(p.woNumber));
+          setPenagihanList(filtered);
+          localStorage.setItem(STORAGE_KEYS.PENAGIHAN, JSON.stringify(filtered));
         }
         if (remoteData?.userProfile) {
           setUserProfile(remoteData.userProfile);
@@ -520,8 +609,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
         const sysArr = remoteData?.systemUsers ?? [];
         if (Array.isArray(sysArr)) {
-          setSystemUsers(sysArr);
-          localStorage.setItem(STORAGE_KEYS.SYSTEM_USERS, JSON.stringify(sysArr));
+          const filtered = sysArr.filter(u => !tsSet.has(u.id));
+          setSystemUsers(filtered);
+          localStorage.setItem(STORAGE_KEYS.SYSTEM_USERS, JSON.stringify(filtered));
         }
       } catch (err) {
         console.warn('[ProjectContext] unsubRemote error:', err);
@@ -532,7 +622,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     });
 
-    // Initial pull from cloud with anti-overwrite protection and timeout safety
     try {
       cloudSyncService.pullFromCloud().then(hasData => {
         if (!hasData) {
@@ -560,7 +649,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       unsubStatus();
       unsubRemote();
     };
-  }, []);
+  }, [tombstones]);
 
   const triggerManualSync = useCallback(async () => {
     setAutoSaveStatus('saving');
@@ -577,9 +666,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }, true);
     setAutoSaveStatus('saved');
     showToast('success', 'Sinkronisasi Cloud Berhasil', 'Data lokal kini telah disinkronkan dengan Cloud.');
-  }, [dailyReports, bastList, invoices, rfsList, penagihanList, userProfile, systemUsers, showToast]);
+  }, [dailyReports, bastList, invoices, rfsList, penagihanList, userProfile, systemUsers, teams, showToast]);
 
-  // Profile & Password Methods with localStorage persistence
+  // Profile & Password Methods
   const updateUserProfile = useCallback((profileUpdates: Partial<UserProfile>) => {
     setUserProfile(prev => {
       const updated: UserProfile = {
@@ -594,12 +683,12 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
       return updated;
     });
-    showToast('success', 'Profil Berhasil Disimpan', 'Data profil akun telah tersimpan secara permanen di sistem.');
+    showToast('success', 'Profil Berhasil Disimpan', 'Data profil akun telah tersimpan secara permanen.');
   }, [showToast]);
 
   const updatePassword = useCallback((currentPass: string, newPass: string): { success: boolean; message: string } => {
-    const activePassword = localStorage.getItem(STORAGE_KEYS.PASSWORD) || 'belacom';
-    if (currentPass !== activePassword && currentPass !== 'belacom') {
+    const activePassword = localStorage.getItem(STORAGE_KEYS.PASSWORD) || 'belacom123';
+    if (currentPass !== activePassword && currentPass !== 'belacom123') {
       showToast('error', 'Password Saat Ini Salah', 'Password saat ini yang Anda masukkan tidak sesuai.');
       return { success: false, message: 'Password saat ini tidak sesuai.' };
     }
@@ -623,7 +712,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       localStorage.setItem(STORAGE_KEYS.SYSTEM_USERS, JSON.stringify(updated));
       return updated;
     });
-    showToast('success', 'Pengguna Ditambahkan', `Pengguna ${user.fullName} (${user.role}) berhasil ditambahkan ke sistem.`);
+    showToast('success', 'Pengguna Ditambahkan', `Pengguna ${user.fullName} (${user.role}) berhasil ditambahkan.`);
   }, [showToast]);
 
   const updateSystemUser = useCallback((id: string, userUpdates: Partial<SystemUser>) => {
@@ -636,16 +725,17 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [showToast]);
 
   const deleteSystemUser = useCallback((id: string) => {
+    addTombstoneIds([id]);
     setSystemUsers(prev => {
       const target = prev.find(u => u.id === id);
       const updated = prev.filter(u => u.id !== id);
       localStorage.setItem(STORAGE_KEYS.SYSTEM_USERS, JSON.stringify(updated));
       if (target) {
-        showToast('info', 'Pengguna Dihapus', `Akun ${target.fullName} telah dihapus dari sistem.`);
+        showToast('info', 'Pengguna Dihapus Permanen', `Akun ${target.fullName} telah dihapus permanen dari sistem.`);
       }
       return updated;
     });
-  }, [showToast]);
+  }, [addTombstoneIds, showToast]);
 
   // Team CRUD Methods
   const addTeam = useCallback((team: Omit<TeamItem, 'id' | 'createdAt'>) => {
@@ -660,7 +750,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(updated));
       return updated;
     });
-    showToast('success', 'Team Ditambahkan', `Team ${team.teamName} (${team.pic}) berhasil ditambahkan!`);
+    showToast('success', 'Team Ditambahkan', `Team ${team.teamName} (${team.picLeader}) berhasil ditambahkan!`);
   }, [recordSnapshot, showToast]);
 
   const updateTeam = useCallback((id: string, teamUpdates: Partial<TeamItem>) => {
@@ -674,37 +764,38 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [recordSnapshot, showToast]);
 
   const deleteTeam = useCallback((id: string) => {
-    recordSnapshot();
+    addTombstoneIds([id]);
+    purgeHistoryForDeleted([id]);
     setTeams(prev => {
       const target = prev.find(t => t.id === id);
       const updated = prev.filter(t => t.id !== id);
       localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(updated));
       if (target) {
-        showToast('info', 'Team Dihapus', `Team ${target.teamName} telah dihapus dari sistem.`);
+        showToast('info', 'Team Dihapus Permanen', `Team ${target.teamName} telah dihapus permanen dari sistem.`);
       }
       return updated;
     });
-  }, [recordSnapshot, showToast]);
+  }, [addTombstoneIds, purgeHistoryForDeleted, showToast]);
 
-  // Auth Methods
+  // Strict Restricted Auth Method
   const login = (emailOrUser: string, pass: string): boolean => {
-    const activePassword = localStorage.getItem(STORAGE_KEYS.PASSWORD) || 'belacom';
+    const activePassword = localStorage.getItem(STORAGE_KEYS.PASSWORD) || 'belacom123';
     const cleanInput = emailOrUser.trim().toLowerCase();
     const cleanPass = pass.trim();
 
-    const isUserValid = cleanInput === 'belacom' || cleanInput === 'belacom@gmail.com' || cleanInput === 'admin' || cleanInput === 'adminbelacom' || cleanInput.includes('@');
-    const isPassValid = cleanPass === activePassword || cleanPass === 'belacom' || cleanPass === 'belacom123';
+    const isUserValid = cleanInput === 'belacom' || cleanInput === 'belacom@belacom.co.id' || cleanInput === 'admin';
+    const isPassValid = cleanPass === 'belacom123' || cleanPass === activePassword;
 
     if (isUserValid && isPassValid) {
       setIsLoggedIn(true);
       setPast([]);
       setFuture([]);
-      const userEmailToSet = cleanInput.includes('@') ? cleanInput : 'belacom@gmail.com';
+      const userEmailToSet = 'belacom@belacom.co.id';
       setCurrentUserEmail(userEmailToSet);
       localStorage.setItem(STORAGE_KEYS.AUTH, 'true');
       localStorage.setItem('belacom_user_email', userEmailToSet);
-      setActiveTab('overview'); // Direct to Dashboard WO
-      showToast('success', 'Berhasil Masuk', `Selamat datang kembali, Super Admin (usr-1)`);
+      setActiveTab('overview');
+      showToast('success', 'Berhasil Masuk', `Selamat datang kembali, Admin Belacom`);
       return true;
     }
     return false;
@@ -720,7 +811,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     showToast('info', 'Sesi Berakhir', 'Anda telah keluar dari sistem.');
   };
 
-  // CRUD Daily Report with Automatic Billing Package Sync
+  // CRUD Daily Report with Automatic Billing Package Sync & Tombstone Tracking
   const addDailyReport = (item: Omit<DailyReportItem, 'id' | 'createdAt' | 'updatedAt'>) => {
     recordSnapshot();
     const now = new Date().toISOString();
@@ -734,8 +825,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     setDailyReports(prev => [newRecord, ...prev]);
 
-    // Automatically create corresponding billing package and BAST/RFS drafts
-    const defaultNominal = 15000000 + Math.floor(Math.random() * 35000000); // 15M - 50M IDR
+    // Automatically create corresponding billing package
+    const defaultNominal = 15000000 + Math.floor(Math.random() * 35000000);
     const newPenagihan: PenagihanItem = {
       id: 'PNG-' + Math.floor(500 + Math.random() * 900),
       billingCode: 'INV-BEL-2026-' + Math.floor(100 + Math.random() * 900),
@@ -755,8 +846,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
 
     setPenagihanList(prev => [newPenagihan, ...prev]);
-    localStorage.setItem(STORAGE_KEYS.PENAGIHAN, JSON.stringify([newPenagihan, ...penagihanList]));
-
     showToast('success', 'Daily Report & Tagihan Dibuat', `WO No. ${newRecord.woNumber} dan paket penagihan otomatis ditambahkan!`);
   };
 
@@ -766,7 +855,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setDailyReports(prev => prev.map(r => {
       if (r.id === id) {
         const updated = { ...r, ...item, updatedAt: now };
-        // Sync corresponding penagihan status if WO becomes Done
         if (item.statusWo === 'Done') {
           setPenagihanList(pList => pList.map(p => p.woNumber === updated.woNumber ? { ...p, statusPenagihan: 'Disetujui', updatedAt: now } : p));
         }
@@ -778,17 +866,29 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const deleteDailyReport = (id: string) => {
-    recordSnapshot();
     const target = dailyReports.find(r => r.id === id);
+    const woNum = target?.woNumber;
+
+    // Collect linked item IDs
+    const linkedBastIds = bastList.filter(b => woNum && b.woNumber === woNum).map(b => b.id);
+    const linkedInvoiceIds = invoices.filter(i => woNum && i.woNumber === woNum).map(i => i.id);
+    const linkedRfsIds = rfsList.filter(r => woNum && r.woNumber === woNum).map(r => r.id);
+    const linkedPenagihanIds = penagihanList.filter(p => woNum && p.woNumber === woNum).map(p => p.id);
+
+    const allDeletedIds = [id, ...linkedBastIds, ...linkedInvoiceIds, ...linkedRfsIds, ...linkedPenagihanIds];
+    const allDeletedWos = woNum ? [woNum] : [];
+
+    addTombstoneIds([...allDeletedIds, ...allDeletedWos]);
+    purgeHistoryForDeleted(allDeletedIds, allDeletedWos);
+
     setDailyReports(prev => prev.filter(r => r.id !== id));
-    if (target) {
-      // Automatically remove linked billing packages and BAST records
-      setPenagihanList(prev => prev.filter(p => p.woNumber !== target.woNumber));
-      setBastList(prev => prev.filter(b => b.woNumber !== target.woNumber));
-      setInvoices(prev => prev.filter(i => i.woNumber !== target.woNumber));
-      setRfsList(prev => prev.filter(r => r.woNumber !== target.woNumber));
+    if (woNum) {
+      setPenagihanList(prev => prev.filter(p => p.woNumber !== woNum));
+      setBastList(prev => prev.filter(b => b.woNumber !== woNum));
+      setInvoices(prev => prev.filter(i => i.woNumber !== woNum));
+      setRfsList(prev => prev.filter(r => r.woNumber !== woNum));
     }
-    showToast('error', 'Daily Report Dihapus', `Data WO ${target?.woNumber || id} beserta tagihan terkait telah dihapus.`);
+    showToast('error', 'Daily Report Dihapus Permanen', `Data WO ${woNum || id} beserta tagihan terkait telah dihapus permanen.`);
   };
 
   // CRUD BAST
@@ -813,9 +913,10 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const deleteBAST = (id: string) => {
-    recordSnapshot();
+    addTombstoneIds([id]);
+    purgeHistoryForDeleted([id]);
     setBastList(prev => prev.filter(b => b.id !== id));
-    showToast('error', 'Dokumen BAST Dihapus', `Dokumen BAST ${id} telah dihapus.`);
+    showToast('error', 'Dokumen BAST Dihapus Permanen', `Dokumen BAST ${id} telah dihapus permanen.`);
   };
 
   // CRUD Invoice
@@ -840,9 +941,10 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const deleteInvoice = (id: string) => {
-    recordSnapshot();
+    addTombstoneIds([id]);
+    purgeHistoryForDeleted([id]);
     setInvoices(prev => prev.filter(inv => inv.id !== id));
-    showToast('error', 'Invoice Dihapus', `Invoice ID: ${id} telah dihapus.`);
+    showToast('error', 'Invoice Dihapus Permanen', `Invoice ID: ${id} telah dihapus permanen.`);
   };
 
   // CRUD RFS
@@ -867,9 +969,10 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const deleteRFS = (id: string) => {
-    recordSnapshot();
+    addTombstoneIds([id]);
+    purgeHistoryForDeleted([id]);
     setRfsList(prev => prev.filter(r => r.id !== id));
-    showToast('error', 'Dokumen RFS Dihapus', `Surat RFS ID: ${id} telah dihapus.`);
+    showToast('error', 'Dokumen RFS Dihapus Permanen', `Surat RFS ID: ${id} telah dihapus permanen.`);
   };
 
   // CRUD Penagihan
@@ -894,9 +997,10 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const deletePenagihan = (id: string) => {
-    recordSnapshot();
+    addTombstoneIds([id]);
+    purgeHistoryForDeleted([id]);
     setPenagihanList(prev => prev.filter(p => p.id !== id));
-    showToast('error', 'Paket Penagihan Dihapus', `Paket penagihan ID: ${id} telah dihapus.`);
+    showToast('error', 'Paket Penagihan Dihapus Permanen', `Paket penagihan ID: ${id} telah dihapus permanen.`);
   };
 
   return (

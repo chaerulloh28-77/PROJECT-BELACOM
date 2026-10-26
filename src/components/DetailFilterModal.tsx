@@ -196,14 +196,14 @@ export const DetailFilterModal: React.FC<DetailFilterModalProps> = ({ filter, on
         </span>
       );
     }
-    if (s === 'done' || s === 'lunas') {
+    if (s === 'done' || s === 'lunas' || s === 'paid') {
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> {status}
         </span>
       );
     }
-    if (s === 'in progress' || s === 'submit' || s === 'on schedule' || s === 'dalam review' || s === 'disetujui') {
+    if (s === 'in progress' || s === 'submit' || s === 'submitted' || s === 'on schedule' || s === 'dalam review' || s === 'disetujui') {
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shadow-sm">
           <Clock className="w-3.5 h-3.5 text-cyan-400" /> {status}
@@ -217,7 +217,7 @@ export const DetailFilterModal: React.FC<DetailFilterModalProps> = ({ filter, on
         </span>
       );
     }
-    if (s === 'cancel' || s === 'ditolak') {
+    if (s === 'cancel' || s === 'ditolak' || s === 'overdue') {
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 shadow-sm">
           <XCircle className="w-3.5 h-3.5 text-rose-400" /> {status}

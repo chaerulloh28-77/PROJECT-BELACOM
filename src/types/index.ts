@@ -18,7 +18,7 @@ export type StatusProject = 'Not Yet' | 'In Progress' | 'Done' | 'Cancel';
 
 export type StatusTeamProject = 'Not Yet' | 'Waiting Schedule' | 'On Schedule' | 'On Progress' | 'Cancel' | string;
 
-export type StatusBAST = 'Not Yet' | 'Submit' | 'Done' | 'Submitted via Gmail';
+export type StatusBAST = 'Not Yet' | 'Submit' | 'Done' | 'Submitted via Gmail' | 'Submitted via Email';
 
 export type StatusRFS = 'Not Yet' | 'Submit' | 'Done';
 
@@ -35,6 +35,7 @@ export interface PDFFileMeta {
   pages?: number;
   fileType?: string;
   mimeType?: string;
+  imageDataUrl?: string;
 }
 
 export interface PhotoDocumentation {
@@ -70,8 +71,13 @@ export interface DailyReportItem {
   // Tagging End to End Location
   originLocation?: string;
   originCoordinates?: string;
+  originPhotoFile?: PDFFileMeta;
+  originTaggingDocFile?: PDFFileMeta;
   destinationLocation?: string;
   destinationCoordinates?: string;
+  destinationPhotoFile?: PDFFileMeta;
+  destinationTaggingDocFile?: PDFFileMeta;
+  routeMapFile?: PDFFileMeta;
   routeGmapsUrl?: string;
   createdAt: string;
   updatedAt: string;
@@ -80,6 +86,7 @@ export interface DailyReportItem {
 export interface BASTItem {
   id: string;
   woNumber: string;
+  bastNumber?: string;
   woType: WOOption;
   apdPdf?: PDFFileMeta;
   abdPdf?: PDFFileMeta;
@@ -98,13 +105,19 @@ export interface BASTItem {
   totalDistanceMeters: number;
   totalDistancePdf?: PDFFileMeta;
   fotoDokumentasiPdf?: PDFFileMeta; // Max 4MB enforce
+  fotoDokumentasiPdfs?: PDFFileMeta[]; // Support multiple photo documentation files
   statusBast: StatusBAST;
   notes?: string;
   // Tagging End to End Location
   originLocation?: string;
   originCoordinates?: string;
+  originPhotoFile?: PDFFileMeta;
+  originTaggingDocFile?: PDFFileMeta;
   destinationLocation?: string;
   destinationCoordinates?: string;
+  destinationPhotoFile?: PDFFileMeta;
+  destinationTaggingDocFile?: PDFFileMeta;
+  routeMapFile?: PDFFileMeta;
   routeGmapsUrl?: string;
   createdAt: string;
   updatedAt: string;
@@ -118,9 +131,9 @@ export interface InvoiceItem {
   boqPdf?: PDFFileMeta;
   poNumber: string;
   poPdf?: PDFFileMeta;
-  fakturPajakNumber?: string;
+  fakturPajakNumber: string;
   fakturPajakPdf?: PDFFileMeta;
-  rfsNumber?: string;
+  rfsNumber: string;
   rfsPdf?: PDFFileMeta;
   amountRupiah: number;
   issueDate: string;
@@ -169,6 +182,7 @@ export interface PenagihanItem {
   abdPdf?: PDFFileMeta;
   coreConnectionPdf?: PDFFileMeta;
   fotoDokumentasiPdf?: PDFFileMeta; // Max 4MB enforce
+  fotoDokumentasiPdfs?: PDFFileMeta[]; // Support multiple photo documentation files
   
   // Daily report team details (Optional)
   dailyReportWorkType?: string;
@@ -201,6 +215,8 @@ export type ActiveTab =
   | 'invoice' 
   | 'rfs' 
   | 'penagihan'
+  | 'form-invoice'
+  | 'form-faktur-pajak'
   | 'user-settings';
 
 export interface UserProfile {

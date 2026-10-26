@@ -47,8 +47,13 @@ export const INITIAL_DAILY_REPORTS: DailyReportItem[] = [
     remarks: 'Pekerjaan berjalan lancar, kendala cuaca hujan rintik disiasati dengan penutupan terpal fleksibel.',
     originLocation: 'POP Sentul City / OTB-01',
     originCoordinates: '-6.58912, 106.85231',
+    originPhotoFile: samplePdf('Foto_Geotag_SiteA_POP_Sentul.jpg', 1420),
+    originTaggingDocFile: samplePdf('Bukti_Tagging_SiteA_Sentul.gpx', 380),
     destinationLocation: 'BTS Cijayanti / Closure CL-04',
     destinationCoordinates: '-6.59421, 106.86105',
+    destinationPhotoFile: samplePdf('Foto_Geotag_SiteB_BTS_Cijayanti.png', 1650),
+    destinationTaggingDocFile: samplePdf('Bukti_Tagging_SiteB_Cijayanti.pdf', 520),
+    routeMapFile: samplePdf('Peta_Rute_Interkoneksi_WO0081.kmz', 940),
     routeGmapsUrl: 'https://www.google.com/maps/dir/?api=1&origin=-6.58912,106.85231&destination=-6.59421,106.86105',
     createdAt: '2026-10-01T08:30:00Z',
     updatedAt: '2026-10-15T16:00:00Z'

@@ -27,7 +27,14 @@ import { TouchButton } from '../components/TouchButton';
 import { PDFUploader } from '../components/PDFUploader';
 import { PDFViewerModal } from '../components/PDFViewerModal';
 import { DeleteConfirmModal } from '../components/DeleteConfirmModal';
+import { TaggingLocationSection } from '../components/TaggingLocationSection';
 import { getFileBadgeStyle } from '../utils/fileHelper';
+import {
+  downloadDailyReportWord,
+  downloadDailyReportExcel,
+  downloadDailyReportRekapExcel,
+  ensureDailyReportVisualImages
+} from '../utils/dailyReportExportHelper';
 
 export const getGoogleMapsRouteUrl = (
   origCoord?: string,
@@ -81,6 +88,9 @@ export const DailyReportPage: React.FC = () => {
   // PDF Preview Modal
   const [previewPdf, setPreviewPdf] = useState<PDFFileMeta | null>(null);
 
+  // Detail / Summary Preview Modal State
+  const [detailPreviewReport, setDetailPreviewReport] = useState<DailyReportItem | null>(null);
+
   // Delete Confirm Modal State
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; woNumber: string } | null>(null);
 
@@ -112,8 +122,13 @@ export const DailyReportPage: React.FC = () => {
     remarks: '',
     originLocation: '',
     originCoordinates: '',
+    originPhotoFile: undefined,
+    originTaggingDocFile: undefined,
     destinationLocation: '',
     destinationCoordinates: '',
+    destinationPhotoFile: undefined,
+    destinationTaggingDocFile: undefined,
+    routeMapFile: undefined,
     routeGmapsUrl: ''
   });
 
@@ -125,33 +140,10 @@ export const DailyReportPage: React.FC = () => {
   ];
 
   const handleGetBrowserLocation = (type: 'origin' | 'destination') => {
-    if (!navigator.geolocation) {
-      showToast('error', 'GPS Tidak Didukung', 'Browser Anda tidak mendukung Geolocation API.');
-      return;
-    }
-    showToast('info', 'Mendapatkan Lokasi', 'Mengambil koordinat GPS saat ini dari peranti...');
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const lat = position.coords.latitude.toFixed(5);
-        const lng = position.coords.longitude.toFixed(5);
-        const coordsString = `${lat}, ${lng}`;
-        if (type === 'origin') {
-          setFormData(prev => ({
-            ...prev,
-            originCoordinates: coordsString
-          }));
-        } else {
-          setFormData(prev => ({
-            ...prev,
-            destinationCoordinates: coordsString
-          }));
-        }
-        showToast('success', 'GPS Berhasil', `Koordinat ${type === 'origin' ? 'Titik Awal' : 'Titik Akhir'} terisi: ${coordsString}`);
-      },
-      (error) => {
-        showToast('error', 'Gagal Ambil GPS', error.message || 'Izin lokasi ditolak atau GPS tidak aktif.');
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
+    showToast(
+      'success',
+      'Koordinat GPS Terisi',
+      `Koordinat ${type === 'origin' ? 'Titik Awal (Site A)' : 'Titik Akhir (Site B)'} berhasil diperbarui.`
     );
   };
 
@@ -180,8 +172,13 @@ export const DailyReportPage: React.FC = () => {
       remarks: '',
       originLocation: '',
       originCoordinates: '',
+      originPhotoFile: undefined,
+      originTaggingDocFile: undefined,
       destinationLocation: '',
       destinationCoordinates: '',
+      destinationPhotoFile: undefined,
+      destinationTaggingDocFile: undefined,
+      routeMapFile: undefined,
       routeGmapsUrl: ''
     });
     setIsModalOpen(true);
@@ -194,8 +191,13 @@ export const DailyReportPage: React.FC = () => {
       ...report,
       originLocation: report.originLocation || '',
       originCoordinates: report.originCoordinates || '',
+      originPhotoFile: report.originPhotoFile,
+      originTaggingDocFile: report.originTaggingDocFile,
       destinationLocation: report.destinationLocation || '',
       destinationCoordinates: report.destinationCoordinates || '',
+      destinationPhotoFile: report.destinationPhotoFile,
+      destinationTaggingDocFile: report.destinationTaggingDocFile,
+      routeMapFile: report.routeMapFile,
       routeGmapsUrl: report.routeGmapsUrl || ''
     });
     setIsModalOpen(true);
@@ -388,7 +390,7 @@ export const DailyReportPage: React.FC = () => {
           <h2 className="text-xl font-bold text-white mt-1">Daily Report Project Belacom</h2>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <TouchButton
             variant="secondary"
             size="sm"
@@ -396,6 +398,22 @@ export const DailyReportPage: React.FC = () => {
             onClick={exportToCSV}
           >
             Export CSV
+          </TouchButton>
+
+          <TouchButton
+            variant="secondary"
+            size="sm"
+            icon={<FileSpreadsheet className="w-4 h-4 text-emerald-400" />}
+            onClick={() => {
+              if (filteredReports.length === 0) {
+                showToast('error', 'Data Kosong', 'Tidak ada data laporan untuk di-export.');
+                return;
+              }
+              downloadDailyReportRekapExcel(filteredReports);
+              showToast('success', 'Export Rekap Excel', `${filteredReports.length} laporan dengan gambar visual berhasil di-download.`);
+            }}
+          >
+            Export Rekap Excel + Gambar (.xls)
           </TouchButton>
 
           <TouchButton
@@ -519,6 +537,60 @@ export const DailyReportPage: React.FC = () => {
                           )}
                         </div>
                       )}
+                      {(report.originPhotoFile || report.originTaggingDocFile || report.destinationPhotoFile || report.destinationTaggingDocFile || report.routeMapFile) && (
+                        <div className="mt-1 flex flex-wrap gap-1 text-[9px] font-mono">
+                          {report.originPhotoFile && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewPdf(report.originPhotoFile!)}
+                              className="px-1.5 py-0.5 bg-emerald-950/60 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-800/60 rounded flex items-center gap-1 cursor-pointer"
+                              title={`Foto Site A: ${report.originPhotoFile.name}`}
+                            >
+                              [{getFileBadgeStyle(report.originPhotoFile.name).ext}] Foto Site A
+                            </button>
+                          )}
+                          {report.originTaggingDocFile && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewPdf(report.originTaggingDocFile!)}
+                              className="px-1.5 py-0.5 bg-emerald-950/60 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-800/60 rounded flex items-center gap-1 cursor-pointer"
+                              title={`Dokumen Tagging Site A: ${report.originTaggingDocFile.name}`}
+                            >
+                              [{getFileBadgeStyle(report.originTaggingDocFile.name).ext}] Doc Site A
+                            </button>
+                          )}
+                          {report.destinationPhotoFile && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewPdf(report.destinationPhotoFile!)}
+                              className="px-1.5 py-0.5 bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60 rounded flex items-center gap-1 cursor-pointer"
+                              title={`Foto Site B: ${report.destinationPhotoFile.name}`}
+                            >
+                              [{getFileBadgeStyle(report.destinationPhotoFile.name).ext}] Foto Site B
+                            </button>
+                          )}
+                          {report.destinationTaggingDocFile && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewPdf(report.destinationTaggingDocFile!)}
+                              className="px-1.5 py-0.5 bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60 rounded flex items-center gap-1 cursor-pointer"
+                              title={`Dokumen Tagging Site B: ${report.destinationTaggingDocFile.name}`}
+                            >
+                              [{getFileBadgeStyle(report.destinationTaggingDocFile.name).ext}] Doc Site B
+                            </button>
+                          )}
+                          {report.routeMapFile && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewPdf(report.routeMapFile!)}
+                              className="px-1.5 py-0.5 bg-indigo-950/60 hover:bg-indigo-900/60 text-indigo-300 border border-indigo-800/60 rounded flex items-center gap-1 cursor-pointer"
+                              title={`File Peta Rute: ${report.routeMapFile.name}`}
+                            >
+                              [{getFileBadgeStyle(report.routeMapFile.name).ext}] Peta Rute
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </td>
 
                     <td className="py-2.5 px-3 font-mono text-[11px]">
@@ -607,6 +679,36 @@ export const DailyReportPage: React.FC = () => {
 
                     <td className="py-2.5 px-3 text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setDetailPreviewReport(report)}
+                          className="p-1.5 rounded-lg bg-slate-800 text-cyan-400 hover:bg-cyan-500/20 transition-colors cursor-pointer"
+                          title="Lihat Detail & Pratinjau Daily Report"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            downloadDailyReportWord(report);
+                            showToast('success', 'Download Word', `Laporan Word ${report.woNumber} berhasil diunduh.`);
+                          }}
+                          className="p-1.5 rounded-lg bg-slate-800 text-blue-400 hover:bg-blue-500/20 transition-colors cursor-pointer"
+                          title="Download Word (.doc) Lengkap dengan Gambar"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            downloadDailyReportExcel(report);
+                            showToast('success', 'Download Excel', `Laporan Excel ${report.woNumber} berhasil diunduh.`);
+                          }}
+                          className="p-1.5 rounded-lg bg-slate-800 text-emerald-400 hover:bg-emerald-500/20 transition-colors cursor-pointer"
+                          title="Download Excel (.xls) Lengkap dengan Gambar"
+                        >
+                          <FileSpreadsheet className="w-3.5 h-3.5" />
+                        </button>
                         <button
                           onClick={() => handleOpenEditModal(report)}
                           className="p-1.5 rounded-lg bg-slate-800 text-cyan-400 hover:bg-cyan-500/20 transition-colors cursor-pointer"
@@ -959,152 +1061,134 @@ export const DailyReportPage: React.FC = () => {
               </div>
 
               {/* Tagging End to End Location Section */}
-              <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800/80 space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
-                  <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-wider font-mono flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-rose-400 shrink-0" />
-                    TAGGING END TO END LOCATION (RUTE & TITIK KOORDINAT)
-                  </h4>
-                  {getGoogleMapsRouteUrl(
-                    formData.originCoordinates,
-                    formData.originLocation,
-                    formData.destinationCoordinates,
-                    formData.destinationLocation
-                  ) && (
-                    <a
-                      href={getGoogleMapsRouteUrl(
-                        formData.originCoordinates,
-                        formData.originLocation,
-                        formData.destinationCoordinates,
-                        formData.destinationLocation
-                      )!}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[11px] font-mono font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-950/80 hover:bg-emerald-900/80 px-2.5 py-1 rounded-lg border border-emerald-800/80 flex items-center gap-1.5 transition-colors self-start sm:self-auto"
-                    >
-                      <Navigation className="w-3.5 h-3.5" />
-                      🗺️ Lihat Rute di Google Maps
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  )}
-                </div>
+              <TaggingLocationSection
+                value={{
+                  originLocation: formData.originLocation,
+                  originCoordinates: formData.originCoordinates,
+                  originPhotoFile: formData.originPhotoFile,
+                  originTaggingDocFile: formData.originTaggingDocFile,
+                  destinationLocation: formData.destinationLocation,
+                  destinationCoordinates: formData.destinationCoordinates,
+                  destinationPhotoFile: formData.destinationPhotoFile,
+                  destinationTaggingDocFile: formData.destinationTaggingDocFile,
+                  routeMapFile: formData.routeMapFile,
+                  routeGmapsUrl: formData.routeGmapsUrl
+                }}
+                onChange={(updates) => setFormData((prev) => ({ ...prev, ...updates }))}
+                onGetBrowserLocation={handleGetBrowserLocation}
+                onDistanceCalculated={(distanceMeters) => {
+                  if (distanceMeters > 0) {
+                    setFormData((prev) => ({
+                      ...prev,
+                      estimatedDistanceMeters: distanceMeters,
+                      totalDistanceMeters: distanceMeters,
+                      pathLengthMeters: distanceMeters
+                    }));
+                  }
+                }}
+                onPreviewFile={(file) => setPreviewPdf(file)}
+                onDownloadWord={() => {
+                  downloadDailyReportWord({
+                    ...formData,
+                    id: editingId || 'temp-id',
+                    createdAt: '',
+                    updatedAt: ''
+                  });
+                  showToast('success', 'Download Word', 'Dokumen Daily Report Word (.doc) berhasil diunduh.');
+                }}
+                onDownloadExcel={() => {
+                  downloadDailyReportExcel({
+                    ...formData,
+                    id: editingId || 'temp-id',
+                    createdAt: '',
+                    updatedAt: ''
+                  });
+                  showToast('success', 'Download Excel', 'Dokumen Daily Report Excel (.xls) berhasil diunduh.');
+                }}
+                routeGmapsUrl={getGoogleMapsRouteUrl(
+                  formData.originCoordinates,
+                  formData.originLocation,
+                  formData.destinationCoordinates,
+                  formData.destinationLocation
+                )}
+              />
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Kolom Kiri — Titik Awal (Origin / Site A) */}
-                  <div className="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse"></span>
-                        Titik Awal (Origin / Site A)
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => handleGetBrowserLocation('origin')}
-                        className="text-[10px] text-cyan-400 hover:text-cyan-300 font-mono flex items-center gap-1 bg-slate-800 hover:bg-slate-750 px-2 py-0.5 rounded border border-slate-700 cursor-pointer transition-colors"
-                        title="Gunakan Geolocation browser untuk ambil koordinat saat ini"
-                      >
-                        📍 Ambil GPS Saat Ini
-                      </button>
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] text-slate-400 block mb-1">Nama Site / Titik Awal (Origin)</label>
-                      <input
-                        type="text"
-                        value={formData.originLocation || ''}
-                        onChange={(e) => setFormData(p => ({ ...p, originLocation: e.target.value }))}
-                        placeholder="Contoh: POP Sentul City / OTB-01"
-                        className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none focus:border-cyan-500 font-mono"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] text-slate-400 block mb-1">Koordinat GPS Titik Awal (Lat, Long)</label>
-                      <input
-                        type="text"
-                        value={formData.originCoordinates || ''}
-                        onChange={(e) => setFormData(p => ({ ...p, originCoordinates: e.target.value }))}
-                        placeholder="-6.58912, 106.85231"
-                        className="w-full bg-slate-950 border border-slate-800 text-xs text-emerald-400 font-bold rounded-xl p-2.5 outline-none focus:border-cyan-500 font-mono"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Kolom Kanan — Titik Akhir (Destination / Site B) */}
-                  <div className="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-rose-400 inline-block animate-pulse"></span>
-                        Titik Akhir (Destination / Site B)
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => handleGetBrowserLocation('destination')}
-                        className="text-[10px] text-cyan-400 hover:text-cyan-300 font-mono flex items-center gap-1 bg-slate-800 hover:bg-slate-750 px-2 py-0.5 rounded border border-slate-700 cursor-pointer transition-colors"
-                        title="Gunakan Geolocation browser untuk ambil koordinat saat ini"
-                      >
-                        📍 Ambil GPS Saat Ini
-                      </button>
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] text-slate-400 block mb-1">Nama Site / Titik Akhir (Destination)</label>
-                      <input
-                        type="text"
-                        value={formData.destinationLocation || ''}
-                        onChange={(e) => setFormData(p => ({ ...p, destinationLocation: e.target.value }))}
-                        placeholder="Contoh: BTS Cijayanti / Closure CL-04"
-                        className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none focus:border-cyan-500 font-mono"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] text-slate-400 block mb-1">Koordinat GPS Titik Akhir (Lat, Long)</label>
-                      <input
-                        type="text"
-                        value={formData.destinationCoordinates || ''}
-                        onChange={(e) => setFormData(p => ({ ...p, destinationCoordinates: e.target.value }))}
-                        placeholder="-6.59421, 106.86105"
-                        className="w-full bg-slate-950 border border-slate-800 text-xs text-emerald-400 font-bold rounded-xl p-2.5 outline-none focus:border-cyan-500 font-mono"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Section 4: 18. Dokumen & Foto Dokumentasi Uploads */}
+              {/* Section 4: 18. Dokumen & Foto Dokumentasi */}
               <div>
-                <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-wider font-mono border-b border-slate-800 pb-2 mb-3">
-                  18. DOKUMEN & FOTO DOKUMENTASI (UPLOAD FILE)
-                </h4>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2 mb-3">
+                  <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-wider font-mono">
+                    18. DOKUMEN &amp; FOTO DOKUMENTASI
+                  </h4>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        downloadDailyReportWord({
+                          ...formData,
+                          id: editingId || 'temp-id',
+                          createdAt: '',
+                          updatedAt: ''
+                        });
+                        showToast('success', 'Download Word', 'Dokumen Word (.doc) berhasil diunduh.');
+                      }}
+                      className="text-[11px] font-mono font-bold text-blue-400 hover:text-blue-300 bg-blue-950/80 hover:bg-blue-900/80 px-2.5 py-1 rounded-lg border border-blue-800/80 flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title="Download Daily Report & Lampiran Dokumen ke Word (.doc)"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>Word (.doc)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        downloadDailyReportExcel({
+                          ...formData,
+                          id: editingId || 'temp-id',
+                          createdAt: '',
+                          updatedAt: ''
+                        });
+                        showToast('success', 'Download Excel', 'Dokumen Excel (.xls) berhasil diunduh.');
+                      }}
+                      className="text-[11px] font-mono font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-950/80 hover:bg-emerald-900/80 px-2.5 py-1 rounded-lg border border-emerald-800/80 flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title="Download Daily Report & Lampiran Dokumen ke Excel (.xls)"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5" />
+                      <span>Excel (.xls)</span>
+                    </button>
+                  </div>
+                </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   <PDFUploader
-                    label="Foto Closure Doc"
+                    label="Foto Closure"
+                    woNumber={formData.woNumber}
                     value={formData?.documentation?.fotoClosurePdf}
                     onChange={(file) => setFormData(p => ({ ...p, documentation: { ...(p?.documentation || {}), fotoClosurePdf: file } }))}
                     onPreview={(f) => setPreviewPdf(f)}
                   />
                   <PDFUploader
-                    label="Pengujian OPM Doc"
+                    label="Pengujian OPM"
+                    woNumber={formData.woNumber}
                     value={formData?.documentation?.opmPdf}
                     onChange={(file) => setFormData(p => ({ ...p, documentation: { ...(p?.documentation || {}), opmPdf: file } }))}
                     onPreview={(f) => setPreviewPdf(f)}
                   />
                   <PDFUploader
-                    label="Pengujian OLS Doc"
+                    label="Pengujian OLS"
+                    woNumber={formData.woNumber}
                     value={formData?.documentation?.olsPdf}
                     onChange={(file) => setFormData(p => ({ ...p, documentation: { ...(p?.documentation || {}), olsPdf: file } }))}
                     onPreview={(f) => setPreviewPdf(f)}
                   />
                   <PDFUploader
-                    label="Dokumentasi BTS Doc"
+                    label="Dokumentasi BTS"
+                    woNumber={formData.woNumber}
                     value={formData?.documentation?.btsPdf}
                     onChange={(file) => setFormData(p => ({ ...p, documentation: { ...(p?.documentation || {}), btsPdf: file } }))}
                     onPreview={(f) => setPreviewPdf(f)}
                   />
                   <PDFUploader
-                    label="OTDR Trace Test Doc"
+                    label="OTDR Trace Test"
+                    woNumber={formData.woNumber}
                     value={formData?.documentation?.otdrPdf}
                     onChange={(file) => setFormData(p => ({ ...p, documentation: { ...(p?.documentation || {}), otdrPdf: file } }))}
                     onPreview={(f) => setPreviewPdf(f)}
@@ -1150,6 +1234,324 @@ export const DailyReportPage: React.FC = () => {
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      {/* Detail & Summary Preview Modal */}
+      {detailPreviewReport && (() => {
+        const rep = ensureDailyReportVisualImages(detailPreviewReport);
+        const docs = rep.documentation || {};
+        const originPhotoSrc = rep.originPhotoFile?.imageDataUrl || rep.originPhotoFile?.url;
+        const destPhotoSrc = rep.destinationPhotoFile?.imageDataUrl || rep.destinationPhotoFile?.url;
+        const routeMapSrc = rep.routeMapFile?.imageDataUrl || rep.routeMapFile?.url;
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+              
+              {/* Header */}
+              <div className="p-4 bg-slate-850 border-b border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                    <FileSpreadsheet className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      Pratinjau Daily Report: {rep.woNumber}
+                    </h3>
+                    <p className="text-xs text-slate-400 font-mono">
+                      {rep.woType} &bull; Area {rep.assignment} &bull; Tim {rep.team}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold ${
+                    rep.statusWo === 'Done' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                    rep.statusWo === 'In Progress' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' :
+                    'bg-slate-800 text-slate-400 border border-slate-700'
+                  }`}>
+                    {rep.statusWo}
+                  </span>
+                  <button
+                    onClick={() => setDetailPreviewReport(null)}
+                    className="p-1.5 text-slate-400 hover:text-white bg-slate-800 rounded-xl cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Content Body */}
+              <div className="p-6 overflow-y-auto space-y-6">
+                
+                {/* Download Actions Toolbar */}
+                <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-950 rounded-xl border border-slate-800">
+                  <span className="text-xs font-mono text-slate-400 flex items-center gap-1.5">
+                    <Download className="w-4 h-4 text-cyan-400" />
+                    Export Dokumen Resmi dengan Gambar Visual:
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        downloadDailyReportWord(rep);
+                        showToast('success', 'Download Word', `Laporan Word ${rep.woNumber} berhasil diunduh.`);
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-blue-950 text-blue-300 hover:bg-blue-900 border border-blue-800 text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+                    >
+                      <FileText className="w-4 h-4" />
+                      <span>Download Word (.doc)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        downloadDailyReportExcel(rep);
+                        showToast('success', 'Download Excel', `Laporan Excel ${rep.woNumber} berhasil diunduh.`);
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-950 text-emerald-300 hover:bg-emerald-900 border border-emerald-800 text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+                    >
+                      <FileSpreadsheet className="w-4 h-4" />
+                      <span>Download Excel (.xls)</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Info Table */}
+                <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+                  <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-wider font-mono border-b border-slate-800 pb-2">
+                    Informasi Work Order &amp; Pelaksanaan
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                    <div>
+                      <span className="text-slate-500 block">Nomor WO</span>
+                      <strong className="text-white font-mono">{rep.woNumber}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Kategori WO</span>
+                      <span className="text-slate-200">{rep.woType}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Area &amp; Tim</span>
+                      <span className="text-cyan-300 font-mono">{rep.assignment} / {rep.team}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">PIC Lapangan</span>
+                      <strong className="text-slate-200">{rep.pic}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Tanggal Release</span>
+                      <span className="text-slate-300 font-mono">{rep.releaseDate}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Periode Kerja</span>
+                      <span className="text-slate-300 font-mono">{rep.startDate} s/d {rep.finishDate}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Durasi</span>
+                      <strong className="text-amber-400 font-mono">{rep.durationDays} Hari Kerja</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Total Jarak / Alur</span>
+                      <strong className="text-emerald-400 font-mono">{(rep.totalDistanceMeters || 0).toLocaleString('id-ID')} m / {rep.pathLengthMeters || 0} m</strong>
+                    </div>
+                  </div>
+                  <div className="pt-2 border-t border-slate-900">
+                    <span className="text-slate-500 text-xs block">Deskripsi Pekerjaan:</span>
+                    <p className="text-xs text-slate-200 mt-0.5 font-mono">{rep.workType}</p>
+                  </div>
+                  {rep.remarks && (
+                    <div className="pt-2 border-t border-slate-900">
+                      <span className="text-slate-500 text-xs block">Catatan Lapangan:</span>
+                      <p className="text-xs text-amber-200/90 mt-0.5">{rep.remarks}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Section A: Tagging Location Visuals */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-wider font-mono flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-rose-400" />
+                      A. TAGGING END TO END LOCATION (FOTO &amp; RUTE)
+                    </h4>
+                    {(rep.routeGmapsUrl || getGoogleMapsRouteUrl(rep.originCoordinates, rep.originLocation, rep.destinationCoordinates, rep.destinationLocation)) && (
+                      <a
+                        href={rep.routeGmapsUrl || getGoogleMapsRouteUrl(rep.originCoordinates, rep.originLocation, rep.destinationCoordinates, rep.destinationLocation)!}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-mono text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
+                      >
+                        <Navigation className="w-3.5 h-3.5" /> Buka di Google Maps <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Site A Card */}
+                    <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-bold text-emerald-400 font-mono">📍 Site A (Origin)</span>
+                          <span className="text-[10px] text-slate-400 font-mono">{rep.originCoordinates || '-'}</span>
+                        </div>
+                        <p className="text-xs text-slate-200 font-medium mb-2">{rep.originLocation || 'Lokasi Titik Awal'}</p>
+                        {originPhotoSrc && (
+                          <div
+                            onClick={() => rep.originPhotoFile && setPreviewPdf(rep.originPhotoFile)}
+                            className="relative group rounded-lg overflow-hidden border border-slate-800 bg-black cursor-pointer"
+                          >
+                            <img
+                              src={originPhotoSrc}
+                              alt="Site A Geotag"
+                              className="w-full h-44 object-cover group-hover:scale-105 transition-transform"
+                            />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-xs font-mono text-white">
+                              <Eye className="w-4 h-4 mr-1" /> Klik Pratinjau
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Site B Card */}
+                    <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-bold text-rose-400 font-mono">📍 Site B (Destination)</span>
+                          <span className="text-[10px] text-slate-400 font-mono">{rep.destinationCoordinates || '-'}</span>
+                        </div>
+                        <p className="text-xs text-slate-200 font-medium mb-2">{rep.destinationLocation || 'Lokasi Titik Akhir'}</p>
+                        {destPhotoSrc && (
+                          <div
+                            onClick={() => rep.destinationPhotoFile && setPreviewPdf(rep.destinationPhotoFile)}
+                            className="relative group rounded-lg overflow-hidden border border-slate-800 bg-black cursor-pointer"
+                          >
+                            <img
+                              src={destPhotoSrc}
+                              alt="Site B Geotag"
+                              className="w-full h-44 object-cover group-hover:scale-105 transition-transform"
+                            />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-xs font-mono text-white">
+                              <Eye className="w-4 h-4 mr-1" /> Klik Pratinjau
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Route Map Card */}
+                  {routeMapSrc && (
+                    <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-cyan-400 font-mono">🗺️ Peta Rute Tracking End-to-End</span>
+                        <span className="text-[10px] font-mono text-emerald-400 font-bold">
+                          Jarak: {(rep.totalDistanceMeters || rep.estimatedDistanceMeters || 0).toLocaleString('id-ID')} Meter
+                        </span>
+                      </div>
+                      <div
+                        onClick={() => rep.routeMapFile && setPreviewPdf(rep.routeMapFile)}
+                        className="relative group rounded-lg overflow-hidden border border-slate-800 bg-black cursor-pointer"
+                      >
+                        <img
+                          src={routeMapSrc}
+                          alt="Route Map"
+                          className="w-full h-40 object-cover group-hover:scale-102 transition-transform"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-xs font-mono text-white">
+                          <Eye className="w-4 h-4 mr-1" /> Klik Pratinjau Peta
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Section B: 18. Dokumen & Foto Dokumentasi Visual Grid */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-wider font-mono border-b border-slate-800 pb-2">
+                    B. 18. DOKUMEN &amp; FOTO DOKUMENTASI (EVIDENCE LAPANGAN)
+                  </h4>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {[
+                      { label: 'Foto Closure Doc', file: docs.fotoClosurePdf, color: 'text-emerald-400' },
+                      { label: 'Pengujian OPM Doc', file: docs.opmPdf, color: 'text-amber-400' },
+                      { label: 'Pengujian OLS Doc', file: docs.olsPdf, color: 'text-purple-400' },
+                      { label: 'Dokumentasi BTS Doc', file: docs.btsPdf, color: 'text-rose-400' },
+                      { label: 'OTDR Trace Test Doc', file: docs.otdrPdf, color: 'text-cyan-400' }
+                    ].map((item, idx) => {
+                      const img = item.file?.imageDataUrl || item.file?.url;
+                      return (
+                        <div key={idx} className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex flex-col justify-between">
+                          <div>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className={`text-xs font-bold font-mono ${item.color}`}>{item.label}</span>
+                              <span className="text-[10px] text-slate-500 font-mono">Verified</span>
+                            </div>
+                            <span className="text-[11px] text-slate-300 block truncate mb-2" title={item.file?.name}>
+                              {item.file?.name || 'Belum di-upload'}
+                            </span>
+                            {img && (
+                              <div
+                                onClick={() => item.file && setPreviewPdf(item.file)}
+                                className="relative group rounded-lg overflow-hidden border border-slate-800 bg-black cursor-pointer"
+                              >
+                                <img
+                                  src={img}
+                                  alt={item.label}
+                                  className="w-full h-32 object-cover group-hover:scale-105 transition-transform"
+                                />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-xs font-mono text-white">
+                                  <Eye className="w-3.5 h-3.5 mr-1" /> Lihat Dokumen
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 bg-slate-850 border-t border-slate-800 flex items-center justify-between">
+                <div className="text-xs font-mono text-slate-400">
+                  Dokumentasi Resmi PT. Belacom Indonesia
+                </div>
+                <div className="flex items-center gap-2">
+                  <TouchButton
+                    variant="secondary"
+                    size="sm"
+                    icon={<FileText className="w-4 h-4 text-blue-400" />}
+                    onClick={() => {
+                      downloadDailyReportWord(rep);
+                      showToast('success', 'Download Word', `Laporan Word ${rep.woNumber} berhasil diunduh.`);
+                    }}
+                  >
+                    Word (.doc)
+                  </TouchButton>
+                  <TouchButton
+                    variant="secondary"
+                    size="sm"
+                    icon={<FileSpreadsheet className="w-4 h-4 text-emerald-400" />}
+                    onClick={() => {
+                      downloadDailyReportExcel(rep);
+                      showToast('success', 'Download Excel', `Laporan Excel ${rep.woNumber} berhasil diunduh.`);
+                    }}
+                  >
+                    Excel (.xls)
+                  </TouchButton>
+                  <TouchButton variant="primary" size="sm" onClick={() => setDetailPreviewReport(null)}>
+                    Tutup
+                  </TouchButton>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );

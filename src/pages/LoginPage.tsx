@@ -13,7 +13,7 @@ import { TouchButton } from '../components/TouchButton';
 
 export const LoginPage: React.FC = () => {
   const { login } = useProjectContext();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [secretKey, setSecretKey] = useState('');
   const [showSecret, setShowSecret] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -21,9 +21,9 @@ export const LoginPage: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
-    const success = login(email, secretKey);
+    const success = login(username, secretKey);
     if (!success) {
-      setErrorMsg('Kata kunci tidak sesuai! Silakan periksa kembali kata kunci Anda.');
+      setErrorMsg('Kredensial tidak sesuai! Silakan gunakan Username: belacom dan Password: belacom123.');
     }
   };
 
@@ -47,34 +47,37 @@ export const LoginPage: React.FC = () => {
             <h1 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-wider font-mono">
               PROJECT BELACOM
             </h1>
+            <p className="text-xs text-slate-400 font-sans mt-1">
+              Sistem Otentikasi Akses Terbatas System Admin
+            </p>
           </div>
         </div>
 
         {/* Login Form */}
         <form onSubmit={handleSubmit} className="space-y-5">
           
-          {/* Email / Username field */}
+          {/* Username field */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-300 block">
-              Username atau Email User
+              Username
             </label>
             <div className="relative">
               <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Masukkan username atau email..."
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Masukkan username (belacom)..."
                 className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 text-sm text-slate-100 placeholder-slate-500 rounded-xl pl-10 pr-4 py-2.5 outline-none transition-all focus:ring-1 focus:ring-cyan-500 font-mono"
               />
             </div>
           </div>
 
-          {/* Secret key field */}
+          {/* Secret key / Password field */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-300 block">
-              Kata Kunci Otentikasi System
+              Password
             </label>
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -83,7 +86,7 @@ export const LoginPage: React.FC = () => {
                 required
                 value={secretKey}
                 onChange={(e) => setSecretKey(e.target.value)}
-                placeholder="Masukkan kata kunci..."
+                placeholder="Masukkan password..."
                 className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 text-sm text-slate-100 placeholder-slate-500 rounded-xl pl-10 pr-10 py-2.5 outline-none transition-all focus:ring-1 focus:ring-cyan-500 font-mono"
               />
               <button

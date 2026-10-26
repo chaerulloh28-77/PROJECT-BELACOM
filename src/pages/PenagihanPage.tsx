@@ -7,8 +7,7 @@ import {
   Search, 
   X,
   Eye,
-  FileText,
-  Mail
+  FileText
 } from 'lucide-react';
 import { useProjectContext } from '../context/ProjectContext';
 import { PenagihanItem, StatusPenagihan, PDFFileMeta } from '../types';
@@ -16,8 +15,6 @@ import { TouchButton } from '../components/TouchButton';
 import { PDFUploader } from '../components/PDFUploader';
 import { PDFViewerModal } from '../components/PDFViewerModal';
 import { DeleteConfirmModal } from '../components/DeleteConfirmModal';
-import { SendEmailModal } from '../components/SendEmailModal';
-import { EmailAttachment } from '../utils/emailTemplate';
 
 export const PenagihanPage: React.FC = () => {
   const { penagihanList, addPenagihan, updatePenagihan, deletePenagihan, showToast, dailyReports } = useProjectContext();
@@ -26,19 +23,6 @@ export const PenagihanPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [previewPdf, setPreviewPdf] = useState<PDFFileMeta | null>(null);
-
-  // Email Submission Modal State
-  const [emailModalData, setEmailModalData] = useState<{
-    requestType: 'Penagihan';
-    woNumber: string;
-    projectName: string;
-    vendorName?: string;
-    mitraPelaksana?: string;
-    statusDokumen?: string;
-    defaultRecipient?: string;
-    defaultRecipientName?: string;
-    availableAttachments: EmailAttachment[];
-  } | null>(null);
 
   // Delete Target Modal State
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; billingCode: string } | null>(null);
@@ -277,54 +261,6 @@ export const PenagihanPage: React.FC = () => {
                   <td className="py-2.5 px-3 text-right">
                     <div className="flex items-center justify-end gap-1.5">
                       <button
-                        type="button"
-                        onClick={() => {
-                          const attachments: EmailAttachment[] = [];
-                          if (penagihan.invoicePdf) attachments.push({ name: penagihan.invoicePdf.name, url: penagihan.invoicePdf.url, sizeBytes: penagihan.invoicePdf.sizeBytes });
-                          if (penagihan.bastPdf) attachments.push({ name: penagihan.bastPdf.name, url: penagihan.bastPdf.url, sizeBytes: penagihan.bastPdf.sizeBytes });
-                          if (penagihan.kwitansiPdf) attachments.push({ name: penagihan.kwitansiPdf.name, url: penagihan.kwitansiPdf.url, sizeBytes: penagihan.kwitansiPdf.sizeBytes });
-                          if (penagihan.apdPdf) attachments.push({ name: penagihan.apdPdf.name, url: penagihan.apdPdf.url, sizeBytes: penagihan.apdPdf.sizeBytes });
-                          if (penagihan.abdPdf) attachments.push({ name: penagihan.abdPdf.name, url: penagihan.abdPdf.url, sizeBytes: penagihan.abdPdf.sizeBytes });
-                          if (penagihan.coreConnectionPdf) attachments.push({ name: penagihan.coreConnectionPdf.name, url: penagihan.coreConnectionPdf.url, sizeBytes: penagihan.coreConnectionPdf.sizeBytes });
-                          if (penagihan.fotoDokumentasiPdf) attachments.push({ name: penagihan.fotoDokumentasiPdf.name, url: penagihan.fotoDokumentasiPdf.url, sizeBytes: penagihan.fotoDokumentasiPdf.sizeBytes });
-                          if (penagihan.poPdf) attachments.push({ name: penagihan.poPdf.name, url: penagihan.poPdf.url, sizeBytes: penagihan.poPdf.sizeBytes });
-                          if (penagihan.dataMaterialPdf) attachments.push({ name: penagihan.dataMaterialPdf.name, url: penagihan.dataMaterialPdf.url, sizeBytes: penagihan.dataMaterialPdf.sizeBytes });
-                          if (penagihan.boqPdf) attachments.push({ name: penagihan.boqPdf.name, url: penagihan.boqPdf.url, sizeBytes: penagihan.boqPdf.sizeBytes });
-                          if (penagihan.fakturPajakPdf) attachments.push({ name: penagihan.fakturPajakPdf.name, url: penagihan.fakturPajakPdf.url, sizeBytes: penagihan.fakturPajakPdf.sizeBytes });
-                          if (penagihan.rfsPdf) attachments.push({ name: penagihan.rfsPdf.name, url: penagihan.rfsPdf.url, sizeBytes: penagihan.rfsPdf.sizeBytes });
-
-                          if (attachments.length === 0) {
-                            attachments.push(
-                              { name: `Invoice_Penagihan_${penagihan.billingCode.replace(/\//g, '_')}.pdf`, sizeBytes: 1540000 },
-                              { name: `BAST_${penagihan.woNumber}.pdf`, sizeBytes: 1420000 }
-                            );
-                          }
-
-                          const relatedDaily = dailyReports.find(d => d.woNumber === penagihan.woNumber);
-                          const uraian = penagihan.dailyReportWorkType || relatedDaily?.workType || `Paket Tagihan ${penagihan.billingCode}`;
-                          const statusDok = penagihan.statusPenagihan === 'Disetujui' || penagihan.statusPenagihan === 'Lunas'
-                            ? 'Lengkap Checklist (Terverifikasi)'
-                            : 'Lengkap Checklist (Dalam Verifikasi)';
-
-                          setEmailModalData({
-                            requestType: 'Penagihan',
-                            woNumber: penagihan.woNumber,
-                            projectName: uraian,
-                            vendorName: 'Belacom',
-                            mitraPelaksana: 'PT. Belacom Indonesia Telecom',
-                            statusDokumen: statusDok,
-                            defaultRecipient: 'penagihan.kontrak@telkom.co.id',
-                            defaultRecipientName: 'Tim Verifikasi Penagihan & Kontrak',
-                            availableAttachments: attachments
-                          });
-                        }}
-                        className="px-2 py-1.5 rounded-lg bg-blue-600/10 text-blue-400 hover:bg-blue-600/20 border border-blue-500/20 cursor-pointer flex items-center gap-1 text-[11px] font-semibold transition-colors"
-                        title="Kirim Email Resmi Penagihan ke SAP"
-                      >
-                        <Mail className="w-3.5 h-3.5" />
-                        <span className="hidden sm:inline">Email</span>
-                      </button>
-                      <button
                         onClick={() => handleOpenEditModal(penagihan)}
                         className="p-1.5 rounded-lg bg-slate-800 text-cyan-400 hover:bg-cyan-500/20 cursor-pointer"
                         title="Edit Penagihan"
@@ -410,18 +346,18 @@ export const PenagihanPage: React.FC = () => {
                 </h4>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <PDFUploader label="1. Invoice Upload PDF" value={formData.invoicePdf} onChange={(f) => setFormData(p => ({ ...p, invoicePdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="2. BAST Upload PDF" value={formData.bastPdf} onChange={(f) => setFormData(p => ({ ...p, bastPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="3. Kwitansi (Semua Jenis File)" value={formData.kwitansiPdf} onChange={(f) => setFormData(p => ({ ...p, kwitansiPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="4. APD Upload PDF" value={formData.apdPdf} onChange={(f) => setFormData(p => ({ ...p, apdPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="5. ABD Upload PDF" value={formData.abdPdf} onChange={(f) => setFormData(p => ({ ...p, abdPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="6. Core Connection PDF" value={formData.coreConnectionPdf} onChange={(f) => setFormData(p => ({ ...p, coreConnectionPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="7. Foto Docs PDF (Max 4MB)" value={formData.fotoDokumentasiPdf} onChange={(f) => setFormData(p => ({ ...p, fotoDokumentasiPdf: f }))} onPreview={(f) => setPreviewPdf(f)} maxSizeMB={4} />
-                  <PDFUploader label="9. PO Upload PDF" value={formData.poPdf} onChange={(f) => setFormData(p => ({ ...p, poPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="10. Data Material PDF" value={formData.dataMaterialPdf} onChange={(f) => setFormData(p => ({ ...p, dataMaterialPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="11. BOQ Upload PDF" value={formData.boqPdf} onChange={(f) => setFormData(p => ({ ...p, boqPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="12. Faktur Pajak PDF" value={formData.fakturPajakPdf} onChange={(f) => setFormData(p => ({ ...p, fakturPajakPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="13. RFS Upload PDF" value={formData.rfsPdf} onChange={(f) => setFormData(p => ({ ...p, rfsPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
+                  <PDFUploader label="1. Invoice" value={formData.invoicePdf} onChange={(f) => setFormData(p => ({ ...p, invoicePdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
+                  <PDFUploader label="2. BAST" value={formData.bastPdf} onChange={(f) => setFormData(p => ({ ...p, bastPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
+                  <PDFUploader label="3. Kwitansi" value={formData.kwitansiPdf} onChange={(f) => setFormData(p => ({ ...p, kwitansiPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
+                  <PDFUploader label="4. APD" value={formData.apdPdf} onChange={(f) => setFormData(p => ({ ...p, apdPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
+                  <PDFUploader label="5. ABD" value={formData.abdPdf} onChange={(f) => setFormData(p => ({ ...p, abdPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
+                  <PDFUploader label="6. Core Connection" value={formData.coreConnectionPdf} onChange={(f) => setFormData(p => ({ ...p, coreConnectionPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
+                  <PDFUploader label="7. Foto Dokumentasi" value={formData.fotoDokumentasiPdf} onChange={(f) => setFormData(p => ({ ...p, fotoDokumentasiPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
+                  <PDFUploader label="9. Purchase Order (PO)" value={formData.poPdf} onChange={(f) => setFormData(p => ({ ...p, poPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
+                  <PDFUploader label="10. Data Material" value={formData.dataMaterialPdf} onChange={(f) => setFormData(p => ({ ...p, dataMaterialPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
+                  <PDFUploader label="11. BOQ" value={formData.boqPdf} onChange={(f) => setFormData(p => ({ ...p, boqPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
+                  <PDFUploader label="12. Faktur Pajak" value={formData.fakturPajakPdf} onChange={(f) => setFormData(p => ({ ...p, fakturPajakPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
+                  <PDFUploader label="13. RFS" value={formData.rfsPdf} onChange={(f) => setFormData(p => ({ ...p, rfsPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
                 </div>
               </div>
 
@@ -471,15 +407,6 @@ export const PenagihanPage: React.FC = () => {
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
-
-      {/* Send Email Modal */}
-      {emailModalData && (
-        <SendEmailModal
-          isOpen={true}
-          onClose={() => setEmailModalData(null)}
-          defaultData={emailModalData}
-        />
-      )}
 
     </div>
   );

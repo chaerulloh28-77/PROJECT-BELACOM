@@ -7,8 +7,7 @@ import {
   Search, 
   X,
   Eye,
-  FileText,
-  Mail
+  FileText
 } from 'lucide-react';
 import { useProjectContext } from '../context/ProjectContext';
 import { InvoiceItem, StatusInvoice, PDFFileMeta } from '../types';
@@ -16,8 +15,6 @@ import { TouchButton } from '../components/TouchButton';
 import { PDFUploader } from '../components/PDFUploader';
 import { PDFViewerModal } from '../components/PDFViewerModal';
 import { DeleteConfirmModal } from '../components/DeleteConfirmModal';
-import { SendEmailModal } from '../components/SendEmailModal';
-import { EmailAttachment } from '../utils/emailTemplate';
 
 export const InvoicePage: React.FC = () => {
   const { invoices, addInvoice, updateInvoice, deleteInvoice, showToast, bastList, dailyReports } = useProjectContext();
@@ -26,19 +23,6 @@ export const InvoicePage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [previewPdf, setPreviewPdf] = useState<PDFFileMeta | null>(null);
-
-  // Email Submission Modal State
-  const [emailModalData, setEmailModalData] = useState<{
-    requestType: 'Invoice';
-    woNumber: string;
-    projectName: string;
-    vendorName?: string;
-    wilayahOperasi?: string;
-    nomorBastAcuan?: string;
-    defaultRecipient?: string;
-    defaultRecipientName?: string;
-    availableAttachments: EmailAttachment[];
-  } | null>(null);
 
   // Delete Target Modal State
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; invoiceNumber: string } | null>(null);
@@ -105,10 +89,10 @@ export const InvoicePage: React.FC = () => {
     }
   };
 
-  const filteredInvoices = invoices.filter(i => 
-    i.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    i.woNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    i.poNumber.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredInvoices = (invoices ?? []).filter(i => 
+    (i?.invoiceNumber || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (i?.woNumber || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (i?.poNumber || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -173,7 +157,7 @@ export const InvoicePage: React.FC = () => {
                   </td>
 
                   <td className="py-2.5 px-3 font-mono font-bold text-emerald-400 text-sm">
-                    Rp {inv.amountRupiah.toLocaleString('id-ID')}
+                    Rp {(inv.amountRupiah || 0).toLocaleString('id-ID')}
                   </td>
 
                   <td className="py-2.5 px-3 font-mono text-[11px]">
@@ -183,22 +167,22 @@ export const InvoicePage: React.FC = () => {
 
                   <td className="py-2.5 px-3 font-mono">
                     <div className="flex flex-wrap gap-1 text-[10px]">
-                      {inv.boqPdf && (
+                      {inv?.boqPdf && (
                         <button onClick={() => setPreviewPdf(inv.boqPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat BOQ PDF">
                           <Eye className="w-3 h-3 text-cyan-400" /> BOQ
                         </button>
                       )}
-                      {inv.poPdf && (
+                      {inv?.poPdf && (
                         <button onClick={() => setPreviewPdf(inv.poPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat PO PDF">
                           <Eye className="w-3 h-3 text-cyan-400" /> PO
                         </button>
                       )}
-                      {inv.fakturPajakPdf && (
+                      {inv?.fakturPajakPdf && (
                         <button onClick={() => setPreviewPdf(inv.fakturPajakPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat Faktur Pajak PDF">
                           <Eye className="w-3 h-3 text-cyan-400" /> Faktur Pajak
                         </button>
                       )}
-                      {inv.rfsPdf && (
+                      {inv?.rfsPdf && (
                         <button onClick={() => setPreviewPdf(inv.rfsPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat RFS PDF">
                           <FileText className="w-3 h-3 text-cyan-400" /> RFS
                         </button>
@@ -219,48 +203,6 @@ export const InvoicePage: React.FC = () => {
 
                   <td className="py-2.5 px-3 text-right">
                     <div className="flex items-center justify-end gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const attachments: EmailAttachment[] = [];
-                          if (inv.boqPdf) attachments.push({ name: inv.boqPdf.name, url: inv.boqPdf.url, sizeBytes: inv.boqPdf.sizeBytes });
-                          if (inv.poPdf) attachments.push({ name: inv.poPdf.name, url: inv.poPdf.url, sizeBytes: inv.poPdf.sizeBytes });
-                          if (inv.fakturPajakPdf) attachments.push({ name: inv.fakturPajakPdf.name, url: inv.fakturPajakPdf.url, sizeBytes: inv.fakturPajakPdf.sizeBytes });
-                          if (inv.rfsPdf) attachments.push({ name: inv.rfsPdf.name, url: inv.rfsPdf.url, sizeBytes: inv.rfsPdf.sizeBytes });
-
-                          if (attachments.length === 0) {
-                            attachments.push(
-                              { name: `Invoice_${inv.invoiceNumber.replace(/\//g, '_')}.pdf`, sizeBytes: 1540000 },
-                              { name: `PO_${inv.poNumber}.pdf`, sizeBytes: 890000 },
-                              { name: `FakturPajak_${inv.fakturPajakNumber}.pdf`, sizeBytes: 620000 },
-                              { name: `BOQ_Relokasi_${inv.woNumber}.pdf`, sizeBytes: 1120000 }
-                            );
-                          }
-
-                          const relatedBast = bastList.find(b => b.woNumber === inv.woNumber);
-                          const relatedDaily = dailyReports.find(d => d.woNumber === inv.woNumber);
-                          const uraian = relatedBast?.workType || relatedDaily?.workType || `Penagihan Invoice ${inv.invoiceNumber} (Rp ${inv.amountRupiah.toLocaleString('id-ID')})`;
-                          const wilayah = relatedDaily?.assignment ? `Area ${relatedDaily.assignment}` : 'Area Jabodetabek';
-                          const bastAcuan = relatedBast ? `BAST/${inv.woNumber}/BELACOM/${new Date().getFullYear()}` : `BAST-REF-${inv.woNumber}`;
-
-                          setEmailModalData({
-                            requestType: 'Invoice',
-                            woNumber: inv.woNumber,
-                            projectName: uraian,
-                            vendorName: 'Belacom',
-                            wilayahOperasi: wilayah,
-                            nomorBastAcuan: bastAcuan,
-                            defaultRecipient: 'finance.payment@telkom.co.id',
-                            defaultRecipientName: 'Tim Finance & Accounting / Tim Verifikasi Pembayaran',
-                            availableAttachments: attachments
-                          });
-                        }}
-                        className="px-2 py-1.5 rounded-lg bg-blue-600/10 text-blue-400 hover:bg-blue-600/20 border border-blue-500/20 cursor-pointer flex items-center gap-1 text-[11px] font-semibold transition-colors"
-                        title="Kirim Email Resmi Invoice ke SAP"
-                      >
-                        <Mail className="w-3.5 h-3.5" />
-                        <span className="hidden xl:inline">Email</span>
-                      </button>
                       <button
                         onClick={() => handleOpenEditModal(inv)}
                         className="p-1.5 rounded-lg bg-slate-800 text-cyan-400 hover:bg-cyan-500/20 cursor-pointer"
@@ -349,7 +291,7 @@ export const InvoicePage: React.FC = () => {
                     className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none font-mono mb-2"
                   />
                   <PDFUploader
-                    label="PO Upload PDF"
+                    label="Dokumen PO"
                     value={formData.poPdf}
                     onChange={(f) => setFormData(p => ({ ...p, poPdf: f }))}
                     onPreview={(f) => setPreviewPdf(f)}
@@ -365,7 +307,7 @@ export const InvoicePage: React.FC = () => {
                     className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none font-mono mb-2"
                   />
                   <PDFUploader
-                    label="Faktur Pajak Upload PDF"
+                    label="Dokumen Faktur Pajak"
                     value={formData.fakturPajakPdf}
                     onChange={(f) => setFormData(p => ({ ...p, fakturPajakPdf: f }))}
                     onPreview={(f) => setPreviewPdf(f)}
@@ -375,13 +317,13 @@ export const InvoicePage: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <PDFUploader
-                  label="2. BOQ Upload PDF"
+                  label="2. Dokumen BOQ"
                   value={formData.boqPdf}
                   onChange={(f) => setFormData(p => ({ ...p, boqPdf: f }))}
                   onPreview={(f) => setPreviewPdf(f)}
                 />
                 <PDFUploader
-                  label="5. RFS Upload PDF / Link"
+                  label="5. Dokumen RFS"
                   value={formData.rfsPdf}
                   onChange={(f) => setFormData(p => ({ ...p, rfsPdf: f }))}
                   onPreview={(f) => setPreviewPdf(f)}
@@ -434,15 +376,6 @@ export const InvoicePage: React.FC = () => {
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
-
-      {/* Send Email Modal */}
-      {emailModalData && (
-        <SendEmailModal
-          isOpen={true}
-          onClose={() => setEmailModalData(null)}
-          defaultData={emailModalData}
-        />
-      )}
 
     </div>
   );

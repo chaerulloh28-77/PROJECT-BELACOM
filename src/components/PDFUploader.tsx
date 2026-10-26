@@ -1,155 +1,186 @@
 import React, { useRef, useState } from 'react';
-import { FileText, UploadCloud, Eye, Trash2, AlertCircle, CheckCircle2, FileCode, Image as ImageIcon, Archive, FileSpreadsheet } from 'lucide-react';
+import {
+  UploadCloud,
+  Eye,
+  Trash2,
+  AlertCircle,
+  RefreshCw,
+  Loader2,
+  FileText
+} from 'lucide-react';
 import { PDFFileMeta } from '../types';
-import { getFileBadgeStyle } from '../utils/fileHelper';
+import { getFileExtension } from '../utils/fileHelper';
+import { generateVisualDocDataUrl } from '../utils/bastExportHelper';
 
 interface PDFUploaderProps {
   label: string;
   value?: PDFFileMeta;
   onChange: (file?: PDFFileMeta) => void;
-  maxSizeMB?: number; // Default 10MB
+  maxSizeMB?: number;
   required?: boolean;
   onPreview?: (file: PDFFileMeta) => void;
   accept?: string;
+  woNumber?: string;
 }
 
 export const PDFUploader: React.FC<PDFUploaderProps> = ({
   label,
   value,
   onChange,
-  maxSizeMB = 10,
+  maxSizeMB = 25,
   required = false,
   onPreview,
-  accept = "*/*"
+  woNumber = 'WO-BEL-2026'
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const processFile = (file: File) => {
     setErrorMsg(null);
-    const file = e.target.files?.[0];
-    if (!file) return;
-
     const maxSizeBytes = maxSizeMB * 1024 * 1024;
     if (file.size > maxSizeBytes) {
-      setErrorMsg(`Ukuran file melebihi batas maksimal ${maxSizeMB} MB! (${(file.size / (1024 * 1024)).toFixed(2)} MB)`);
+      setErrorMsg(`Ukuran file melebihi batas maksimal ${maxSizeMB} MB.`);
       return;
     }
 
-    const fileMeta: PDFFileMeta = {
-      id: 'doc-' + Math.random().toString(36).substring(2, 9),
-      name: file.name,
-      sizeBytes: file.size,
-      uploadDate: new Date().toISOString().split('T')[0],
-      pages: Math.floor(Math.random() * 5) + 1,
-      url: URL.createObjectURL(file),
-      fileType: file.type || 'application/octet-stream'
-    };
+    setIsLoading(true);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+      const ext = getFileExtension(file.name);
+      const isImg = ['JPG', 'JPEG', 'PNG', 'WEBP', 'GIF', 'SVG'].includes(ext);
 
-    onChange(fileMeta);
-  };
+      const visualImg = isImg && dataUrl
+        ? dataUrl
+        : generateVisualDocDataUrl(label, file.name, woNumber, `BAST/${woNumber}/2026`);
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setErrorMsg(null);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0];
-      if (file.size > maxSizeMB * 1024 * 1024) {
-        setErrorMsg(`Ukuran file melebihi batas maksimal ${maxSizeMB} MB!`);
-        return;
-      }
       const fileMeta: PDFFileMeta = {
         id: 'doc-' + Math.random().toString(36).substring(2, 9),
         name: file.name,
         sizeBytes: file.size,
         uploadDate: new Date().toISOString().split('T')[0],
         pages: Math.floor(Math.random() * 5) + 1,
-        url: URL.createObjectURL(file),
-        fileType: file.type || 'application/octet-stream'
+        url: dataUrl || URL.createObjectURL(file),
+        fileType: file.type || 'application/octet-stream',
+        imageDataUrl: visualImg
       };
+
+      setIsLoading(false);
       onChange(fileMeta);
+    };
+
+    reader.onerror = () => {
+      const visualImg = generateVisualDocDataUrl(label, file.name, woNumber, `BAST/${woNumber}/2026`);
+      const fileMeta: PDFFileMeta = {
+        id: 'doc-' + Math.random().toString(36).substring(2, 9),
+        name: file.name,
+        sizeBytes: file.size,
+        uploadDate: new Date().toISOString().split('T')[0],
+        pages: 1,
+        url: URL.createObjectURL(file),
+        fileType: file.type || 'application/octet-stream',
+        imageDataUrl: visualImg
+      };
+      setIsLoading(false);
+      onChange(fileMeta);
+    };
+
+    reader.readAsDataURL(file);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processFile(file);
+    }
+    e.target.value = '';
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setErrorMsg(null);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      processFile(e.dataTransfer.files[0]);
     }
   };
 
-  const formatSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-  };
+  const ext = value ? getFileExtension(value.name) : '';
+  const isImageOrVisual =
+    Boolean(value?.imageDataUrl) ||
+    ['JPG', 'JPEG', 'PNG', 'WEBP', 'GIF', 'SVG'].includes(ext) ||
+    (value?.url?.startsWith('data:image/') ?? false);
 
-  const generateDemoFile = () => {
-    setErrorMsg(null);
-    const sampleExts = ['.pdf', '.docx', '.xlsx', '.jpg', '.png', '.zip', '.dwg'];
-    const randomExt = sampleExts[Math.floor(Math.random() * sampleExts.length)];
-    const cleanLabel = label.toLowerCase().replace(/[^a-z0-9]/g, '_');
-    
-    const demoMeta: PDFFileMeta = {
-      id: 'doc-' + Math.random().toString(36).substring(2, 9),
-      name: `${cleanLabel}_sampel${randomExt}`,
-      sizeBytes: Math.floor(Math.random() * (maxSizeMB * 0.5 * 1024 * 1024)) + 150000,
-      uploadDate: new Date().toISOString().split('T')[0],
-      pages: Math.floor(Math.random() * 4) + 1,
-      url: '#'
-    };
-    onChange(demoMeta);
-  };
-
-  const badgeStyle = value ? getFileBadgeStyle(value.name) : null;
+  const previewImageSrc = value?.imageDataUrl || (value?.url?.startsWith('data:image/') ? value.url : undefined);
 
   return (
     <div className="w-full font-sans">
-      <div className="flex items-center justify-between mb-1.5">
-        <label className="text-xs font-semibold text-slate-300 flex items-center gap-1">
-          {label} {required && <span className="text-rose-400">*</span>}
-        </label>
-        <span className="text-[10px] text-slate-400 font-mono bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
-          Maks: {maxSizeMB} MB (Semua Format)
-        </span>
-      </div>
+      <label
+        onClick={() => fileInputRef.current?.click()}
+        className="block text-xs font-semibold text-slate-300 mb-1.5 cursor-pointer hover:text-cyan-300 transition-colors truncate"
+      >
+        {label} {required && <span className="text-rose-400">*</span>}
+      </label>
 
       <input
         type="file"
         ref={fileInputRef}
         onChange={handleFileChange}
-        accept={accept}
+        accept="*/*"
         className="hidden"
       />
 
       {value ? (
-        <div 
+        <div
           onClick={() => onPreview && onPreview(value)}
-          className="p-3 bg-slate-800/90 hover:bg-slate-750 hover:border-cyan-500/60 rounded-xl border border-cyan-500/30 flex items-center justify-between gap-3 shadow-inner transition-all cursor-pointer group"
+          className="h-11 px-2.5 bg-slate-900/90 hover:bg-slate-800/90 hover:border-cyan-500/50 rounded-xl border border-slate-700/80 flex items-center justify-between gap-2 transition-all cursor-pointer group"
         >
-          <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className={`px-2 py-1 rounded-lg text-xs font-mono font-bold shrink-0 border ${badgeStyle?.bgClass} ${badgeStyle?.textClass} ${badgeStyle?.borderClass} group-hover:scale-105 transition-transform`}>
-              [{badgeStyle?.ext}]
-            </div>
-            <div className="overflow-hidden text-left">
-              <p className="text-xs font-semibold text-slate-100 group-hover:text-cyan-300 transition-colors truncate" title={value.name}>
-                {value.name}
-              </p>
-              <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono">
-                <span>{formatSize(value.sizeBytes)}</span>
-                <span>·</span>
-                <span className="text-emerald-400 flex items-center gap-0.5 font-bold">
-                  <CheckCircle2 className="w-3 h-3 inline" /> Berkas Valid
-                </span>
+          <div className="flex items-center gap-2 overflow-hidden">
+            {isImageOrVisual && previewImageSrc ? (
+              <img
+                src={previewImageSrc}
+                alt={value.name}
+                className="w-7 h-7 rounded-md object-cover border border-slate-700 shrink-0 bg-slate-950"
+              />
+            ) : (
+              <div className="w-7 h-7 rounded-md bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
+                <FileText className="w-3.5 h-3.5 text-cyan-400" />
               </div>
-            </div>
+            )}
+            <span
+              className="text-xs font-medium text-slate-200 group-hover:text-cyan-300 transition-colors truncate"
+              title={value.name}
+            >
+              {value.name}
+            </span>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1 shrink-0">
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 if (onPreview) onPreview(value);
               }}
-              className="px-2 py-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
-              title="Pratinjau / Unduh Dokumen"
+              className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 transition-colors cursor-pointer"
+              title="Lihat / Preview"
+              aria-label={`Lihat ${value.name}`}
             >
               <Eye className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Pratinjau</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                fileInputRef.current?.click();
+              }}
+              className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer"
+              title="Ganti File"
+              aria-label={`Ganti ${value.name}`}
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
             </button>
 
             <button
@@ -160,8 +191,9 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
               }}
               className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-colors cursor-pointer"
               title="Hapus File"
+              aria-label={`Hapus ${value.name}`}
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -170,30 +202,21 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
-          className="border-2 border-dashed border-slate-700/80 hover:border-cyan-500/60 rounded-xl p-3 text-center bg-slate-900/50 hover:bg-slate-850 transition-all cursor-pointer group"
+          className="h-11 px-3 border border-dashed border-slate-700/80 hover:border-cyan-500/60 rounded-xl bg-slate-900/50 hover:bg-slate-800/60 flex items-center justify-center gap-2 text-slate-400 hover:text-cyan-400 transition-all cursor-pointer group"
         >
-          <div className="flex items-center justify-center gap-2 text-slate-400 group-hover:text-cyan-400">
-            <UploadCloud className="w-5 h-5 shrink-0" />
-            <span className="text-xs font-medium">Pilih / Upload Dokumen (Semua Format)</span>
-          </div>
-          <div className="mt-1 flex items-center justify-center gap-2">
-            <span className="text-[10px] text-slate-400 font-mono">Format: PDF, DOCX, XLSX, JPG/PNG, ZIP, DWG, DLL</span>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                generateDemoFile();
-              }}
-              className="text-[10px] underline text-cyan-400 hover:text-cyan-300 font-mono font-medium cursor-pointer"
-            >
-              + Buat Sampel Dokumen
-            </button>
-          </div>
+          {isLoading ? (
+            <Loader2 className="w-4 h-4 animate-spin text-cyan-400 shrink-0" />
+          ) : (
+            <UploadCloud className="w-4 h-4 shrink-0 text-slate-400 group-hover:text-cyan-400 transition-colors" />
+          )}
+          <span className="text-xs font-medium tracking-wide">
+            {isLoading ? 'Uploading...' : 'Upload here'}
+          </span>
         </div>
       )}
 
       {errorMsg && (
-        <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-rose-400 font-medium">
+        <div className="mt-1 flex items-center gap-1.5 text-[11px] text-rose-400 font-medium">
           <AlertCircle className="w-3.5 h-3.5 shrink-0" />
           <span>{errorMsg}</span>
         </div>

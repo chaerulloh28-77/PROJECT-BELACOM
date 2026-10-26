@@ -8,21 +8,22 @@ import {
   Search, 
   X,
   Eye,
-  Mail,
   MapPin,
   Navigation,
-  ExternalLink
+  ExternalLink,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useProjectContext } from '../context/ProjectContext';
 import { BASTItem, WOOption, StatusBAST, PDFFileMeta } from '../types';
 import { TouchButton } from '../components/TouchButton';
 import { PDFUploader } from '../components/PDFUploader';
+import { MultiPDFUploader } from '../components/MultiPDFUploader';
 import { PDFViewerModal } from '../components/PDFViewerModal';
 import { DeleteConfirmModal } from '../components/DeleteConfirmModal';
-import { SendEmailModal } from '../components/SendEmailModal';
-import { EmailAttachment } from '../utils/emailTemplate';
 import { getDefaultWorkTypeForWoOption, getGoogleMapsRouteUrl } from './DailyReportPage';
+import { TaggingLocationSection } from '../components/TaggingLocationSection';
 import { getFileBadgeStyle } from '../utils/fileHelper';
+import { exportBastToWord, exportBastToExcel } from '../utils/bastExportHelper';
 
 export const BASTPage: React.FC = () => {
   const { bastList, addBAST, updateBAST, deleteBAST, showToast, dailyReports } = useProjectContext();
@@ -31,19 +32,7 @@ export const BASTPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [previewPdf, setPreviewPdf] = useState<PDFFileMeta | null>(null);
-
-  // Email Submission Modal State
-  const [emailModalData, setEmailModalData] = useState<{
-    bastId?: string;
-    requestType: 'BAST';
-    woNumber: string;
-    projectName: string;
-    vendorName?: string;
-    segmentLocation?: string;
-    realisasiJarak?: string;
-    documentNumber?: string;
-    availableAttachments: EmailAttachment[];
-  } | null>(null);
+  const [previewingBastContext, setPreviewingBastContext] = useState<BASTItem | null>(null);
 
   // Delete Target Modal
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; woNumber: string } | null>(null);
@@ -68,12 +57,18 @@ export const BASTPage: React.FC = () => {
     totalDistanceMeters: 1195,
     totalDistancePdf: undefined,
     fotoDokumentasiPdf: undefined, // Max 4MB enforce
+    fotoDokumentasiPdfs: [],
     statusBast: 'Submit',
     notes: '',
     originLocation: '',
     originCoordinates: '',
+    originPhotoFile: undefined,
+    originTaggingDocFile: undefined,
     destinationLocation: '',
     destinationCoordinates: '',
+    destinationPhotoFile: undefined,
+    destinationTaggingDocFile: undefined,
+    routeMapFile: undefined,
     routeGmapsUrl: ''
   });
 
@@ -90,33 +85,10 @@ export const BASTPage: React.FC = () => {
   const woOptions: WOOption[] = allWOTypeFilterOptions;
 
   const handleGetBrowserLocation = (type: 'origin' | 'destination') => {
-    if (!navigator.geolocation) {
-      showToast('error', 'GPS Tidak Didukung', 'Browser Anda tidak mendukung Geolocation API.');
-      return;
-    }
-    showToast('info', 'Mendapatkan Lokasi', 'Mengambil koordinat GPS saat ini dari peranti...');
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const lat = position.coords.latitude.toFixed(5);
-        const lng = position.coords.longitude.toFixed(5);
-        const coordsString = `${lat}, ${lng}`;
-        if (type === 'origin') {
-          setFormData(prev => ({
-            ...prev,
-            originCoordinates: coordsString
-          }));
-        } else {
-          setFormData(prev => ({
-            ...prev,
-            destinationCoordinates: coordsString
-          }));
-        }
-        showToast('success', 'GPS Berhasil', `Koordinat ${type === 'origin' ? 'Titik Awal' : 'Titik Akhir'} terisi: ${coordsString}`);
-      },
-      (error) => {
-        showToast('error', 'Gagal Ambil GPS', error.message || 'Izin lokasi ditolak atau GPS tidak aktif.');
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
+    showToast(
+      'success',
+      'Koordinat GPS Terisi',
+      `Koordinat ${type === 'origin' ? 'Titik Awal (Site A)' : 'Titik Akhir (Site B)'} berhasil diperbarui.`
     );
   };
 
@@ -144,12 +116,18 @@ export const BASTPage: React.FC = () => {
       totalDistanceMeters: 1480,
       totalDistancePdf: undefined,
       fotoDokumentasiPdf: undefined,
+      fotoDokumentasiPdfs: [],
       statusBast: 'Submit',
       notes: '',
       originLocation: '',
       originCoordinates: '',
+      originPhotoFile: undefined,
+      originTaggingDocFile: undefined,
       destinationLocation: '',
       destinationCoordinates: '',
+      destinationPhotoFile: undefined,
+      destinationTaggingDocFile: undefined,
+      routeMapFile: undefined,
       routeGmapsUrl: ''
     });
     setIsModalOpen(true);
@@ -158,15 +136,26 @@ export const BASTPage: React.FC = () => {
   const handleOpenEditModal = (item: BASTItem) => {
     setEditingId(item.id);
     setIsCustomWoType(!defaultWOOptions.includes(item.woType));
+    const initialDocs = item.fotoDokumentasiPdfs && item.fotoDokumentasiPdfs.length > 0
+      ? item.fotoDokumentasiPdfs
+      : (item.fotoDokumentasiPdf ? [item.fotoDokumentasiPdf] : []);
+
     setFormData({
       ...item,
+      fotoDokumentasiPdf: initialDocs[0] || item.fotoDokumentasiPdf,
+      fotoDokumentasiPdfs: initialDocs,
       durasiDate: item.durasiDate ?? item.durationDays,
       abdDate: item.abdDate || item.finishDate || new Date().toISOString().substring(0, 10),
       coreConnectionDate: item.coreConnectionDate || item.finishDate || new Date().toISOString().substring(0, 10),
       originLocation: item.originLocation || '',
       originCoordinates: item.originCoordinates || '',
+      originPhotoFile: item.originPhotoFile,
+      originTaggingDocFile: item.originTaggingDocFile,
       destinationLocation: item.destinationLocation || '',
       destinationCoordinates: item.destinationCoordinates || '',
+      destinationPhotoFile: item.destinationPhotoFile,
+      destinationTaggingDocFile: item.destinationTaggingDocFile,
+      routeMapFile: item.routeMapFile,
       routeGmapsUrl: item.routeGmapsUrl || ''
     });
     setIsModalOpen(true);
@@ -175,6 +164,16 @@ export const BASTPage: React.FC = () => {
   const handleSelectWoNumber = (selectedWo: string) => {
     const matchingDaily = dailyReports.find(d => d.woNumber.toLowerCase() === selectedWo.toLowerCase());
     if (matchingDaily) {
+      const syncedDocs: PDFFileMeta[] = [];
+      if (matchingDaily.documentation) {
+        const { fotoClosurePdf, opmPdf, olsPdf, btsPdf, otdrPdf } = matchingDaily.documentation;
+        if (fotoClosurePdf) syncedDocs.push(fotoClosurePdf);
+        if (opmPdf) syncedDocs.push(opmPdf);
+        if (olsPdf) syncedDocs.push(olsPdf);
+        if (btsPdf) syncedDocs.push(btsPdf);
+        if (otdrPdf) syncedDocs.push(otdrPdf);
+      }
+
       setFormData(prev => ({
         ...prev,
         woNumber: matchingDaily.woNumber,
@@ -191,10 +190,17 @@ export const BASTPage: React.FC = () => {
         estimatedDistancePdf: matchingDaily.estimatedDistancePdf,
         totalDistanceMeters: matchingDaily.totalDistanceMeters,
         totalDistancePdf: matchingDaily.totalDistancePdf,
+        fotoDokumentasiPdf: syncedDocs[0] || matchingDaily.documentation?.fotoClosurePdf || prev.fotoDokumentasiPdf,
+        fotoDokumentasiPdfs: syncedDocs.length > 0 ? syncedDocs : prev.fotoDokumentasiPdfs,
         originLocation: matchingDaily.originLocation || '',
         originCoordinates: matchingDaily.originCoordinates || '',
+        originPhotoFile: matchingDaily.originPhotoFile,
+        originTaggingDocFile: matchingDaily.originTaggingDocFile,
         destinationLocation: matchingDaily.destinationLocation || '',
         destinationCoordinates: matchingDaily.destinationCoordinates || '',
+        destinationPhotoFile: matchingDaily.destinationPhotoFile,
+        destinationTaggingDocFile: matchingDaily.destinationTaggingDocFile,
+        routeMapFile: matchingDaily.routeMapFile,
         routeGmapsUrl: matchingDaily.routeGmapsUrl || ''
       }));
       showToast('info', 'Sinkronisasi BAST', `Data Timeline, Rute Location & WO disinkronkan dari Daily Report ${matchingDaily.woNumber}`);
@@ -465,31 +471,135 @@ export const BASTPage: React.FC = () => {
                 {/* Attachments interactive click-to-view badges */}
                 <div className="pt-2 flex flex-wrap gap-1.5 text-[10px] font-mono">
                   {bast.apdPdf && (
-                    <button onClick={() => setPreviewPdf(bast.apdPdf!)} className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-cyan-300 rounded border border-slate-750 flex items-center gap-1 cursor-pointer transition-colors" title={`Lihat ${bast.apdPdf.name}`}>
+                    <button 
+                      onClick={() => {
+                        setPreviewingBastContext(bast);
+                        setPreviewPdf(bast.apdPdf!);
+                      }} 
+                      className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-cyan-300 rounded border border-slate-750 flex items-center gap-1 cursor-pointer transition-colors" 
+                      title={`Lihat ${bast.apdPdf.name}`}
+                    >
                       <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(bast.apdPdf.name).bgClass} ${getFileBadgeStyle(bast.apdPdf.name).textClass}`}>
                         [{getFileBadgeStyle(bast.apdPdf.name).ext}]
                       </span> APD
                     </button>
                   )}
                   {bast.abdPdf && (
-                    <button onClick={() => setPreviewPdf(bast.abdPdf!)} className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-cyan-300 rounded border border-slate-750 flex items-center gap-1 cursor-pointer transition-colors" title={`Lihat ${bast.abdPdf.name}`}>
+                    <button 
+                      onClick={() => {
+                        setPreviewingBastContext(bast);
+                        setPreviewPdf(bast.abdPdf!);
+                      }} 
+                      className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-cyan-300 rounded border border-slate-750 flex items-center gap-1 cursor-pointer transition-colors" 
+                      title={`Lihat ${bast.abdPdf.name}`}
+                    >
                       <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(bast.abdPdf.name).bgClass} ${getFileBadgeStyle(bast.abdPdf.name).textClass}`}>
                         [{getFileBadgeStyle(bast.abdPdf.name).ext}]
                       </span> ABD
                     </button>
                   )}
                   {bast.coreConnectionPdf && (
-                    <button onClick={() => setPreviewPdf(bast.coreConnectionPdf!)} className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-cyan-300 rounded border border-slate-750 flex items-center gap-1 cursor-pointer transition-colors" title={`Lihat ${bast.coreConnectionPdf.name}`}>
+                    <button 
+                      onClick={() => {
+                        setPreviewingBastContext(bast);
+                        setPreviewPdf(bast.coreConnectionPdf!);
+                      }} 
+                      className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-cyan-300 rounded border border-slate-750 flex items-center gap-1 cursor-pointer transition-colors" 
+                      title={`Lihat ${bast.coreConnectionPdf.name}`}
+                    >
                       <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(bast.coreConnectionPdf.name).bgClass} ${getFileBadgeStyle(bast.coreConnectionPdf.name).textClass}`}>
                         [{getFileBadgeStyle(bast.coreConnectionPdf.name).ext}]
                       </span> Core Conn
                     </button>
                   )}
-                  {bast.fotoDokumentasiPdf && (
-                    <button onClick={() => setPreviewPdf(bast.fotoDokumentasiPdf!)} className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-cyan-300 rounded border border-slate-750 flex items-center gap-1 cursor-pointer transition-colors" title={`Lihat ${bast.fotoDokumentasiPdf.name}`}>
-                      <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(bast.fotoDokumentasiPdf.name).bgClass} ${getFileBadgeStyle(bast.fotoDokumentasiPdf.name).textClass}`}>
-                        [{getFileBadgeStyle(bast.fotoDokumentasiPdf.name).ext}]
-                      </span> Foto Docs
+                  {(() => {
+                    const docs = (bast.fotoDokumentasiPdfs && bast.fotoDokumentasiPdfs.length > 0)
+                      ? bast.fotoDokumentasiPdfs
+                      : (bast.fotoDokumentasiPdf ? [bast.fotoDokumentasiPdf] : []);
+
+                    return docs.map((doc, idx) => (
+                      <button 
+                        key={doc.id || idx}
+                        onClick={() => {
+                          setPreviewingBastContext(bast);
+                          setPreviewPdf(doc);
+                        }} 
+                        className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-cyan-300 rounded border border-slate-750 flex items-center gap-1 cursor-pointer transition-colors" 
+                        title={`Lihat ${doc.name}`}
+                      >
+                        <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(doc.name).bgClass} ${getFileBadgeStyle(doc.name).textClass}`}>
+                          [{getFileBadgeStyle(doc.name).ext}]
+                        </span> {docs.length > 1 ? `Foto Docs #${idx + 1}` : 'Foto Docs'}
+                      </button>
+                    ));
+                  })()}
+                  {bast.originPhotoFile && (
+                    <button 
+                      onClick={() => {
+                        setPreviewingBastContext(bast);
+                        setPreviewPdf(bast.originPhotoFile!);
+                      }} 
+                      className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-emerald-300 rounded border border-emerald-800/50 flex items-center gap-1 cursor-pointer transition-colors" 
+                      title={`Lihat Foto Site A: ${bast.originPhotoFile.name}`}
+                    >
+                      <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(bast.originPhotoFile.name).bgClass} ${getFileBadgeStyle(bast.originPhotoFile.name).textClass}`}>
+                        [{getFileBadgeStyle(bast.originPhotoFile.name).ext}]
+                      </span> Foto Site A
+                    </button>
+                  )}
+                  {bast.originTaggingDocFile && (
+                    <button 
+                      onClick={() => {
+                        setPreviewingBastContext(bast);
+                        setPreviewPdf(bast.originTaggingDocFile!);
+                      }} 
+                      className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-emerald-300 rounded border border-emerald-800/50 flex items-center gap-1 cursor-pointer transition-colors" 
+                      title={`Lihat Dokumen Tagging Site A: ${bast.originTaggingDocFile.name}`}
+                    >
+                      <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(bast.originTaggingDocFile.name).bgClass} ${getFileBadgeStyle(bast.originTaggingDocFile.name).textClass}`}>
+                        [{getFileBadgeStyle(bast.originTaggingDocFile.name).ext}]
+                      </span> Doc Site A
+                    </button>
+                  )}
+                  {bast.destinationPhotoFile && (
+                    <button 
+                      onClick={() => {
+                        setPreviewingBastContext(bast);
+                        setPreviewPdf(bast.destinationPhotoFile!);
+                      }} 
+                      className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-rose-300 rounded border border-rose-800/50 flex items-center gap-1 cursor-pointer transition-colors" 
+                      title={`Lihat Foto Site B: ${bast.destinationPhotoFile.name}`}
+                    >
+                      <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(bast.destinationPhotoFile.name).bgClass} ${getFileBadgeStyle(bast.destinationPhotoFile.name).textClass}`}>
+                        [{getFileBadgeStyle(bast.destinationPhotoFile.name).ext}]
+                      </span> Foto Site B
+                    </button>
+                  )}
+                  {bast.destinationTaggingDocFile && (
+                    <button 
+                      onClick={() => {
+                        setPreviewingBastContext(bast);
+                        setPreviewPdf(bast.destinationTaggingDocFile!);
+                      }} 
+                      className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-rose-300 rounded border border-rose-800/50 flex items-center gap-1 cursor-pointer transition-colors" 
+                      title={`Lihat Dokumen Tagging Site B: ${bast.destinationTaggingDocFile.name}`}>
+                      <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(bast.destinationTaggingDocFile.name).bgClass} ${getFileBadgeStyle(bast.destinationTaggingDocFile.name).textClass}`}>
+                        [{getFileBadgeStyle(bast.destinationTaggingDocFile.name).ext}]
+                      </span> Doc Site B
+                    </button>
+                  )}
+                  {bast.routeMapFile && (
+                    <button 
+                      onClick={() => {
+                        setPreviewingBastContext(bast);
+                        setPreviewPdf(bast.routeMapFile!);
+                      }} 
+                      className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-indigo-300 rounded border border-indigo-800/50 flex items-center gap-1 cursor-pointer transition-colors" 
+                      title={`Lihat File Peta Rute: ${bast.routeMapFile.name}`}
+                    >
+                      <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(bast.routeMapFile.name).bgClass} ${getFileBadgeStyle(bast.routeMapFile.name).textClass}`}>
+                        [{getFileBadgeStyle(bast.routeMapFile.name).ext}]
+                      </span> Peta Rute
                     </button>
                   )}
                 </div>
@@ -497,66 +607,37 @@ export const BASTPage: React.FC = () => {
             </div>
 
             {/* Footer actions */}
-            <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
+            <div className="pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
               <span className="text-[10px] text-slate-500 font-mono">{bast.id}</span>
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {/* Download Word (.doc) */}
                 <button
                   type="button"
                   onClick={() => {
-                    const baseUrl = 'https://project-belacom-xi9s.vercel.app';
-                    const attachments: EmailAttachment[] = [
-                      { 
-                        name: `BAST_${bast.woNumber}.pdf`, 
-                        url: `${baseUrl}/viewer?type=bast&wo=${encodeURIComponent(bast.woNumber)}`, 
-                        sizeBytes: 1420000 
-                      },
-                      { 
-                        name: bast.apdPdf?.name || `APD_${bast.woNumber}.pdf`, 
-                        url: bast.apdPdf?.url || `${baseUrl}/viewer?type=apd&wo=${encodeURIComponent(bast.woNumber)}`, 
-                        sizeBytes: bast.apdPdf?.sizeBytes || 980000 
-                      },
-                      { 
-                        name: bast.abdPdf?.name || `ABD_${bast.woNumber}.pdf`, 
-                        url: bast.abdPdf?.url || `${baseUrl}/viewer?type=abd&wo=${encodeURIComponent(bast.woNumber)}`, 
-                        sizeBytes: bast.abdPdf?.sizeBytes || 1100000 
-                      },
-                      { 
-                        name: bast.coreConnectionPdf?.name || `Core_Connection_${bast.woNumber}.pdf`, 
-                        url: bast.coreConnectionPdf?.url || `${baseUrl}/viewer?type=core&wo=${encodeURIComponent(bast.woNumber)}`, 
-                        sizeBytes: bast.coreConnectionPdf?.sizeBytes || 850000 
-                      },
-                      { 
-                        name: bast.fotoDokumentasiPdf?.name || `Dokumentasi_Splicing_${bast.woNumber}.pdf`, 
-                        url: bast.fotoDokumentasiPdf?.url || `${baseUrl}/viewer?type=foto&wo=${encodeURIComponent(bast.woNumber)}`, 
-                        sizeBytes: bast.fotoDokumentasiPdf?.sizeBytes || 2400000 
-                      }
-                    ];
-
-                    const relatedDaily = dailyReports.find(d => d.woNumber === bast.woNumber);
-                    const segment = relatedDaily?.assignment ? `Area ${relatedDaily.assignment}` : (bast.notes || 'Area Jabodetabek');
-                    const distance = bast.totalDistanceMeters 
-                      ? `${bast.totalDistanceMeters.toLocaleString('id-ID')} m` 
-                      : (bast.estimatedDistanceMeters ? `${bast.estimatedDistanceMeters.toLocaleString('id-ID')} m` : '-');
-                    const docNumber = `BAST/${bast.woNumber}/BELACOM/${new Date().getFullYear()}`;
-
-                    setEmailModalData({
-                      bastId: bast.id,
-                      requestType: 'BAST',
-                      woNumber: bast.woNumber,
-                      projectName: bast.workType,
-                      vendorName: 'Belacom',
-                      segmentLocation: segment,
-                      realisasiJarak: distance,
-                      documentNumber: docNumber,
-                      availableAttachments: attachments
-                    });
+                    exportBastToWord(bast);
+                    showToast('success', 'Download Word Sukses', `Dokumen BAST ${bast.woNumber} berhasil diunduh dalam format .doc beserta foto visual.`);
                   }}
-                  className="px-2 py-1.5 rounded-lg bg-blue-600/10 text-blue-400 hover:bg-blue-600/20 border border-blue-500/20 cursor-pointer flex items-center gap-1 text-[11px] font-semibold transition-colors"
-                  title="Kirim Email Resmi BAST ke SAP"
+                  className="px-2 py-1.5 rounded-lg bg-indigo-600/10 text-indigo-400 hover:bg-indigo-600/20 border border-indigo-500/20 cursor-pointer flex items-center gap-1 text-[11px] font-semibold transition-colors"
+                  title="Download BAST Microsoft Word (.doc) lengkap dengan gambar & rute"
                 >
-                  <Mail className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Kirim Email</span>
+                  <FileText className="w-3.5 h-3.5 text-indigo-400" />
+                  <span className="hidden sm:inline">Word</span>
                 </button>
+
+                {/* Download Excel (.xls) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    exportBastToExcel(bast);
+                    showToast('success', 'Download Excel Sukses', `Dokumen BAST ${bast.woNumber} berhasil diunduh dalam format .xls beserta foto visual.`);
+                  }}
+                  className="px-2 py-1.5 rounded-lg bg-emerald-600/10 text-emerald-400 hover:bg-emerald-600/20 border border-emerald-500/20 cursor-pointer flex items-center gap-1 text-[11px] font-semibold transition-colors"
+                  title="Download BAST Microsoft Excel (.xls) lengkap dengan gambar & rute"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="hidden sm:inline">Excel</span>
+                </button>
+
                 <button
                   onClick={() => handleOpenEditModal(bast)}
                   className="p-1.5 rounded-lg bg-slate-800 text-cyan-400 hover:bg-cyan-500/20 cursor-pointer"
@@ -707,19 +788,43 @@ export const BASTPage: React.FC = () => {
                   label="1. APD Upload File"
                   value={formData.apdPdf}
                   onChange={(f) => setFormData(p => ({ ...p, apdPdf: f }))}
-                  onPreview={(f) => setPreviewPdf(f)}
+                  onPreview={(f) => {
+                    setPreviewingBastContext({
+                      ...formData,
+                      id: editingId || 'BAST-TEMP',
+                      createdAt: new Date().toISOString(),
+                      updatedAt: new Date().toISOString()
+                    });
+                    setPreviewPdf(f);
+                  }}
                 />
                 <PDFUploader
                   label="2. ABD Upload File"
                   value={formData.abdPdf}
                   onChange={(f) => setFormData(p => ({ ...p, abdPdf: f }))}
-                  onPreview={(f) => setPreviewPdf(f)}
+                  onPreview={(f) => {
+                    setPreviewingBastContext({
+                      ...formData,
+                      id: editingId || 'BAST-TEMP',
+                      createdAt: new Date().toISOString(),
+                      updatedAt: new Date().toISOString()
+                    });
+                    setPreviewPdf(f);
+                  }}
                 />
                 <PDFUploader
                   label="3. Core Connection File"
                   value={formData.coreConnectionPdf}
                   onChange={(f) => setFormData(p => ({ ...p, coreConnectionPdf: f }))}
-                  onPreview={(f) => setPreviewPdf(f)}
+                  onPreview={(f) => {
+                    setPreviewingBastContext({
+                      ...formData,
+                      id: editingId || 'BAST-TEMP',
+                      createdAt: new Date().toISOString(),
+                      updatedAt: new Date().toISOString()
+                    });
+                    setPreviewPdf(f);
+                  }}
                 />
               </div>
 
@@ -806,126 +911,87 @@ export const BASTPage: React.FC = () => {
               </div>
 
               {/* Tagging End to End Location Section */}
-              <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800 space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2">
-                  <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-wider font-mono flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-rose-400 shrink-0" />
-                    TAGGING END TO END LOCATION (RUTE & TITIK KOORDINAT)
-                  </h4>
-                  {getGoogleMapsRouteUrl(
-                    formData.originCoordinates,
-                    formData.originLocation,
-                    formData.destinationCoordinates,
-                    formData.destinationLocation
-                  ) && (
-                    <a
-                      href={getGoogleMapsRouteUrl(
-                        formData.originCoordinates,
-                        formData.originLocation,
-                        formData.destinationCoordinates,
-                        formData.destinationLocation
-                      )!}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[11px] font-mono font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-950/80 hover:bg-emerald-900/80 px-2.5 py-1 rounded-lg border border-emerald-800/80 flex items-center gap-1.5 transition-colors self-start sm:self-auto"
-                    >
-                      <Navigation className="w-3.5 h-3.5" />
-                      🗺️ Lihat Rute di Google Maps
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Kolom Kiri — Titik Awal (Origin / Site A) */}
-                  <div className="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse"></span>
-                        Titik Awal (Origin / Site A)
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => handleGetBrowserLocation('origin')}
-                        className="text-[10px] text-cyan-400 hover:text-cyan-300 font-mono flex items-center gap-1 bg-slate-800 hover:bg-slate-750 px-2 py-0.5 rounded border border-slate-700 cursor-pointer transition-colors"
-                        title="Gunakan Geolocation browser untuk ambil koordinat saat ini"
-                      >
-                        📍 Ambil GPS Saat Ini
-                      </button>
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] text-slate-400 block mb-1">Nama Site / Titik Awal (Origin)</label>
-                      <input
-                        type="text"
-                        value={formData.originLocation || ''}
-                        onChange={(e) => setFormData(p => ({ ...p, originLocation: e.target.value }))}
-                        placeholder="Contoh: POP Sentul City / OTB-01"
-                        className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none focus:border-cyan-500 font-mono"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] text-slate-400 block mb-1">Koordinat GPS Titik Awal (Lat, Long)</label>
-                      <input
-                        type="text"
-                        value={formData.originCoordinates || ''}
-                        onChange={(e) => setFormData(p => ({ ...p, originCoordinates: e.target.value }))}
-                        placeholder="-6.58912, 106.85231"
-                        className="w-full bg-slate-950 border border-slate-800 text-xs text-emerald-400 font-bold rounded-xl p-2.5 outline-none focus:border-cyan-500 font-mono"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Kolom Kanan — Titik Akhir (Destination / Site B) */}
-                  <div className="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-rose-400 inline-block animate-pulse"></span>
-                        Titik Akhir (Destination / Site B)
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => handleGetBrowserLocation('destination')}
-                        className="text-[10px] text-cyan-400 hover:text-cyan-300 font-mono flex items-center gap-1 bg-slate-800 hover:bg-slate-750 px-2 py-0.5 rounded border border-slate-700 cursor-pointer transition-colors"
-                        title="Gunakan Geolocation browser untuk ambil koordinat saat ini"
-                      >
-                        📍 Ambil GPS Saat Ini
-                      </button>
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] text-slate-400 block mb-1">Nama Site / Titik Akhir (Destination)</label>
-                      <input
-                        type="text"
-                        value={formData.destinationLocation || ''}
-                        onChange={(e) => setFormData(p => ({ ...p, destinationLocation: e.target.value }))}
-                        placeholder="Contoh: BTS Cijayanti / Closure CL-04"
-                        className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none focus:border-cyan-500 font-mono"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] text-slate-400 block mb-1">Koordinat GPS Titik Akhir (Lat, Long)</label>
-                      <input
-                        type="text"
-                        value={formData.destinationCoordinates || ''}
-                        onChange={(e) => setFormData(p => ({ ...p, destinationCoordinates: e.target.value }))}
-                        placeholder="-6.59421, 106.86105"
-                        className="w-full bg-slate-950 border border-slate-800 text-xs text-emerald-400 font-bold rounded-xl p-2.5 outline-none focus:border-cyan-500 font-mono"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <TaggingLocationSection
+                value={{
+                  originLocation: formData.originLocation,
+                  originCoordinates: formData.originCoordinates,
+                  originPhotoFile: formData.originPhotoFile,
+                  originTaggingDocFile: formData.originTaggingDocFile,
+                  destinationLocation: formData.destinationLocation,
+                  destinationCoordinates: formData.destinationCoordinates,
+                  destinationPhotoFile: formData.destinationPhotoFile,
+                  destinationTaggingDocFile: formData.destinationTaggingDocFile,
+                  routeMapFile: formData.routeMapFile,
+                  routeGmapsUrl: formData.routeGmapsUrl
+                }}
+                onChange={(updates) => setFormData((prev) => ({ ...prev, ...updates }))}
+                onGetBrowserLocation={handleGetBrowserLocation}
+                onDistanceCalculated={(distanceMeters) => {
+                  if (distanceMeters > 0) {
+                    setFormData((prev) => ({
+                      ...prev,
+                      estimatedDistanceMeters: distanceMeters,
+                      totalDistanceMeters: distanceMeters
+                    }));
+                  }
+                }}
+                onPreviewFile={(file) => {
+                  setPreviewingBastContext({
+                    ...formData,
+                    id: editingId || 'BAST-TEMP',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                  });
+                  setPreviewPdf(file);
+                }}
+                routeGmapsUrl={getGoogleMapsRouteUrl(
+                  formData.originCoordinates,
+                  formData.originLocation,
+                  formData.destinationCoordinates,
+                  formData.destinationLocation
+                )}
+                onDownloadWord={() => {
+                  const currentBast: BASTItem = {
+                    ...formData,
+                    id: editingId || 'BAST-DRAFT',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                  };
+                  exportBastToWord(currentBast);
+                  showToast('success', 'Download Word BAST', `Dokumen BAST ${currentBast.woNumber} berhasil diunduh dalam format .doc beserta foto visual.`);
+                }}
+                onDownloadExcel={() => {
+                  const currentBast: BASTItem = {
+                    ...formData,
+                    id: editingId || 'BAST-DRAFT',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                  };
+                  exportBastToExcel(currentBast);
+                  showToast('success', 'Download Excel BAST', `Dokumen BAST ${currentBast.woNumber} berhasil diunduh dalam format .xls beserta foto visual.`);
+                }}
+              />
 
               <div>
-                <PDFUploader
-                  label="5. Foto Dokumentasi File (Maksimal Ukuran File 10 MB)"
-                  value={formData.fotoDokumentasiPdf}
-                  onChange={(f) => setFormData(p => ({ ...p, fotoDokumentasiPdf: f }))}
-                  onPreview={(f) => setPreviewPdf(f)}
-                  maxSizeMB={10}
+                <MultiPDFUploader
+                  label="5. Foto Dokumentasi File"
+                  values={formData.fotoDokumentasiPdfs}
+                  singleValue={formData.fotoDokumentasiPdf}
+                  onChange={(files) => setFormData(p => ({
+                    ...p,
+                    fotoDokumentasiPdfs: files,
+                    fotoDokumentasiPdf: files[0]
+                  }))}
+                  onPreview={(f) => {
+                    setPreviewingBastContext({
+                      ...formData,
+                      id: editingId || 'BAST-TEMP',
+                      createdAt: new Date().toISOString(),
+                      updatedAt: new Date().toISOString()
+                    });
+                    setPreviewPdf(f);
+                  }}
+                  woNumber={formData.woNumber}
                 />
               </div>
 
@@ -943,13 +1009,55 @@ export const BASTPage: React.FC = () => {
                 </select>
               </div>
 
-              <div className="pt-4 border-t border-slate-800 flex justify-end gap-2">
-                <TouchButton variant="secondary" size="md" type="button" onClick={() => setIsModalOpen(false)}>
-                  Batal
-                </TouchButton>
-                <TouchButton variant="primary" size="md" type="submit" showFingerIcon>
-                  Simpan Dokumen BAST
-                </TouchButton>
+              <div className="pt-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const currentBast: BASTItem = {
+                        ...formData,
+                        id: editingId || 'BAST-DRAFT',
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                      };
+                      exportBastToWord(currentBast);
+                      showToast('success', 'Download Word BAST', `File Word BAST ${currentBast.woNumber} berhasil diunduh.`);
+                    }}
+                    className="px-3 py-2 rounded-xl bg-indigo-600/15 hover:bg-indigo-600/25 text-indigo-300 border border-indigo-500/30 font-mono text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    title="Export Formulir BAST & Lampiran Visual ke Microsoft Word (.doc)"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Download Word (.doc)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const currentBast: BASTItem = {
+                        ...formData,
+                        id: editingId || 'BAST-DRAFT',
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                      };
+                      exportBastToExcel(currentBast);
+                      showToast('success', 'Download Excel BAST', `File Excel BAST ${currentBast.woNumber} berhasil diunduh.`);
+                    }}
+                    className="px-3 py-2 rounded-xl bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-300 border border-emerald-500/30 font-mono text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    title="Export Formulir BAST & Lampiran Visual ke Microsoft Excel (.xls)"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Download Excel (.xls)</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 ml-auto">
+                  <TouchButton variant="secondary" size="md" type="button" onClick={() => setIsModalOpen(false)}>
+                    Batal
+                  </TouchButton>
+                  <TouchButton variant="primary" size="md" type="submit" showFingerIcon>
+                    Simpan Dokumen BAST
+                  </TouchButton>
+                </div>
               </div>
 
             </form>
@@ -958,7 +1066,21 @@ export const BASTPage: React.FC = () => {
       )}
 
       {/* PDF Viewer */}
-      <PDFViewerModal file={previewPdf} onClose={() => setPreviewPdf(null)} />
+      <PDFViewerModal 
+        file={previewPdf} 
+        onClose={() => {
+          setPreviewPdf(null);
+          setPreviewingBastContext(null);
+        }} 
+        onDownloadWord={previewingBastContext ? () => {
+          exportBastToWord(previewingBastContext);
+          showToast('success', 'Download Word BAST', `Dokumen BAST ${previewingBastContext.woNumber} berhasil diunduh dalam format .doc.`);
+        } : undefined}
+        onDownloadExcel={previewingBastContext ? () => {
+          exportBastToExcel(previewingBastContext);
+          showToast('success', 'Download Excel BAST', `Dokumen BAST ${previewingBastContext.woNumber} berhasil diunduh dalam format .xls.`);
+        } : undefined}
+      />
 
       {/* Delete Confirmation Modal */}
       <DeleteConfirmModal
@@ -968,15 +1090,6 @@ export const BASTPage: React.FC = () => {
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
-
-      {/* Send Email Modal */}
-      {emailModalData && (
-        <SendEmailModal
-          isOpen={true}
-          onClose={() => setEmailModalData(null)}
-          defaultData={emailModalData}
-        />
-      )}
 
     </div>
   );

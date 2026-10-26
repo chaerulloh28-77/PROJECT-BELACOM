@@ -24,9 +24,16 @@ import { getFileBadgeStyle, getFileExtension } from '../utils/fileHelper';
 interface PDFViewerModalProps {
   file: PDFFileMeta | null;
   onClose: () => void;
+  onDownloadWord?: () => void;
+  onDownloadExcel?: () => void;
 }
 
-export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ file, onClose }) => {
+export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ 
+  file, 
+  onClose,
+  onDownloadWord,
+  onDownloadExcel 
+}) => {
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
@@ -43,7 +50,7 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ file, onClose })
 
   const isImage = ['JPG', 'JPEG', 'PNG', 'WEBP', 'GIF', 'SVG'].includes(ext);
   const isPdf = ext === 'PDF';
-  const isRealUrl = file.url && file.url !== '#' && (file.url.startsWith('blob:') || file.url.startsWith('data:') || file.url.startsWith('http'));
+  const isRealUrl = file.url && file.url !== '#' && (file.url.startsWith('blob:') || file.url.startsWith('data:') || file.url.startsWith('http') || file.url.startsWith('/'));
 
   const handleDownload = () => {
     const element = document.createElement('a');
@@ -322,13 +329,37 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ file, onClose })
         </div>
 
         {/* Footer Actions Modal */}
-        <div className="p-4 bg-slate-850 border-t border-slate-800 flex items-center justify-between gap-3 shrink-0">
+        <div className="p-4 bg-slate-850 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono">
             <Lock className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
             <span className="hidden sm:inline">Dokumen Terenkripsi Belacom Core</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {onDownloadWord && (
+              <button
+                type="button"
+                onClick={onDownloadWord}
+                className="px-3 py-1.5 rounded-xl bg-indigo-600/15 hover:bg-indigo-600/25 text-indigo-300 border border-indigo-500/30 font-mono text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Download Dokumen BAST Visual ke Microsoft Word (.doc)"
+              >
+                <FileText className="w-4 h-4 text-indigo-400" />
+                <span>Word (.doc)</span>
+              </button>
+            )}
+
+            {onDownloadExcel && (
+              <button
+                type="button"
+                onClick={onDownloadExcel}
+                className="px-3 py-1.5 rounded-xl bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-300 border border-emerald-500/30 font-mono text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Download Dokumen BAST Visual ke Microsoft Excel (.xls)"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                <span>Excel (.xls)</span>
+              </button>
+            )}
+
             <TouchButton
               variant="secondary"
               size="sm"
