@@ -29,12 +29,7 @@ import { PDFViewerModal } from '../components/PDFViewerModal';
 import { DeleteConfirmModal } from '../components/DeleteConfirmModal';
 import { TaggingLocationSection } from '../components/TaggingLocationSection';
 import { getFileBadgeStyle } from '../utils/fileHelper';
-import {
-  downloadDailyReportWord,
-  downloadDailyReportExcel,
-  downloadDailyReportRekapExcel,
-  ensureDailyReportVisualImages
-} from '../utils/dailyReportExportHelper';
+import { exportDailyReportToExcel } from '../utils/excelExportHelper';
 
 export const getGoogleMapsRouteUrl = (
   origCoord?: string,
@@ -392,28 +387,24 @@ export const DailyReportPage: React.FC = () => {
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
           <TouchButton
+            variant="success"
+            size="sm"
+            icon={<FileSpreadsheet className="w-4 h-4" />}
+            onClick={() => {
+              exportDailyReportToExcel(filteredReports);
+              showToast('success', 'Excel Unduh', 'Rekap Excel Semua WO berhasil diunduh dengan foto visual!');
+            }}
+          >
+            Export Excel Rekap Semua WO (.xls)
+          </TouchButton>
+
+          <TouchButton
             variant="secondary"
             size="sm"
             icon={<Download className="w-4 h-4" />}
             onClick={exportToCSV}
           >
             Export CSV
-          </TouchButton>
-
-          <TouchButton
-            variant="secondary"
-            size="sm"
-            icon={<FileSpreadsheet className="w-4 h-4 text-emerald-400" />}
-            onClick={() => {
-              if (filteredReports.length === 0) {
-                showToast('error', 'Data Kosong', 'Tidak ada data laporan untuk di-export.');
-                return;
-              }
-              downloadDailyReportRekapExcel(filteredReports);
-              showToast('success', 'Export Rekap Excel', `${filteredReports.length} laporan dengan gambar visual berhasil di-download.`);
-            }}
-          >
-            Export Rekap Excel + Gambar (.xls)
           </TouchButton>
 
           <TouchButton
@@ -474,201 +465,62 @@ export const DailyReportPage: React.FC = () => {
           <table className="w-full text-left text-xs text-slate-300">
             <thead className="bg-slate-950/90 text-slate-400 font-mono text-[11px] uppercase tracking-wider border-b border-slate-800">
               <tr>
-                <th className="py-2.5 px-3 font-semibold">No. WO & Release</th>
-                <th className="py-2.5 px-3 font-semibold">WO Type</th>
-                <th className="py-2.5 px-3 font-semibold">Area & Tim</th>
-                <th className="py-2.5 px-3 font-semibold">PIC & Pekerjaan</th>
-                <th className="py-2.5 px-3 font-semibold">Tanggal & Durasi</th>
-                <th className="py-2.5 px-3 font-semibold">Dokumentasi & Jarak PDF</th>
-                <th className="py-2.5 px-3 font-semibold text-center">Status WO</th>
-                <th className="py-2.5 px-3 font-semibold text-right">Aksi</th>
+                <th className="py-2 px-3 font-semibold">No. WO & Tanggal</th>
+                <th className="py-2 px-3 font-semibold">Pekerjaan & Rute</th>
+                <th className="py-2 px-3 font-semibold">Tim & Area</th>
+                <th className="py-2 px-3 font-semibold text-center">Durasi</th>
+                <th className="py-2 px-3 font-semibold text-center">Status</th>
+                <th className="py-2 px-3 font-semibold text-right">Aksi Cepat</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 font-sans">
               {filteredReports.map((report) => {
-                const docs = report.documentation || {};
                 return (
-                  <tr key={report.id} className="hover:bg-slate-850/60 transition-colors group">
+                  <tr key={report.id} className="hover:bg-slate-800/60 transition-colors group">
                     
-                    <td className="py-2.5 px-3">
-                      <span className="font-bold text-cyan-400 font-mono block">{report.woNumber}</span>
-                      <span className="text-[10px] text-slate-500 font-mono">Bulan: {report.monthReleaseWo}</span>
+                    {/* Col 1: No. WO & Tanggal */}
+                    <td className="py-2 px-3 whitespace-nowrap">
+                      <span className="font-bold text-cyan-400 font-mono block text-xs">{report.woNumber}</span>
+                      <span className="text-[10px] text-slate-400 font-mono block">Rilis: {report.releaseDate || '-'}</span>
                     </td>
 
-                    <td className="py-2.5 px-3">
-                      <span className="font-medium text-slate-200 block max-w-[180px] truncate" title={report.woType}>
-                        {report.woType}
+                    {/* Col 2: Pekerjaan & Rute */}
+                    <td className="py-2 px-3">
+                      <span className="font-medium text-slate-200 block max-w-[240px] truncate text-xs" title={report.workType}>
+                        {report.workType || report.woType}
                       </span>
-                      <span className="text-[10px] text-slate-500 font-mono">Alur: {report.pathLengthMeters}m</span>
-                    </td>
-
-                    <td className="py-2.5 px-3 font-mono">
-                      <span className="px-2 py-0.5 bg-slate-950 rounded text-cyan-300 border border-slate-800 text-[11px] inline-block mb-1">
-                        {report.assignment}
-                      </span>
-                      <div className="text-[10px] text-slate-400">Tim: <strong className="text-slate-200">{report.team}</strong></div>
-                    </td>
-
-                    <td className="py-2.5 px-3">
-                      <span className="font-semibold text-white block">{report.pic}</span>
-                      <span className="text-[11px] text-slate-400 block max-w-[220px] truncate" title={report.workType}>
-                        {report.workType}
-                      </span>
-                      {(report.originLocation || report.destinationLocation || report.originCoordinates || report.destinationCoordinates) && (
-                        <div className="mt-1 flex items-center gap-1.5 text-[10px] font-mono bg-slate-950/80 px-2 py-0.5 rounded-lg border border-slate-800 text-slate-300">
-                          <MapPin className="w-3 h-3 text-rose-400 shrink-0" />
-                          <span className="font-semibold text-slate-200 truncate max-w-[95px]" title={report.originLocation || report.originCoordinates}>
-                            {report.originLocation || report.originCoordinates || 'Awal'}
-                          </span>
-                          <span className="text-cyan-400 font-bold">➔</span>
-                          <span className="font-semibold text-slate-200 truncate max-w-[95px]" title={report.destinationLocation || report.destinationCoordinates}>
-                            {report.destinationLocation || report.destinationCoordinates || 'Akhir'}
-                          </span>
-                          {(report.routeGmapsUrl || getGoogleMapsRouteUrl(report.originCoordinates, report.originLocation, report.destinationCoordinates, report.destinationLocation)) && (
-                            <a
-                              href={report.routeGmapsUrl || getGoogleMapsRouteUrl(report.originCoordinates, report.originLocation, report.destinationCoordinates, report.destinationLocation)!}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="ml-0.5 text-emerald-400 hover:text-emerald-300 transition-colors p-0.5 rounded"
-                              title="Lihat Rute di Google Maps"
-                            >
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
-                          )}
-                        </div>
-                      )}
-                      {(report.originPhotoFile || report.originTaggingDocFile || report.destinationPhotoFile || report.destinationTaggingDocFile || report.routeMapFile) && (
-                        <div className="mt-1 flex flex-wrap gap-1 text-[9px] font-mono">
-                          {report.originPhotoFile && (
-                            <button
-                              type="button"
-                              onClick={() => setPreviewPdf(report.originPhotoFile!)}
-                              className="px-1.5 py-0.5 bg-emerald-950/60 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-800/60 rounded flex items-center gap-1 cursor-pointer"
-                              title={`Foto Site A: ${report.originPhotoFile.name}`}
-                            >
-                              [{getFileBadgeStyle(report.originPhotoFile.name).ext}] Foto Site A
-                            </button>
-                          )}
-                          {report.originTaggingDocFile && (
-                            <button
-                              type="button"
-                              onClick={() => setPreviewPdf(report.originTaggingDocFile!)}
-                              className="px-1.5 py-0.5 bg-emerald-950/60 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-800/60 rounded flex items-center gap-1 cursor-pointer"
-                              title={`Dokumen Tagging Site A: ${report.originTaggingDocFile.name}`}
-                            >
-                              [{getFileBadgeStyle(report.originTaggingDocFile.name).ext}] Doc Site A
-                            </button>
-                          )}
-                          {report.destinationPhotoFile && (
-                            <button
-                              type="button"
-                              onClick={() => setPreviewPdf(report.destinationPhotoFile!)}
-                              className="px-1.5 py-0.5 bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60 rounded flex items-center gap-1 cursor-pointer"
-                              title={`Foto Site B: ${report.destinationPhotoFile.name}`}
-                            >
-                              [{getFileBadgeStyle(report.destinationPhotoFile.name).ext}] Foto Site B
-                            </button>
-                          )}
-                          {report.destinationTaggingDocFile && (
-                            <button
-                              type="button"
-                              onClick={() => setPreviewPdf(report.destinationTaggingDocFile!)}
-                              className="px-1.5 py-0.5 bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60 rounded flex items-center gap-1 cursor-pointer"
-                              title={`Dokumen Tagging Site B: ${report.destinationTaggingDocFile.name}`}
-                            >
-                              [{getFileBadgeStyle(report.destinationTaggingDocFile.name).ext}] Doc Site B
-                            </button>
-                          )}
-                          {report.routeMapFile && (
-                            <button
-                              type="button"
-                              onClick={() => setPreviewPdf(report.routeMapFile!)}
-                              className="px-1.5 py-0.5 bg-indigo-950/60 hover:bg-indigo-900/60 text-indigo-300 border border-indigo-800/60 rounded flex items-center gap-1 cursor-pointer"
-                              title={`File Peta Rute: ${report.routeMapFile.name}`}
-                            >
-                              [{getFileBadgeStyle(report.routeMapFile.name).ext}] Peta Rute
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </td>
-
-                    <td className="py-2.5 px-3 font-mono text-[11px]">
-                      <span className="block text-slate-300">{report.startDate} s/d {report.finishDate}</span>
-                      <span className="text-amber-400 font-bold">{report.durationDays} Hari Kerja</span>
-                    </td>
-
-                    {/* Interactive Individual Click-to-View PDF Badges */}
-                    <td className="py-2.5 px-3 font-mono">
-                      <div className="flex flex-wrap gap-1 text-[10px]">
-                        {docs.fotoClosurePdf && (
-                          <button
-                            onClick={() => setPreviewPdf(docs.fotoClosurePdf!)}
-                            className="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-slate-750 rounded flex items-center gap-1 cursor-pointer transition-colors"
-                            title={`Lihat ${docs.fotoClosurePdf.name}`}
-                          >
-                            <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(docs.fotoClosurePdf.name).bgClass} ${getFileBadgeStyle(docs.fotoClosurePdf.name).textClass}`}>
-                              [{getFileBadgeStyle(docs.fotoClosurePdf.name).ext}]
-                            </span> Closure
-                          </button>
-                        )}
-
-                        {docs.opmPdf && (
-                          <button
-                            onClick={() => setPreviewPdf(docs.opmPdf!)}
-                            className="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-slate-750 rounded flex items-center gap-1 cursor-pointer transition-colors"
-                            title={`Lihat ${docs.opmPdf.name}`}
-                          >
-                            <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(docs.opmPdf.name).bgClass} ${getFileBadgeStyle(docs.opmPdf.name).textClass}`}>
-                              [{getFileBadgeStyle(docs.opmPdf.name).ext}]
-                            </span> OPM
-                          </button>
-                        )}
-
-                        {docs.olsPdf && (
-                          <button
-                            onClick={() => setPreviewPdf(docs.olsPdf!)}
-                            className="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-slate-750 rounded flex items-center gap-1 cursor-pointer transition-colors"
-                            title={`Lihat ${docs.olsPdf.name}`}
-                          >
-                            <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(docs.olsPdf.name).bgClass} ${getFileBadgeStyle(docs.olsPdf.name).textClass}`}>
-                              [{getFileBadgeStyle(docs.olsPdf.name).ext}]
-                            </span> OLS
-                          </button>
-                        )}
-
-                        {docs.btsPdf && (
-                          <button
-                            onClick={() => setPreviewPdf(docs.btsPdf!)}
-                            className="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-slate-750 rounded flex items-center gap-1 cursor-pointer transition-colors"
-                            title={`Lihat ${docs.btsPdf.name}`}
-                          >
-                            <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(docs.btsPdf.name).bgClass} ${getFileBadgeStyle(docs.btsPdf.name).textClass}`}>
-                              [{getFileBadgeStyle(docs.btsPdf.name).ext}]
-                            </span> BTS
-                          </button>
-                        )}
-
-                        {docs.otdrPdf && (
-                          <button
-                            onClick={() => setPreviewPdf(docs.otdrPdf!)}
-                            className="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-slate-750 rounded flex items-center gap-1 cursor-pointer transition-colors"
-                            title={`Lihat ${docs.otdrPdf.name}`}
-                          >
-                            <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(docs.otdrPdf.name).bgClass} ${getFileBadgeStyle(docs.otdrPdf.name).textClass}`}>
-                              [{getFileBadgeStyle(docs.otdrPdf.name).ext}]
-                            </span> OTDR
-                          </button>
-                        )}
-
-                        {Object.values(docs).filter(Boolean).length === 0 && (
-                          <span className="text-slate-600 text-[10px]">Belum ada berkas</span>
+                      <div className="flex items-center gap-1.5 text-[10px] text-slate-400 max-w-[240px] truncate" title={`${report.originLocation || 'Site A'} ➔ ${report.destinationLocation || 'Site B'}`}>
+                        <span className="font-mono text-cyan-300/80">{report.woType}</span>
+                        {report.originLocation && (
+                          <>
+                            <span>•</span>
+                            <span className="truncate">{report.originLocation} ➔ {report.destinationLocation || 'Akhir'}</span>
+                          </>
                         )}
                       </div>
                     </td>
 
-                    <td className="py-2.5 px-3 text-center">
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold ${
+                    {/* Col 3: Tim & Area */}
+                    <td className="py-2 px-3 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5 font-mono">
+                        <span className="px-1.5 py-0.5 bg-slate-950 rounded text-cyan-300 border border-slate-800 text-[10px] font-bold">
+                          {report.assignment}
+                        </span>
+                        <span className="text-xs font-semibold text-slate-200">{report.team}</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 block font-mono">PIC: {report.pic || '-'}</span>
+                    </td>
+
+                    {/* Col 4: Durasi */}
+                    <td className="py-2 px-3 text-center whitespace-nowrap">
+                      <span className="inline-block px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                        {report.durationDays || 1} Hari
+                      </span>
+                    </td>
+
+                    {/* Col 5: Status */}
+                    <td className="py-2 px-3 text-center whitespace-nowrap">
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
                         report.statusWo === 'Done' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
                         report.statusWo === 'In Progress' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' :
                         'bg-slate-800 text-slate-400 border border-slate-700'
@@ -677,7 +529,8 @@ export const DailyReportPage: React.FC = () => {
                       </span>
                     </td>
 
-                    <td className="py-2.5 px-3 text-right">
+                    {/* Col 6: Aksi */}
+                    <td className="py-2 px-3 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
@@ -690,22 +543,11 @@ export const DailyReportPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => {
-                            downloadDailyReportWord(report);
-                            showToast('success', 'Download Word', `Laporan Word ${report.woNumber} berhasil diunduh.`);
+                            exportDailyReportToExcel([report]);
+                            showToast('success', 'Excel Unduh', `Rekap Excel WO ${report.woNumber} berhasil diunduh!`);
                           }}
-                          className="p-1.5 rounded-lg bg-slate-800 text-blue-400 hover:bg-blue-500/20 transition-colors cursor-pointer"
-                          title="Download Word (.doc) Lengkap dengan Gambar"
-                        >
-                          <FileText className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            downloadDailyReportExcel(report);
-                            showToast('success', 'Download Excel', `Laporan Excel ${report.woNumber} berhasil diunduh.`);
-                          }}
-                          className="p-1.5 rounded-lg bg-slate-800 text-emerald-400 hover:bg-emerald-500/20 transition-colors cursor-pointer"
-                          title="Download Excel (.xls) Lengkap dengan Gambar"
+                          className="p-1.5 rounded-lg bg-emerald-950/80 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-800/60 transition-colors cursor-pointer"
+                          title="Export Excel WO Ini (.xls)"
                         >
                           <FileSpreadsheet className="w-3.5 h-3.5" />
                         </button>
@@ -1087,24 +929,6 @@ export const DailyReportPage: React.FC = () => {
                   }
                 }}
                 onPreviewFile={(file) => setPreviewPdf(file)}
-                onDownloadWord={() => {
-                  downloadDailyReportWord({
-                    ...formData,
-                    id: editingId || 'temp-id',
-                    createdAt: '',
-                    updatedAt: ''
-                  });
-                  showToast('success', 'Download Word', 'Dokumen Daily Report Word (.doc) berhasil diunduh.');
-                }}
-                onDownloadExcel={() => {
-                  downloadDailyReportExcel({
-                    ...formData,
-                    id: editingId || 'temp-id',
-                    createdAt: '',
-                    updatedAt: ''
-                  });
-                  showToast('success', 'Download Excel', 'Dokumen Daily Report Excel (.xls) berhasil diunduh.');
-                }}
                 routeGmapsUrl={getGoogleMapsRouteUrl(
                   formData.originCoordinates,
                   formData.originLocation,
@@ -1119,42 +943,6 @@ export const DailyReportPage: React.FC = () => {
                   <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-wider font-mono">
                     18. DOKUMEN &amp; FOTO DOKUMENTASI
                   </h4>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        downloadDailyReportWord({
-                          ...formData,
-                          id: editingId || 'temp-id',
-                          createdAt: '',
-                          updatedAt: ''
-                        });
-                        showToast('success', 'Download Word', 'Dokumen Word (.doc) berhasil diunduh.');
-                      }}
-                      className="text-[11px] font-mono font-bold text-blue-400 hover:text-blue-300 bg-blue-950/80 hover:bg-blue-900/80 px-2.5 py-1 rounded-lg border border-blue-800/80 flex items-center gap-1.5 transition-colors cursor-pointer"
-                      title="Download Daily Report & Lampiran Dokumen ke Word (.doc)"
-                    >
-                      <FileText className="w-3.5 h-3.5" />
-                      <span>Word (.doc)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        downloadDailyReportExcel({
-                          ...formData,
-                          id: editingId || 'temp-id',
-                          createdAt: '',
-                          updatedAt: ''
-                        });
-                        showToast('success', 'Download Excel', 'Dokumen Excel (.xls) berhasil diunduh.');
-                      }}
-                      className="text-[11px] font-mono font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-950/80 hover:bg-emerald-900/80 px-2.5 py-1 rounded-lg border border-emerald-800/80 flex items-center gap-1.5 transition-colors cursor-pointer"
-                      title="Download Daily Report & Lampiran Dokumen ke Excel (.xls)"
-                    >
-                      <FileSpreadsheet className="w-3.5 h-3.5" />
-                      <span>Excel (.xls)</span>
-                    </button>
-                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -1237,7 +1025,7 @@ export const DailyReportPage: React.FC = () => {
 
       {/* Detail & Summary Preview Modal */}
       {detailPreviewReport && (() => {
-        const rep = ensureDailyReportVisualImages(detailPreviewReport);
+        const rep = detailPreviewReport;
         const docs = rep.documentation || {};
         const originPhotoSrc = rep.originPhotoFile?.imageDataUrl || rep.originPhotoFile?.url;
         const destPhotoSrc = rep.destinationPhotoFile?.imageDataUrl || rep.destinationPhotoFile?.url;
@@ -1283,38 +1071,6 @@ export const DailyReportPage: React.FC = () => {
               {/* Content Body */}
               <div className="p-6 overflow-y-auto space-y-6">
                 
-                {/* Download Actions Toolbar */}
-                <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-950 rounded-xl border border-slate-800">
-                  <span className="text-xs font-mono text-slate-400 flex items-center gap-1.5">
-                    <Download className="w-4 h-4 text-cyan-400" />
-                    Export Dokumen Resmi dengan Gambar Visual:
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        downloadDailyReportWord(rep);
-                        showToast('success', 'Download Word', `Laporan Word ${rep.woNumber} berhasil diunduh.`);
-                      }}
-                      className="px-3 py-1.5 rounded-lg bg-blue-950 text-blue-300 hover:bg-blue-900 border border-blue-800 text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
-                    >
-                      <FileText className="w-4 h-4" />
-                      <span>Download Word (.doc)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        downloadDailyReportExcel(rep);
-                        showToast('success', 'Download Excel', `Laporan Excel ${rep.woNumber} berhasil diunduh.`);
-                      }}
-                      className="px-3 py-1.5 rounded-lg bg-emerald-950 text-emerald-300 hover:bg-emerald-900 border border-emerald-800 text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
-                    >
-                      <FileSpreadsheet className="w-4 h-4" />
-                      <span>Download Excel (.xls)</span>
-                    </button>
-                  </div>
-                </div>
-
                 {/* Info Table */}
                 <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
                   <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-wider font-mono border-b border-slate-800 pb-2">
@@ -1521,26 +1277,15 @@ export const DailyReportPage: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <TouchButton
-                    variant="secondary"
+                    variant="success"
                     size="sm"
-                    icon={<FileText className="w-4 h-4 text-blue-400" />}
+                    icon={<FileSpreadsheet className="w-4 h-4" />}
                     onClick={() => {
-                      downloadDailyReportWord(rep);
-                      showToast('success', 'Download Word', `Laporan Word ${rep.woNumber} berhasil diunduh.`);
+                      exportDailyReportToExcel([rep]);
+                      showToast('success', 'Excel Unduh', `Rekap Excel WO ${rep.woNumber} berhasil diunduh!`);
                     }}
                   >
-                    Word (.doc)
-                  </TouchButton>
-                  <TouchButton
-                    variant="secondary"
-                    size="sm"
-                    icon={<FileSpreadsheet className="w-4 h-4 text-emerald-400" />}
-                    onClick={() => {
-                      downloadDailyReportExcel(rep);
-                      showToast('success', 'Download Excel', `Laporan Excel ${rep.woNumber} berhasil diunduh.`);
-                    }}
-                  >
-                    Excel (.xls)
+                    Export Excel WO Ini (.xls)
                   </TouchButton>
                   <TouchButton variant="primary" size="sm" onClick={() => setDetailPreviewReport(null)}>
                     Tutup

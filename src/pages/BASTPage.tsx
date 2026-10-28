@@ -8,31 +8,42 @@ import {
   Search, 
   X,
   Eye,
-  MapPin,
-  Navigation,
-  ExternalLink,
-  FileSpreadsheet
+  GitBranch,
+  Send,
+  UserCheck,
+  FileCheck2,
+  DollarSign,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  FileSpreadsheet,
+  Table,
+  LayoutGrid
 } from 'lucide-react';
 import { useProjectContext } from '../context/ProjectContext';
-import { BASTItem, WOOption, StatusBAST, PDFFileMeta } from '../types';
+import { BASTItem, WOOption, StatusBAST, PDFFileMeta, BASTWorkflow } from '../types';
 import { TouchButton } from '../components/TouchButton';
 import { PDFUploader } from '../components/PDFUploader';
 import { MultiPDFUploader } from '../components/MultiPDFUploader';
 import { PDFViewerModal } from '../components/PDFViewerModal';
 import { DeleteConfirmModal } from '../components/DeleteConfirmModal';
-import { getDefaultWorkTypeForWoOption, getGoogleMapsRouteUrl } from './DailyReportPage';
-import { TaggingLocationSection } from '../components/TaggingLocationSection';
+import { BASTWorkflowCardStepper } from '../components/BASTWorkflowCardStepper';
+import { BASTWorkflowModal } from '../components/BASTWorkflowModal';
 import { getFileBadgeStyle } from '../utils/fileHelper';
-import { exportBastToWord, exportBastToExcel } from '../utils/bastExportHelper';
+import { evaluateBASTWorkflow, getDefaultBASTWorkflow, WorkflowFilterTab } from '../utils/bastWorkflowHelper';
+import { exportBASTToExcel } from '../utils/excelExportHelper';
 
 export const BASTPage: React.FC = () => {
   const { bastList, addBAST, updateBAST, deleteBAST, showToast, dailyReports } = useProjectContext();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [workflowTab, setWorkflowTab] = useState<WorkflowFilterTab>('ALL');
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+  const [routingModalBast, setRoutingModalBast] = useState<BASTItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [previewPdf, setPreviewPdf] = useState<PDFFileMeta | null>(null);
-  const [previewingBastContext, setPreviewingBastContext] = useState<BASTItem | null>(null);
+  const [isWorkflowSectionOpen, setIsWorkflowSectionOpen] = useState(true);
 
   // Delete Target Modal
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; woNumber: string } | null>(null);
@@ -59,17 +70,8 @@ export const BASTPage: React.FC = () => {
     fotoDokumentasiPdf: undefined, // Max 4MB enforce
     fotoDokumentasiPdfs: [],
     statusBast: 'Submit',
-    notes: '',
-    originLocation: '',
-    originCoordinates: '',
-    originPhotoFile: undefined,
-    originTaggingDocFile: undefined,
-    destinationLocation: '',
-    destinationCoordinates: '',
-    destinationPhotoFile: undefined,
-    destinationTaggingDocFile: undefined,
-    routeMapFile: undefined,
-    routeGmapsUrl: ''
+    workflow: getDefaultBASTWorkflow('WO-BEL-2026-0082'),
+    notes: ''
   });
 
   const defaultWOOptions: WOOption[] = [
@@ -84,11 +86,13 @@ export const BASTPage: React.FC = () => {
   );
   const woOptions: WOOption[] = allWOTypeFilterOptions;
 
-  const handleGetBrowserLocation = (type: 'origin' | 'destination') => {
+  const handleSaveWorkflow = (bastId: string, updatedWorkflow: BASTWorkflow) => {
+    updateBAST(bastId, { workflow: updatedWorkflow });
+    const evaluation = evaluateBASTWorkflow({ id: bastId, workflow: updatedWorkflow } as BASTItem);
     showToast(
       'success',
-      'Koordinat GPS Terisi',
-      `Koordinat ${type === 'origin' ? 'Titik Awal (Site A)' : 'Titik Akhir (Site B)'} berhasil diperbarui.`
+      'Routing BAST Diperbarui',
+      `Alur BAST berhasil diperbarui: ${evaluation.currentStageTitle} (${evaluation.percent}% selesai)`
     );
   };
 
@@ -97,8 +101,9 @@ export const BASTPage: React.FC = () => {
     setIsCustomWoType(false);
     const today = new Date().toISOString().substring(0, 10);
     const finish = new Date(Date.now() + 5 * 86400000).toISOString().substring(0, 10);
+    const generatedWo = `WO-BEL-2026-${Math.floor(1000 + Math.random() * 9000)}`;
     setFormData({
-      woNumber: `WO-BEL-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+      woNumber: generatedWo,
       woType: 'Splice Interconnection POP Mini',
       apdPdf: undefined,
       abdPdf: undefined,
@@ -118,17 +123,8 @@ export const BASTPage: React.FC = () => {
       fotoDokumentasiPdf: undefined,
       fotoDokumentasiPdfs: [],
       statusBast: 'Submit',
-      notes: '',
-      originLocation: '',
-      originCoordinates: '',
-      originPhotoFile: undefined,
-      originTaggingDocFile: undefined,
-      destinationLocation: '',
-      destinationCoordinates: '',
-      destinationPhotoFile: undefined,
-      destinationTaggingDocFile: undefined,
-      routeMapFile: undefined,
-      routeGmapsUrl: ''
+      workflow: getDefaultBASTWorkflow(generatedWo),
+      notes: ''
     });
     setIsModalOpen(true);
   };
@@ -147,16 +143,7 @@ export const BASTPage: React.FC = () => {
       durasiDate: item.durasiDate ?? item.durationDays,
       abdDate: item.abdDate || item.finishDate || new Date().toISOString().substring(0, 10),
       coreConnectionDate: item.coreConnectionDate || item.finishDate || new Date().toISOString().substring(0, 10),
-      originLocation: item.originLocation || '',
-      originCoordinates: item.originCoordinates || '',
-      originPhotoFile: item.originPhotoFile,
-      originTaggingDocFile: item.originTaggingDocFile,
-      destinationLocation: item.destinationLocation || '',
-      destinationCoordinates: item.destinationCoordinates || '',
-      destinationPhotoFile: item.destinationPhotoFile,
-      destinationTaggingDocFile: item.destinationTaggingDocFile,
-      routeMapFile: item.routeMapFile,
-      routeGmapsUrl: item.routeGmapsUrl || ''
+      workflow: item.workflow || getDefaultBASTWorkflow(item.woNumber)
     });
     setIsModalOpen(true);
   };
@@ -191,19 +178,9 @@ export const BASTPage: React.FC = () => {
         totalDistanceMeters: matchingDaily.totalDistanceMeters,
         totalDistancePdf: matchingDaily.totalDistancePdf,
         fotoDokumentasiPdf: syncedDocs[0] || matchingDaily.documentation?.fotoClosurePdf || prev.fotoDokumentasiPdf,
-        fotoDokumentasiPdfs: syncedDocs.length > 0 ? syncedDocs : prev.fotoDokumentasiPdfs,
-        originLocation: matchingDaily.originLocation || '',
-        originCoordinates: matchingDaily.originCoordinates || '',
-        originPhotoFile: matchingDaily.originPhotoFile,
-        originTaggingDocFile: matchingDaily.originTaggingDocFile,
-        destinationLocation: matchingDaily.destinationLocation || '',
-        destinationCoordinates: matchingDaily.destinationCoordinates || '',
-        destinationPhotoFile: matchingDaily.destinationPhotoFile,
-        destinationTaggingDocFile: matchingDaily.destinationTaggingDocFile,
-        routeMapFile: matchingDaily.routeMapFile,
-        routeGmapsUrl: matchingDaily.routeGmapsUrl || ''
+        fotoDokumentasiPdfs: syncedDocs.length > 0 ? syncedDocs : prev.fotoDokumentasiPdfs
       }));
-      showToast('info', 'Sinkronisasi BAST', `Data Timeline, Rute Location & WO disinkronkan dari Daily Report ${matchingDaily.woNumber}`);
+      showToast('info', 'Sinkronisasi BAST', `Data Timeline & WO disinkronkan dari Daily Report ${matchingDaily.woNumber}`);
     } else {
       setFormData(prev => ({ ...prev, woNumber: selectedWo }));
     }
@@ -216,17 +193,9 @@ export const BASTPage: React.FC = () => {
       return;
     }
 
-    const calculatedRouteUrl = getGoogleMapsRouteUrl(
-      formData.originCoordinates,
-      formData.originLocation,
-      formData.destinationCoordinates,
-      formData.destinationLocation
-    ) || formData.routeGmapsUrl || '';
-
     const payload = {
       ...formData,
-      durasiDate: formData.durasiDate ?? formData.durationDays,
-      routeGmapsUrl: calculatedRouteUrl
+      durasiDate: formData.durasiDate ?? formData.durationDays
     };
 
     if (editingId) {
@@ -332,13 +301,27 @@ export const BASTPage: React.FC = () => {
     }
   };
 
-  const filteredBast = bastList.filter(b => 
-    b.woNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    b.workType.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (b.originLocation && b.originLocation.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (b.destinationLocation && b.destinationLocation.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    b.notes?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const workflowTabs: { key: WorkflowFilterTab; label: string; count: number }[] = [
+    { key: 'ALL', label: 'Semua', count: bastList.length },
+    { key: '1. Email User', label: '1. Email User', count: bastList.filter(b => evaluateBASTWorkflow(b).filterTab === '1. Email User').length },
+    { key: '2. Admin User', label: '2. Admin User', count: bastList.filter(b => evaluateBASTWorkflow(b).filterTab === '2. Admin User').length },
+    { key: '3. Routing TTD', label: '3. Routing TTD', count: bastList.filter(b => evaluateBASTWorkflow(b).filterTab === '3. Routing TTD').length },
+    { key: '4. Finance', label: '4. Finance', count: bastList.filter(b => evaluateBASTWorkflow(b).filterTab === '4. Finance').length },
+    { key: 'Selesai', label: 'Selesai', count: bastList.filter(b => evaluateBASTWorkflow(b).filterTab === 'Selesai').length },
+  ];
+
+  const filteredBast = bastList.filter(b => {
+    const matchesSearch = 
+      b.woNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      b.workType.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      b.notes?.toLowerCase().includes(searchQuery.toLowerCase());
+
+    if (!matchesSearch) return false;
+    if (workflowTab === 'ALL') return true;
+
+    const evaluation = evaluateBASTWorkflow(b);
+    return evaluation.filterTab === workflowTab;
+  });
 
   return (
     <div className="space-y-6 pb-8">
@@ -350,313 +333,487 @@ export const BASTPage: React.FC = () => {
             <CheckSquare className="w-4 h-4" /> Manajemen Berita Acara Serah Terima
           </div>
           <h2 className="text-xl font-bold text-white mt-1">BAST Belacom</h2>
-          <p className="text-xs text-slate-400">Verifikasi Berkas APD, ABD, Core Connection, & Daily Report</p>
+          <p className="text-xs text-slate-400">Workflow Alur 4 Tahap, Verifikasi Berkas APD, ABD, Core Conn & Daily Report</p>
         </div>
 
-        <TouchButton
-          variant="primary"
-          size="md"
-          icon={<Plus className="w-5 h-5" />}
-          onClick={handleOpenAddModal}
-          showFingerIcon
-        >
-          + Input BAST Baru
-        </TouchButton>
-      </div>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <TouchButton
+            variant="success"
+            size="sm"
+            icon={<FileSpreadsheet className="w-4 h-4" />}
+            onClick={() => {
+              exportBASTToExcel(filteredBast);
+              showToast('success', 'Rekap Excel Diunduh', 'Rekap Excel Semua BAST berhasil diunduh dengan foto visual!');
+            }}
+          >
+            Export Excel Rekap Semua BAST (.xls)
+          </TouchButton>
 
-      {/* Search Bar */}
-      <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800">
-        <div className="relative max-w-md">
-          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Cari No. WO atau deskripsi BAST..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 rounded-xl pl-9 pr-3 py-2 outline-none"
-          />
+          <TouchButton
+            variant="primary"
+            size="md"
+            icon={<Plus className="w-5 h-5" />}
+            onClick={handleOpenAddModal}
+            showFingerIcon
+          >
+            + Input BAST Baru
+          </TouchButton>
         </div>
       </div>
 
-      {/* BAST Data Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {filteredBast.map((bast) => (
-          <div key={bast.id} className="bg-slate-900 border border-slate-800 hover:border-cyan-500/50 rounded-2xl p-5 shadow-xl flex flex-col justify-between transition-all group">
-            <div>
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
-                <div>
-                  <span className="text-xs text-slate-500 font-mono block">NO. WO</span>
-                  <span className="text-sm font-extrabold text-cyan-400 font-mono">{bast.woNumber}</span>
-                </div>
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-mono font-bold ${
-                  bast.statusBast === 'Done' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                  bast.statusBast === 'Submitted via Gmail' ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30' :
-                  bast.statusBast === 'Submit' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' :
-                  'bg-slate-800 text-slate-400 border border-slate-700'
-                }`}>
-                  {bast.statusBast}
-                </span>
-              </div>
+      {/* Search Bar & Workflow Filter Tabs */}
+      <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Cari No. WO, deskripsi pekerjaan, catatan..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 rounded-xl pl-9 pr-3 py-2.5 outline-none focus:border-cyan-500/50"
+            />
+          </div>
 
-              <div className="space-y-2 mb-4">
-                <p className="text-xs font-semibold text-white line-clamp-2">{bast.workType}</p>
-                <p className="text-[11px] text-slate-400 font-mono">Option WO: {bast.woType}</p>
-                
-                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/80 text-[11px] font-mono space-y-1.5">
-                  <div className="flex items-center justify-between text-slate-400">
-                    <span className="flex items-center gap-1"><span className="text-xs">📅</span> Release Date:</span>
-                    <span className="text-slate-200 font-semibold">{bast.releaseDate || '-'}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-slate-400">
-                    <span className="flex items-center gap-1"><span className="text-xs">🚀</span> Start Date:</span>
-                    <span className="text-slate-200 font-semibold">{bast.startDate || '-'}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-slate-400">
-                    <span className="flex items-center gap-1"><span className="text-xs">🏁</span> Finish Date:</span>
-                    <span className="text-slate-200 font-semibold">{bast.finishDate || '-'}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-slate-400">
-                    <span className="flex items-center gap-1"><span className="text-xs">📄</span> ABD Date:</span>
-                    <span className="text-cyan-300 font-semibold">{bast.abdDate || bast.finishDate || '-'}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-slate-400">
-                    <span className="flex items-center gap-1"><span className="text-xs">🔌</span> Core Conn Date:</span>
-                    <span className="text-cyan-300 font-semibold">{bast.coreConnectionDate || bast.finishDate || '-'}</span>
-                  </div>
-                  <div className="flex items-center justify-between pt-1 border-t border-slate-800/60">
-                    <span className="text-slate-400">Durasi Date:</span>
-                    <span className="px-2 py-0.5 rounded-md text-[11px] font-extrabold bg-cyan-950 text-cyan-300 border border-cyan-800/60">
-                      [ {bast.durasiDate ?? bast.durationDays ?? 1} Hari ]
-                    </span>
-                  </div>
-                  {(bast.originLocation || bast.destinationLocation || bast.originCoordinates || bast.destinationCoordinates) && (
-                    <div className="pt-2 border-t border-slate-800/80 space-y-1">
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className="text-slate-400 font-semibold flex items-center gap-1">
-                          <MapPin className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                          Tagging Route:
-                        </span>
-                        {(bast.routeGmapsUrl || getGoogleMapsRouteUrl(bast.originCoordinates, bast.originLocation, bast.destinationCoordinates, bast.destinationLocation)) && (
-                          <a
-                            href={bast.routeGmapsUrl || getGoogleMapsRouteUrl(bast.originCoordinates, bast.originLocation, bast.destinationCoordinates, bast.destinationLocation)!}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[10px] font-mono font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-800/80 transition-colors"
-                            title="Buka Rute di Google Maps"
-                          >
-                            <Navigation className="w-3 h-3" /> Maps
-                            <ExternalLink className="w-2.5 h-2.5" />
-                          </a>
-                        )}
-                      </div>
-                      <div className="text-[10px] text-slate-200 font-mono font-semibold bg-slate-900/90 p-1.5 rounded-lg border border-slate-800 flex items-center justify-between gap-1">
-                        <span className="truncate max-w-[45%]" title={bast.originLocation || bast.originCoordinates}>
-                          📍 {bast.originLocation || bast.originCoordinates || 'Awal'}
-                        </span>
-                        <span className="text-cyan-400 font-bold shrink-0">➔</span>
-                        <span className="truncate max-w-[45%] text-right" title={bast.destinationLocation || bast.destinationCoordinates}>
-                          🏁 {bast.destinationLocation || bast.destinationCoordinates || 'Akhir'}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                  {bast.totalDistanceMeters ? (
-                    <div className="flex items-center justify-between text-slate-400 text-[10px] pt-0.5">
-                      <span>Total Jarak:</span>
-                      <span className="text-emerald-400 font-semibold">{bast.totalDistanceMeters.toLocaleString('id-ID')} m</span>
-                    </div>
-                  ) : null}
-                </div>
-
-                {/* Attachments interactive click-to-view badges */}
-                <div className="pt-2 flex flex-wrap gap-1.5 text-[10px] font-mono">
-                  {bast.apdPdf && (
-                    <button 
-                      onClick={() => {
-                        setPreviewingBastContext(bast);
-                        setPreviewPdf(bast.apdPdf!);
-                      }} 
-                      className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-cyan-300 rounded border border-slate-750 flex items-center gap-1 cursor-pointer transition-colors" 
-                      title={`Lihat ${bast.apdPdf.name}`}
-                    >
-                      <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(bast.apdPdf.name).bgClass} ${getFileBadgeStyle(bast.apdPdf.name).textClass}`}>
-                        [{getFileBadgeStyle(bast.apdPdf.name).ext}]
-                      </span> APD
-                    </button>
-                  )}
-                  {bast.abdPdf && (
-                    <button 
-                      onClick={() => {
-                        setPreviewingBastContext(bast);
-                        setPreviewPdf(bast.abdPdf!);
-                      }} 
-                      className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-cyan-300 rounded border border-slate-750 flex items-center gap-1 cursor-pointer transition-colors" 
-                      title={`Lihat ${bast.abdPdf.name}`}
-                    >
-                      <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(bast.abdPdf.name).bgClass} ${getFileBadgeStyle(bast.abdPdf.name).textClass}`}>
-                        [{getFileBadgeStyle(bast.abdPdf.name).ext}]
-                      </span> ABD
-                    </button>
-                  )}
-                  {bast.coreConnectionPdf && (
-                    <button 
-                      onClick={() => {
-                        setPreviewingBastContext(bast);
-                        setPreviewPdf(bast.coreConnectionPdf!);
-                      }} 
-                      className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-cyan-300 rounded border border-slate-750 flex items-center gap-1 cursor-pointer transition-colors" 
-                      title={`Lihat ${bast.coreConnectionPdf.name}`}
-                    >
-                      <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(bast.coreConnectionPdf.name).bgClass} ${getFileBadgeStyle(bast.coreConnectionPdf.name).textClass}`}>
-                        [{getFileBadgeStyle(bast.coreConnectionPdf.name).ext}]
-                      </span> Core Conn
-                    </button>
-                  )}
-                  {(() => {
-                    const docs = (bast.fotoDokumentasiPdfs && bast.fotoDokumentasiPdfs.length > 0)
-                      ? bast.fotoDokumentasiPdfs
-                      : (bast.fotoDokumentasiPdf ? [bast.fotoDokumentasiPdf] : []);
-
-                    return docs.map((doc, idx) => (
-                      <button 
-                        key={doc.id || idx}
-                        onClick={() => {
-                          setPreviewingBastContext(bast);
-                          setPreviewPdf(doc);
-                        }} 
-                        className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-cyan-300 rounded border border-slate-750 flex items-center gap-1 cursor-pointer transition-colors" 
-                        title={`Lihat ${doc.name}`}
-                      >
-                        <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(doc.name).bgClass} ${getFileBadgeStyle(doc.name).textClass}`}>
-                          [{getFileBadgeStyle(doc.name).ext}]
-                        </span> {docs.length > 1 ? `Foto Docs #${idx + 1}` : 'Foto Docs'}
-                      </button>
-                    ));
-                  })()}
-                  {bast.originPhotoFile && (
-                    <button 
-                      onClick={() => {
-                        setPreviewingBastContext(bast);
-                        setPreviewPdf(bast.originPhotoFile!);
-                      }} 
-                      className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-emerald-300 rounded border border-emerald-800/50 flex items-center gap-1 cursor-pointer transition-colors" 
-                      title={`Lihat Foto Site A: ${bast.originPhotoFile.name}`}
-                    >
-                      <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(bast.originPhotoFile.name).bgClass} ${getFileBadgeStyle(bast.originPhotoFile.name).textClass}`}>
-                        [{getFileBadgeStyle(bast.originPhotoFile.name).ext}]
-                      </span> Foto Site A
-                    </button>
-                  )}
-                  {bast.originTaggingDocFile && (
-                    <button 
-                      onClick={() => {
-                        setPreviewingBastContext(bast);
-                        setPreviewPdf(bast.originTaggingDocFile!);
-                      }} 
-                      className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-emerald-300 rounded border border-emerald-800/50 flex items-center gap-1 cursor-pointer transition-colors" 
-                      title={`Lihat Dokumen Tagging Site A: ${bast.originTaggingDocFile.name}`}
-                    >
-                      <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(bast.originTaggingDocFile.name).bgClass} ${getFileBadgeStyle(bast.originTaggingDocFile.name).textClass}`}>
-                        [{getFileBadgeStyle(bast.originTaggingDocFile.name).ext}]
-                      </span> Doc Site A
-                    </button>
-                  )}
-                  {bast.destinationPhotoFile && (
-                    <button 
-                      onClick={() => {
-                        setPreviewingBastContext(bast);
-                        setPreviewPdf(bast.destinationPhotoFile!);
-                      }} 
-                      className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-rose-300 rounded border border-rose-800/50 flex items-center gap-1 cursor-pointer transition-colors" 
-                      title={`Lihat Foto Site B: ${bast.destinationPhotoFile.name}`}
-                    >
-                      <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(bast.destinationPhotoFile.name).bgClass} ${getFileBadgeStyle(bast.destinationPhotoFile.name).textClass}`}>
-                        [{getFileBadgeStyle(bast.destinationPhotoFile.name).ext}]
-                      </span> Foto Site B
-                    </button>
-                  )}
-                  {bast.destinationTaggingDocFile && (
-                    <button 
-                      onClick={() => {
-                        setPreviewingBastContext(bast);
-                        setPreviewPdf(bast.destinationTaggingDocFile!);
-                      }} 
-                      className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-rose-300 rounded border border-rose-800/50 flex items-center gap-1 cursor-pointer transition-colors" 
-                      title={`Lihat Dokumen Tagging Site B: ${bast.destinationTaggingDocFile.name}`}>
-                      <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(bast.destinationTaggingDocFile.name).bgClass} ${getFileBadgeStyle(bast.destinationTaggingDocFile.name).textClass}`}>
-                        [{getFileBadgeStyle(bast.destinationTaggingDocFile.name).ext}]
-                      </span> Doc Site B
-                    </button>
-                  )}
-                  {bast.routeMapFile && (
-                    <button 
-                      onClick={() => {
-                        setPreviewingBastContext(bast);
-                        setPreviewPdf(bast.routeMapFile!);
-                      }} 
-                      className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-indigo-300 rounded border border-indigo-800/50 flex items-center gap-1 cursor-pointer transition-colors" 
-                      title={`Lihat File Peta Rute: ${bast.routeMapFile.name}`}
-                    >
-                      <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(bast.routeMapFile.name).bgClass} ${getFileBadgeStyle(bast.routeMapFile.name).textClass}`}>
-                        [{getFileBadgeStyle(bast.routeMapFile.name).ext}]
-                      </span> Peta Rute
-                    </button>
-                  )}
-                </div>
-              </div>
+          <div className="flex flex-wrap items-center gap-3">
+            {/* View Switcher */}
+            <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 font-mono text-xs">
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+                  viewMode === 'table'
+                    ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Tampilan Tabel Compact"
+              >
+                <Table className="w-3.5 h-3.5" />
+                <span>Tabel Compact</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('cards')}
+                className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+                  viewMode === 'cards'
+                    ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Tampilan Kartu Grid"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Kartu Grid</span>
+              </button>
             </div>
 
-            {/* Footer actions */}
-            <div className="pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
-              <span className="text-[10px] text-slate-500 font-mono">{bast.id}</span>
-              <div className="flex flex-wrap items-center gap-1.5">
-                {/* Download Word (.doc) */}
+            <div className="flex items-center gap-2 text-xs font-mono text-slate-400">
+              <span>Total:</span>
+              <span className="font-bold text-cyan-400">{filteredBast.length} BAST</span>
+              {workflowTab !== 'ALL' && (
                 <button
-                  type="button"
-                  onClick={() => {
-                    exportBastToWord(bast);
-                    showToast('success', 'Download Word Sukses', `Dokumen BAST ${bast.woNumber} berhasil diunduh dalam format .doc beserta foto visual.`);
-                  }}
-                  className="px-2 py-1.5 rounded-lg bg-indigo-600/10 text-indigo-400 hover:bg-indigo-600/20 border border-indigo-500/20 cursor-pointer flex items-center gap-1 text-[11px] font-semibold transition-colors"
-                  title="Download BAST Microsoft Word (.doc) lengkap dengan gambar & rute"
+                  onClick={() => setWorkflowTab('ALL')}
+                  className="text-[11px] text-cyan-400 hover:underline ml-1 cursor-pointer"
                 >
-                  <FileText className="w-3.5 h-3.5 text-indigo-400" />
-                  <span className="hidden sm:inline">Word</span>
+                  (Reset filter)
                 </button>
-
-                {/* Download Excel (.xls) */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    exportBastToExcel(bast);
-                    showToast('success', 'Download Excel Sukses', `Dokumen BAST ${bast.woNumber} berhasil diunduh dalam format .xls beserta foto visual.`);
-                  }}
-                  className="px-2 py-1.5 rounded-lg bg-emerald-600/10 text-emerald-400 hover:bg-emerald-600/20 border border-emerald-500/20 cursor-pointer flex items-center gap-1 text-[11px] font-semibold transition-colors"
-                  title="Download BAST Microsoft Excel (.xls) lengkap dengan gambar & rute"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="hidden sm:inline">Excel</span>
-                </button>
-
-                <button
-                  onClick={() => handleOpenEditModal(bast)}
-                  className="p-1.5 rounded-lg bg-slate-800 text-cyan-400 hover:bg-cyan-500/20 cursor-pointer"
-                  title="Edit BAST"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => setDeleteTarget({ id: bast.id, woNumber: bast.woNumber })}
-                  className="p-1.5 rounded-lg bg-slate-800 text-rose-400 hover:bg-rose-500/20 cursor-pointer"
-                  title="Hapus BAST"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
+              )}
             </div>
           </div>
-        ))}
+        </div>
+
+        {/* Workflow Alur 4-Tahap Filter Tabs */}
+        <div className="pt-2 border-t border-slate-800/80">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+            <span className="text-[11px] font-mono text-slate-400 flex items-center gap-1 shrink-0 mr-1.5">
+              <GitBranch className="w-3.5 h-3.5 text-cyan-400" /> Alur BAST:
+            </span>
+            {workflowTabs.map(tab => {
+              const isActive = workflowTab === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setWorkflowTab(tab.key)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-mono font-medium transition-all shrink-0 flex items-center gap-2 cursor-pointer ${
+                    isActive
+                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/60 shadow-sm'
+                      : 'bg-slate-950/70 text-slate-400 border border-slate-800 hover:border-slate-700 hover:text-slate-200'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    isActive
+                      ? 'bg-cyan-400 text-slate-950 font-bold'
+                      : 'bg-slate-800 text-slate-400'
+                  }`}>
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
+
+      {/* BAST Data Rendering (Compact Table vs Cards Grid) */}
+      {filteredBast.length === 0 ? (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center space-y-3">
+          <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-slate-500">
+            <FileText className="w-6 h-6" />
+          </div>
+          <p className="text-sm font-semibold text-slate-300">Tidak ada dokumen BAST yang cocok</p>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+            Tidak ditemukan data pada tab filter "{workflowTab}" atau dengan kata kunci pencarian "{searchQuery}".
+          </p>
+          {(workflowTab !== 'ALL' || searchQuery) && (
+            <button
+              type="button"
+              onClick={() => {
+                setWorkflowTab('ALL');
+                setSearchQuery('');
+              }}
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-mono rounded-lg transition-colors cursor-pointer"
+            >
+              Tampilkan Semua BAST
+            </button>
+          )}
+        </div>
+      ) : viewMode === 'table' ? (
+        /* MODE 1: Compact Table Format */
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-slate-300">
+              <thead className="bg-slate-950/90 text-slate-400 font-mono text-[11px] uppercase tracking-wider border-b border-slate-800">
+                <tr>
+                  <th className="py-2 px-3 font-semibold">No. BAST & Ref WO</th>
+                  <th className="py-2 px-3 font-semibold">Project & Pekerjaan</th>
+                  <th className="py-2 px-3 font-semibold">Berkas Lampiran</th>
+                  <th className="py-2 px-3 font-semibold">Alur Sub Routing (4-Tahap)</th>
+                  <th className="py-2 px-3 font-semibold text-center">Durasi & Tanggal</th>
+                  <th className="py-2 px-3 font-semibold text-right">Aksi Cepat</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 font-sans">
+                {filteredBast.map((bast) => {
+                  const bastNo = bast.bastNumber || `BAST/${bast.woNumber}/BELACOM/2026`;
+                  const evalWf = evaluateBASTWorkflow(bast);
+
+                  return (
+                    <tr key={bast.id} className="hover:bg-slate-800/60 transition-colors group">
+                      
+                      {/* Col 1: No. BAST & Ref WO */}
+                      <td className="py-2 px-3 whitespace-nowrap">
+                        <span className="font-bold text-emerald-400 font-mono block text-xs truncate max-w-[180px]" title={bastNo}>
+                          {bastNo}
+                        </span>
+                        <span className="text-[10px] text-cyan-400 font-mono block">WO: {bast.woNumber}</span>
+                      </td>
+
+                      {/* Col 2: Project & Pekerjaan */}
+                      <td className="py-2 px-3">
+                        <span className="font-medium text-slate-200 block max-w-[240px] truncate text-xs" title={bast.workType}>
+                          {bast.workType}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono block truncate max-w-[240px]">
+                          {bast.woType}
+                        </span>
+                      </td>
+
+                      {/* Col 3: Berkas Lengkap */}
+                      <td className="py-2 px-3 whitespace-nowrap font-mono">
+                        <div className="flex items-center gap-1 text-[10px]">
+                          {bast.apdPdf ? (
+                            <button
+                              onClick={() => setPreviewPdf(bast.apdPdf!)}
+                              className="px-1.5 py-0.5 bg-slate-950 hover:bg-slate-800 text-cyan-300 border border-slate-800 rounded font-bold transition-colors cursor-pointer"
+                              title={`Lihat APD: ${bast.apdPdf.name}`}
+                            >
+                              APD
+                            </button>
+                          ) : null}
+
+                          {bast.abdPdf ? (
+                            <button
+                              onClick={() => setPreviewPdf(bast.abdPdf!)}
+                              className="px-1.5 py-0.5 bg-slate-950 hover:bg-slate-800 text-emerald-300 border border-slate-800 rounded font-bold transition-colors cursor-pointer"
+                              title={`Lihat ABD: ${bast.abdPdf.name}`}
+                            >
+                              ABD
+                            </button>
+                          ) : null}
+
+                          {bast.coreConnectionPdf ? (
+                            <button
+                              onClick={() => setPreviewPdf(bast.coreConnectionPdf!)}
+                              className="px-1.5 py-0.5 bg-slate-950 hover:bg-slate-800 text-amber-300 border border-slate-800 rounded font-bold transition-colors cursor-pointer"
+                              title={`Lihat Core: ${bast.coreConnectionPdf.name}`}
+                            >
+                              Core
+                            </button>
+                          ) : null}
+
+                          {(bast.fotoDokumentasiPdf || (bast.fotoDokumentasiPdfs && bast.fotoDokumentasiPdfs.length > 0)) ? (
+                            <button
+                              onClick={() => setPreviewPdf(bast.fotoDokumentasiPdfs?.[0] || bast.fotoDokumentasiPdf!)}
+                              className="px-1.5 py-0.5 bg-slate-950 hover:bg-slate-800 text-purple-300 border border-slate-800 rounded font-bold transition-colors cursor-pointer"
+                              title="Lihat Foto Dokumentasi"
+                            >
+                              Foto
+                            </button>
+                          ) : null}
+
+                          {!bast.apdPdf && !bast.abdPdf && !bast.coreConnectionPdf && !bast.fotoDokumentasiPdf && (!bast.fotoDokumentasiPdfs || bast.fotoDokumentasiPdfs.length === 0) && (
+                            <span className="text-slate-600 text-[10px]">-</span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Col 4: Alur Sub Routing (Mini 4-dot stepper) */}
+                      <td className="py-2 px-3">
+                        <div 
+                          onClick={() => setRoutingModalBast(bast)}
+                          className="flex items-center gap-2 bg-slate-950/80 px-2 py-1 rounded-lg border border-slate-800 cursor-pointer hover:border-cyan-500/50 transition-all max-w-[210px]"
+                          title={`Update Routing BAST: ${evalWf.currentStageTitle} (${evalWf.percent}%)`}
+                        >
+                          <div className="flex items-center gap-1 shrink-0">
+                            <span className={`w-2 h-2 rounded-full ${evalWf.stages[0].isCompleted ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'}`} title="1. Email User" />
+                            <span className={`w-2 h-2 rounded-full ${evalWf.stages[1].isCompleted ? 'bg-emerald-400' : evalWf.stages[0].isCompleted ? 'bg-cyan-400 animate-pulse' : 'bg-slate-700'}`} title="2. Admin User" />
+                            <span className={`w-2 h-2 rounded-full ${evalWf.stages[2].isCompleted ? 'bg-emerald-400' : evalWf.stages[1].isCompleted ? 'bg-cyan-400 animate-pulse' : 'bg-slate-700'}`} title="3. Routing TTD" />
+                            <span className={`w-2 h-2 rounded-full ${evalWf.stages[3].isCompleted ? 'bg-emerald-400' : evalWf.stages[2].isCompleted ? 'bg-cyan-400 animate-pulse' : 'bg-slate-700'}`} title="4. Finance" />
+                          </div>
+                          <div className="text-[10px] font-mono truncate">
+                            <span className="text-slate-200 font-semibold">{evalWf.currentStageTitle}</span>
+                            <span className="text-cyan-400 ml-1 font-bold">{evalWf.percent}%</span>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Col 5: Durasi & Tanggal */}
+                      <td className="py-2 px-3 text-center whitespace-nowrap font-mono">
+                        <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20 mb-0.5">
+                          [ {bast.durasiDate ?? bast.durationDays ?? 1} Hari ]
+                        </span>
+                        <span className="text-[10px] text-slate-400 block">{bast.finishDate || '-'}</span>
+                      </td>
+
+                      {/* Col 6: Aksi Cepat */}
+                      <td className="py-2 px-3 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setRoutingModalBast(bast)}
+                            className="p-1.5 rounded-lg bg-cyan-950/80 text-cyan-300 border border-cyan-800/80 hover:bg-cyan-900 transition-colors cursor-pointer"
+                            title="Update Sub Routing Alur BAST"
+                          >
+                            <GitBranch className="w-3.5 h-3.5 text-cyan-400" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              exportBASTToExcel([bast]);
+                              showToast('success', 'Excel Unduh', `Rekap Excel BAST WO ${bast.woNumber} berhasil diunduh!`);
+                            }}
+                            className="p-1.5 rounded-lg bg-emerald-950/80 text-emerald-300 border border-emerald-800/80 hover:bg-emerald-900 transition-colors cursor-pointer"
+                            title="Export Excel BAST Ini (.xls)"
+                          >
+                            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditModal(bast)}
+                            className="p-1.5 rounded-lg bg-slate-800 text-cyan-400 hover:bg-cyan-500/20 transition-colors cursor-pointer"
+                            title="Edit BAST"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget({ id: bast.id, woNumber: bast.woNumber })}
+                            className="p-1.5 rounded-lg bg-slate-800 text-rose-400 hover:bg-rose-500/20 transition-colors cursor-pointer"
+                            title="Hapus BAST"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        /* MODE 2: Cards Grid Format */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filteredBast.map((bast) => (
+            <div key={bast.id} className="bg-slate-900 border border-slate-800 hover:border-cyan-500/50 rounded-2xl p-5 shadow-xl flex flex-col justify-between transition-all group">
+              <div>
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
+                  <div>
+                    <span className="text-xs text-slate-500 font-mono block">NO. WO</span>
+                    <span className="text-sm font-extrabold text-cyan-400 font-mono">{bast.woNumber}</span>
+                  </div>
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-mono font-bold ${
+                    bast.statusBast === 'Done' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                    bast.statusBast === 'Submitted via Gmail' ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30' :
+                    bast.statusBast === 'Submit' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' :
+                    'bg-slate-800 text-slate-400 border border-slate-700'
+                  }`}>
+                    {bast.statusBast}
+                  </span>
+                </div>
+
+                <div className="space-y-2 mb-4">
+                  <p className="text-xs font-semibold text-white line-clamp-2">{bast.workType}</p>
+                  <p className="text-[11px] text-slate-400 font-mono">Option WO: {bast.woType}</p>
+                  
+                  <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/80 text-[11px] font-mono space-y-1.5">
+                    <div className="flex items-center justify-between text-slate-400">
+                      <span className="flex items-center gap-1"><span className="text-xs">📅</span> Release Date:</span>
+                      <span className="text-slate-200 font-semibold">{bast.releaseDate || '-'}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-slate-400">
+                      <span className="flex items-center gap-1"><span className="text-xs">🚀</span> Start Date:</span>
+                      <span className="text-slate-200 font-semibold">{bast.startDate || '-'}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-slate-400">
+                      <span className="flex items-center gap-1"><span className="text-xs">🏁</span> Finish Date:</span>
+                      <span className="text-slate-200 font-semibold">{bast.finishDate || '-'}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-slate-400">
+                      <span className="flex items-center gap-1"><span className="text-xs">📄</span> ABD Date:</span>
+                      <span className="text-cyan-300 font-semibold">{bast.abdDate || bast.finishDate || '-'}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-slate-400">
+                      <span className="flex items-center gap-1"><span className="text-xs">🔌</span> Core Conn Date:</span>
+                      <span className="text-cyan-300 font-semibold">{bast.coreConnectionDate || bast.finishDate || '-'}</span>
+                    </div>
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-800/60">
+                      <span className="text-slate-400">Durasi Date:</span>
+                      <span className="px-2 py-0.5 rounded-md text-[11px] font-extrabold bg-cyan-950 text-cyan-300 border border-cyan-800/60">
+                        [ {bast.durasiDate ?? bast.durationDays ?? 1} Hari ]
+                      </span>
+                    </div>
+                    {bast.totalDistanceMeters ? (
+                      <div className="flex items-center justify-between text-slate-400 text-[10px] pt-0.5">
+                        <span>Total Jarak:</span>
+                        <span className="text-emerald-400 font-semibold">{bast.totalDistanceMeters.toLocaleString('id-ID')} m</span>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {/* Attachments interactive click-to-view badges */}
+                  <div className="pt-2 flex flex-wrap gap-1.5 text-[10px] font-mono">
+                    {bast.apdPdf && (
+                      <button 
+                        onClick={() => setPreviewPdf(bast.apdPdf!)} 
+                        className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-cyan-300 rounded border border-slate-750 flex items-center gap-1 cursor-pointer transition-colors" 
+                        title={`Lihat ${bast.apdPdf.name}`}
+                      >
+                        <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(bast.apdPdf.name).bgClass} ${getFileBadgeStyle(bast.apdPdf.name).textClass}`}>
+                          [{getFileBadgeStyle(bast.apdPdf.name).ext}]
+                        </span> APD
+                      </button>
+                    )}
+                    {bast.abdPdf && (
+                      <button 
+                        onClick={() => setPreviewPdf(bast.abdPdf!)} 
+                        className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-cyan-300 rounded border border-slate-750 flex items-center gap-1 cursor-pointer transition-colors" 
+                        title={`Lihat ${bast.abdPdf.name}`}
+                      >
+                        <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(bast.abdPdf.name).bgClass} ${getFileBadgeStyle(bast.abdPdf.name).textClass}`}>
+                          [{getFileBadgeStyle(bast.abdPdf.name).ext}]
+                        </span> ABD
+                      </button>
+                    )}
+                    {bast.coreConnectionPdf && (
+                      <button 
+                        onClick={() => setPreviewPdf(bast.coreConnectionPdf!)} 
+                        className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-cyan-300 rounded border border-slate-750 flex items-center gap-1 cursor-pointer transition-colors" 
+                        title={`Lihat ${bast.coreConnectionPdf.name}`}
+                      >
+                        <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(bast.coreConnectionPdf.name).bgClass} ${getFileBadgeStyle(bast.coreConnectionPdf.name).textClass}`}>
+                          [{getFileBadgeStyle(bast.coreConnectionPdf.name).ext}]
+                        </span> Core Conn
+                      </button>
+                    )}
+                    {(() => {
+                      const docs = (bast.fotoDokumentasiPdfs && bast.fotoDokumentasiPdfs.length > 0)
+                        ? bast.fotoDokumentasiPdfs
+                        : (bast.fotoDokumentasiPdf ? [bast.fotoDokumentasiPdf] : []);
+
+                      return docs.map((doc, idx) => (
+                        <button 
+                          key={doc.id || idx}
+                          onClick={() => setPreviewPdf(doc)} 
+                          className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-cyan-300 rounded border border-slate-750 flex items-center gap-1 cursor-pointer transition-colors" 
+                          title={`Lihat ${doc.name}`}
+                        >
+                          <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${getFileBadgeStyle(doc.name).bgClass} ${getFileBadgeStyle(doc.name).textClass}`}>
+                            [{getFileBadgeStyle(doc.name).ext}]
+                          </span> {docs.length > 1 ? `Foto Docs #${idx + 1}` : 'Foto Docs'}
+                        </button>
+                      ));
+                    })()}
+                  </div>
+                </div>
+
+                {/* 4-Stage Sub Routing Workflow Stepper */}
+                <div className="mt-3.5 mb-1">
+                  <BASTWorkflowCardStepper
+                    bast={bast}
+                    onOpenRoutingModal={() => setRoutingModalBast(bast)}
+                  />
+                </div>
+              </div>
+
+              {/* Footer actions */}
+              <div className="pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[10px] text-slate-500 font-mono">{bast.id}</span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      exportBASTToExcel([bast]);
+                      showToast('success', 'Excel Unduh', `Rekap Excel BAST WO ${bast.woNumber} berhasil diunduh!`);
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg bg-emerald-950/80 text-emerald-300 border border-emerald-800/80 hover:bg-emerald-900 flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-colors shadow-sm"
+                    title="Export Excel BAST Ini (.xls)"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Export Excel</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRoutingModalBast(bast)}
+                    className="px-2.5 py-1.5 rounded-lg bg-cyan-950/80 text-cyan-300 border border-cyan-800/80 hover:bg-cyan-900 flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-colors shadow-sm"
+                    title="Update Sub Routing Alur BAST"
+                  >
+                    <GitBranch className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Update Routing BAST</span>
+                  </button>
+                  <button
+                    onClick={() => handleOpenEditModal(bast)}
+                    className="p-1.5 rounded-lg bg-slate-800 text-cyan-400 hover:bg-cyan-500/20 cursor-pointer"
+                    title="Edit BAST"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setDeleteTarget({ id: bast.id, woNumber: bast.woNumber })}
+                    className="p-1.5 rounded-lg bg-slate-800 text-rose-400 hover:bg-rose-500/20 cursor-pointer"
+                    title="Hapus BAST"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Modal Form */}
       {isModalOpen && (
@@ -788,43 +945,19 @@ export const BASTPage: React.FC = () => {
                   label="1. APD Upload File"
                   value={formData.apdPdf}
                   onChange={(f) => setFormData(p => ({ ...p, apdPdf: f }))}
-                  onPreview={(f) => {
-                    setPreviewingBastContext({
-                      ...formData,
-                      id: editingId || 'BAST-TEMP',
-                      createdAt: new Date().toISOString(),
-                      updatedAt: new Date().toISOString()
-                    });
-                    setPreviewPdf(f);
-                  }}
+                  onPreview={(f) => setPreviewPdf(f)}
                 />
                 <PDFUploader
                   label="2. ABD Upload File"
                   value={formData.abdPdf}
                   onChange={(f) => setFormData(p => ({ ...p, abdPdf: f }))}
-                  onPreview={(f) => {
-                    setPreviewingBastContext({
-                      ...formData,
-                      id: editingId || 'BAST-TEMP',
-                      createdAt: new Date().toISOString(),
-                      updatedAt: new Date().toISOString()
-                    });
-                    setPreviewPdf(f);
-                  }}
+                  onPreview={(f) => setPreviewPdf(f)}
                 />
                 <PDFUploader
                   label="3. Core Connection File"
                   value={formData.coreConnectionPdf}
                   onChange={(f) => setFormData(p => ({ ...p, coreConnectionPdf: f }))}
-                  onPreview={(f) => {
-                    setPreviewingBastContext({
-                      ...formData,
-                      id: editingId || 'BAST-TEMP',
-                      createdAt: new Date().toISOString(),
-                      updatedAt: new Date().toISOString()
-                    });
-                    setPreviewPdf(f);
-                  }}
+                  onPreview={(f) => setPreviewPdf(f)}
                 />
               </div>
 
@@ -910,68 +1043,6 @@ export const BASTPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Tagging End to End Location Section */}
-              <TaggingLocationSection
-                value={{
-                  originLocation: formData.originLocation,
-                  originCoordinates: formData.originCoordinates,
-                  originPhotoFile: formData.originPhotoFile,
-                  originTaggingDocFile: formData.originTaggingDocFile,
-                  destinationLocation: formData.destinationLocation,
-                  destinationCoordinates: formData.destinationCoordinates,
-                  destinationPhotoFile: formData.destinationPhotoFile,
-                  destinationTaggingDocFile: formData.destinationTaggingDocFile,
-                  routeMapFile: formData.routeMapFile,
-                  routeGmapsUrl: formData.routeGmapsUrl
-                }}
-                onChange={(updates) => setFormData((prev) => ({ ...prev, ...updates }))}
-                onGetBrowserLocation={handleGetBrowserLocation}
-                onDistanceCalculated={(distanceMeters) => {
-                  if (distanceMeters > 0) {
-                    setFormData((prev) => ({
-                      ...prev,
-                      estimatedDistanceMeters: distanceMeters,
-                      totalDistanceMeters: distanceMeters
-                    }));
-                  }
-                }}
-                onPreviewFile={(file) => {
-                  setPreviewingBastContext({
-                    ...formData,
-                    id: editingId || 'BAST-TEMP',
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString()
-                  });
-                  setPreviewPdf(file);
-                }}
-                routeGmapsUrl={getGoogleMapsRouteUrl(
-                  formData.originCoordinates,
-                  formData.originLocation,
-                  formData.destinationCoordinates,
-                  formData.destinationLocation
-                )}
-                onDownloadWord={() => {
-                  const currentBast: BASTItem = {
-                    ...formData,
-                    id: editingId || 'BAST-DRAFT',
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString()
-                  };
-                  exportBastToWord(currentBast);
-                  showToast('success', 'Download Word BAST', `Dokumen BAST ${currentBast.woNumber} berhasil diunduh dalam format .doc beserta foto visual.`);
-                }}
-                onDownloadExcel={() => {
-                  const currentBast: BASTItem = {
-                    ...formData,
-                    id: editingId || 'BAST-DRAFT',
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString()
-                  };
-                  exportBastToExcel(currentBast);
-                  showToast('success', 'Download Excel BAST', `Dokumen BAST ${currentBast.woNumber} berhasil diunduh dalam format .xls beserta foto visual.`);
-                }}
-              />
-
               <div>
                 <MultiPDFUploader
                   label="5. Foto Dokumentasi File"
@@ -982,15 +1053,7 @@ export const BASTPage: React.FC = () => {
                     fotoDokumentasiPdfs: files,
                     fotoDokumentasiPdf: files[0]
                   }))}
-                  onPreview={(f) => {
-                    setPreviewingBastContext({
-                      ...formData,
-                      id: editingId || 'BAST-TEMP',
-                      createdAt: new Date().toISOString(),
-                      updatedAt: new Date().toISOString()
-                    });
-                    setPreviewPdf(f);
-                  }}
+                  onPreview={(f) => setPreviewPdf(f)}
                   woNumber={formData.woNumber}
                 />
               </div>
@@ -1009,48 +1072,533 @@ export const BASTPage: React.FC = () => {
                 </select>
               </div>
 
-              <div className="pt-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const currentBast: BASTItem = {
-                        ...formData,
-                        id: editingId || 'BAST-DRAFT',
-                        createdAt: new Date().toISOString(),
-                        updatedAt: new Date().toISOString()
-                      };
-                      exportBastToWord(currentBast);
-                      showToast('success', 'Download Word BAST', `File Word BAST ${currentBast.woNumber} berhasil diunduh.`);
-                    }}
-                    className="px-3 py-2 rounded-xl bg-indigo-600/15 hover:bg-indigo-600/25 text-indigo-300 border border-indigo-500/30 font-mono text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                    title="Export Formulir BAST & Lampiran Visual ke Microsoft Word (.doc)"
-                  >
-                    <FileText className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Download Word (.doc)</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const currentBast: BASTItem = {
-                        ...formData,
-                        id: editingId || 'BAST-DRAFT',
-                        createdAt: new Date().toISOString(),
-                        updatedAt: new Date().toISOString()
-                      };
-                      exportBastToExcel(currentBast);
-                      showToast('success', 'Download Excel BAST', `File Excel BAST ${currentBast.woNumber} berhasil diunduh.`);
-                    }}
-                    className="px-3 py-2 rounded-xl bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-300 border border-emerald-500/30 font-mono text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                    title="Export Formulir BAST & Lampiran Visual ke Microsoft Excel (.xls)"
-                  >
-                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Download Excel (.xls)</span>
+              {/* Sub Routing Workflow Alur BAST Section (4 Tahapan) */}
+              <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-4 space-y-3.5">
+                <div 
+                  className="flex items-center justify-between cursor-pointer select-none"
+                  onClick={() => setIsWorkflowSectionOpen(!isWorkflowSectionOpen)}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-cyan-950 text-cyan-400 border border-cyan-800/80">
+                      <GitBranch className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                        Sub Routing Workflow BAST
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-cyan-950 text-cyan-300 border border-cyan-800">
+                          4 Tahapan
+                        </span>
+                      </h4>
+                      <p className="text-[10px] text-slate-400">1. Email User &rarr; 2. Admin User &rarr; 3. Routing TTD &rarr; 4. Finance</p>
+                    </div>
+                  </div>
+                  <button type="button" className="text-slate-400 hover:text-white p-1">
+                    {isWorkflowSectionOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                   </button>
                 </div>
 
-                <div className="flex items-center gap-2 ml-auto">
+                {isWorkflowSectionOpen && (
+                  <div className="space-y-3.5 pt-3 border-t border-slate-800/80">
+                    
+                    {/* Tahap 1: BAST diemail ke User */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-3.5 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-cyan-300 flex items-center gap-1.5 font-mono">
+                          <Send className="w-3.5 h-3.5 text-cyan-400" /> Tahap 1: BAST Diemail ke User
+                        </span>
+                        <select
+                          value={formData.workflow?.stage1EmailUser?.status || formData.workflow?.stage1EmailFmi?.status || 'Pending'}
+                          onChange={(e) => {
+                            const newStatus = e.target.value as 'Pending' | 'Selesai';
+                            const isDone = newStatus === 'Selesai';
+                            setFormData(prev => {
+                              const baseWf = prev.workflow || getDefaultBASTWorkflow(prev.woNumber);
+                              const curS1 = baseWf.stage1EmailUser || baseWf.stage1EmailFmi || { status: 'Pending' };
+                              const updatedS1 = {
+                                ...curS1,
+                                status: newStatus,
+                                isCompleted: isDone,
+                                tanggalKirim: isDone && !curS1.tanggalKirim ? new Date().toISOString().substring(0, 10) : curS1.tanggalKirim,
+                                emailSentDate: isDone && !curS1.emailSentDate ? new Date().toISOString().substring(0, 10) : curS1.emailSentDate
+                              };
+                              return {
+                                ...prev,
+                                workflow: {
+                                  ...baseWf,
+                                  stage1EmailUser: updatedS1,
+                                  stage1EmailFmi: updatedS1
+                                }
+                              };
+                            });
+                          }}
+                          className="bg-slate-950 border border-slate-750 text-[11px] font-mono text-slate-100 rounded-lg px-2.5 py-1 outline-none"
+                        >
+                          <option value="Pending">Pending</option>
+                          <option value="Selesai">Selesai (Terkirim)</option>
+                        </select>
+                      </div>
+
+                      {/* Checkbox Selesai Tahap 1 */}
+                      <label className="flex items-center gap-2.5 p-2 rounded-lg bg-slate-950/80 border border-slate-800 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(formData.workflow?.stage1EmailUser?.isCompleted || formData.workflow?.stage1EmailUser?.status === 'Selesai' || formData.workflow?.stage1EmailFmi?.status === 'Sent')}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setFormData(prev => {
+                              const baseWf = prev.workflow || getDefaultBASTWorkflow(prev.woNumber);
+                              const curS1 = baseWf.stage1EmailUser || baseWf.stage1EmailFmi || { status: 'Pending' };
+                              const updatedS1 = {
+                                ...curS1,
+                                isCompleted: checked,
+                                status: checked ? ('Selesai' as const) : ('Pending' as const),
+                                tanggalKirim: checked && !curS1.tanggalKirim ? new Date().toISOString().substring(0, 10) : curS1.tanggalKirim,
+                                emailSentDate: checked && !curS1.emailSentDate ? new Date().toISOString().substring(0, 10) : curS1.emailSentDate
+                              };
+                              return {
+                                ...prev,
+                                workflow: { ...baseWf, stage1EmailUser: updatedS1, stage1EmailFmi: updatedS1 }
+                              };
+                            });
+                          }}
+                          className="w-4 h-4 rounded border-slate-700 text-emerald-500 focus:ring-emerald-400 bg-slate-900 cursor-pointer accent-emerald-500"
+                        />
+                        <span className="text-[11px] font-semibold text-slate-200">
+                          Centang jika Tahap 1 selesai (dokumen lengkap sudah diemail ke User)
+                        </span>
+                      </label>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-0.5">Tanggal Kirim Email</label>
+                          <input
+                            type="date"
+                            value={formData.workflow?.stage1EmailUser?.tanggalKirim || formData.workflow?.stage1EmailUser?.emailSentDate || formData.workflow?.stage1EmailFmi?.emailSentDate || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setFormData(prev => {
+                                const baseWf = prev.workflow || getDefaultBASTWorkflow(prev.woNumber);
+                                const curS1 = baseWf.stage1EmailUser || baseWf.stage1EmailFmi || { status: 'Pending' };
+                                const updatedS1 = { ...curS1, tanggalKirim: val, emailSentDate: val };
+                                return { ...prev, workflow: { ...baseWf, stage1EmailUser: updatedS1, stage1EmailFmi: updatedS1 } };
+                              });
+                            }}
+                            className="w-full bg-slate-950 border border-slate-800 text-[11px] font-mono text-slate-200 rounded-lg p-1.5 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-0.5">Nomor / Subjek Email</label>
+                          <input
+                            type="text"
+                            placeholder="Nomor atau subjek email BAST..."
+                            value={formData.workflow?.stage1EmailUser?.emailSubject || formData.workflow?.stage1EmailFmi?.emailSubject || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setFormData(prev => {
+                                const baseWf = prev.workflow || getDefaultBASTWorkflow(prev.woNumber);
+                                const curS1 = baseWf.stage1EmailUser || baseWf.stage1EmailFmi || { status: 'Pending' };
+                                const updatedS1 = { ...curS1, emailSubject: val };
+                                return { ...prev, workflow: { ...baseWf, stage1EmailUser: updatedS1, stage1EmailFmi: updatedS1 } };
+                              });
+                            }}
+                            className="w-full bg-slate-950 border border-slate-800 text-[11px] text-slate-200 rounded-lg p-1.5 outline-none"
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="text-[10px] text-slate-400 block mb-0.5">Catatan Ringkas</label>
+                          <input
+                            type="text"
+                            placeholder="Catatan pengiriman email..."
+                            value={formData.workflow?.stage1EmailUser?.notes || formData.workflow?.stage1EmailFmi?.notes || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setFormData(prev => {
+                                const baseWf = prev.workflow || getDefaultBASTWorkflow(prev.woNumber);
+                                const curS1 = baseWf.stage1EmailUser || baseWf.stage1EmailFmi || { status: 'Pending' };
+                                const updatedS1 = { ...curS1, notes: val };
+                                return { ...prev, workflow: { ...baseWf, stage1EmailUser: updatedS1, stage1EmailFmi: updatedS1 } };
+                              });
+                            }}
+                            className="w-full bg-slate-950 border border-slate-800 text-[11px] text-slate-200 rounded-lg p-1.5 outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Tahap 2: Pengecekan admin User */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-3.5 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-blue-300 flex items-center gap-1.5 font-mono">
+                          <UserCheck className="w-3.5 h-3.5 text-blue-400" /> Tahap 2: Pengecekan Admin User
+                        </span>
+                        <select
+                          value={formData.workflow?.stage2AdminUser?.status || formData.workflow?.stage2AdminFmi?.status || 'Menunggu Pengecekan'}
+                          onChange={(e) => {
+                            const newStatus = e.target.value as 'Menunggu Pengecekan' | 'Approved' | 'Ada Catatan Revisi';
+                            const isDone = newStatus === 'Approved';
+                            setFormData(prev => {
+                              const baseWf = prev.workflow || getDefaultBASTWorkflow(prev.woNumber);
+                              const curS2 = baseWf.stage2AdminUser || baseWf.stage2AdminFmi || { status: 'Menunggu Pengecekan' };
+                              const updatedS2 = {
+                                ...curS2,
+                                status: newStatus,
+                                isCompleted: isDone,
+                                checkedDate: !curS2.checkedDate ? new Date().toISOString().substring(0, 10) : curS2.checkedDate
+                              };
+                              return {
+                                ...prev,
+                                workflow: { ...baseWf, stage2AdminUser: updatedS2, stage2AdminFmi: updatedS2 }
+                              };
+                            });
+                          }}
+                          className="bg-slate-950 border border-slate-750 text-[11px] font-mono text-slate-100 rounded-lg px-2.5 py-1 outline-none"
+                        >
+                          <option value="Menunggu Pengecekan">Menunggu Pengecekan</option>
+                          <option value="Approved">Approved</option>
+                          <option value="Ada Catatan Revisi">Ada Catatan Revisi</option>
+                        </select>
+                      </div>
+
+                      {/* Checkbox Selesai Tahap 2 */}
+                      <label className="flex items-center gap-2.5 p-2 rounded-lg bg-slate-950/80 border border-slate-800 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(formData.workflow?.stage2AdminUser?.isCompleted || formData.workflow?.stage2AdminUser?.status === 'Approved' || formData.workflow?.stage2AdminFmi?.status === 'Approved')}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setFormData(prev => {
+                              const baseWf = prev.workflow || getDefaultBASTWorkflow(prev.woNumber);
+                              const curS2 = baseWf.stage2AdminUser || baseWf.stage2AdminFmi || { status: 'Menunggu Pengecekan' };
+                              const updatedS2 = {
+                                ...curS2,
+                                isCompleted: checked,
+                                status: checked ? ('Approved' as const) : ('Menunggu Pengecekan' as const),
+                                checkedDate: checked && !curS2.checkedDate ? new Date().toISOString().substring(0, 10) : curS2.checkedDate
+                              };
+                              return {
+                                ...prev,
+                                workflow: { ...baseWf, stage2AdminUser: updatedS2, stage2AdminFmi: updatedS2 }
+                              };
+                            });
+                          }}
+                          className="w-4 h-4 rounded border-slate-700 text-emerald-500 focus:ring-emerald-400 bg-slate-900 cursor-pointer accent-emerald-500"
+                        />
+                        <span className="text-[11px] font-semibold text-slate-200">
+                          Centang jika Tahap 2 selesai (pengecekan admin User disetujui / Approved)
+                        </span>
+                      </label>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-0.5">Nama Admin User</label>
+                          <input
+                            type="text"
+                            placeholder="Nama admin pemeriksa User..."
+                            value={formData.workflow?.stage2AdminUser?.adminName || formData.workflow?.stage2AdminFmi?.adminName || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setFormData(prev => {
+                                const baseWf = prev.workflow || getDefaultBASTWorkflow(prev.woNumber);
+                                const curS2 = baseWf.stage2AdminUser || baseWf.stage2AdminFmi || { status: 'Menunggu Pengecekan' };
+                                const updatedS2 = { ...curS2, adminName: val };
+                                return { ...prev, workflow: { ...baseWf, stage2AdminUser: updatedS2, stage2AdminFmi: updatedS2 } };
+                              });
+                            }}
+                            className="w-full bg-slate-950 border border-slate-800 text-[11px] text-slate-200 rounded-lg p-1.5 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-0.5">Tanggal Pengecekan</label>
+                          <input
+                            type="date"
+                            value={formData.workflow?.stage2AdminUser?.checkedDate || formData.workflow?.stage2AdminFmi?.checkedDate || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setFormData(prev => {
+                                const baseWf = prev.workflow || getDefaultBASTWorkflow(prev.woNumber);
+                                const curS2 = baseWf.stage2AdminUser || baseWf.stage2AdminFmi || { status: 'Menunggu Pengecekan' };
+                                const updatedS2 = { ...curS2, checkedDate: val };
+                                return { ...prev, workflow: { ...baseWf, stage2AdminUser: updatedS2, stage2AdminFmi: updatedS2 } };
+                              });
+                            }}
+                            className="w-full bg-slate-950 border border-slate-800 text-[11px] font-mono text-slate-200 rounded-lg p-1.5 outline-none"
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="text-[10px] text-slate-400 block mb-0.5">Catatan Ringkas / Revisi</label>
+                          <input
+                            type="text"
+                            placeholder="Catatan dari admin User..."
+                            value={formData.workflow?.stage2AdminUser?.notes || formData.workflow?.stage2AdminFmi?.notes || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setFormData(prev => {
+                                const baseWf = prev.workflow || getDefaultBASTWorkflow(prev.woNumber);
+                                const curS2 = baseWf.stage2AdminUser || baseWf.stage2AdminFmi || { status: 'Menunggu Pengecekan' };
+                                const updatedS2 = { ...curS2, notes: val };
+                                return { ...prev, workflow: { ...baseWf, stage2AdminUser: updatedS2, stage2AdminFmi: updatedS2 } };
+                              });
+                            }}
+                            className="w-full bg-slate-950 border border-slate-800 text-[11px] text-slate-200 rounded-lg p-1.5 outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Tahap 3: Routing TTD User */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-3.5 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5 font-mono">
+                          <FileCheck2 className="w-3.5 h-3.5 text-amber-400" /> Tahap 3: Proses Routing TTD User
+                        </span>
+                        <select
+                          value={formData.workflow?.stage3RoutingTtd?.status || 'Menunggu TTD'}
+                          onChange={(e) => {
+                            const newStatus = e.target.value as 'Menunggu TTD' | 'In Progress' | 'Selesai TTD';
+                            const isDone = newStatus === 'Selesai TTD';
+                            setFormData(prev => {
+                              const baseWf = prev.workflow || getDefaultBASTWorkflow(prev.woNumber);
+                              const curS3 = baseWf.stage3RoutingTtd || { status: 'Menunggu TTD' };
+                              const updatedS3 = {
+                                ...curS3,
+                                status: newStatus,
+                                isCompleted: isDone,
+                                signedDate: isDone && !curS3.signedDate ? new Date().toISOString().substring(0, 10) : curS3.signedDate
+                              };
+                              return { ...prev, workflow: { ...baseWf, stage3RoutingTtd: updatedS3 } };
+                            });
+                          }}
+                          className="bg-slate-950 border border-slate-750 text-[11px] font-mono text-slate-100 rounded-lg px-2.5 py-1 outline-none"
+                        >
+                          <option value="Menunggu TTD">Menunggu TTD</option>
+                          <option value="In Progress">In Progress</option>
+                          <option value="Selesai TTD">Selesai TTD</option>
+                        </select>
+                      </div>
+
+                      {/* Checkbox Selesai Tahap 3 */}
+                      <label className="flex items-center gap-2.5 p-2 rounded-lg bg-slate-950/80 border border-slate-800 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(formData.workflow?.stage3RoutingTtd?.isCompleted || formData.workflow?.stage3RoutingTtd?.status === 'Selesai TTD')}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setFormData(prev => {
+                              const baseWf = prev.workflow || getDefaultBASTWorkflow(prev.woNumber);
+                              const curS3 = baseWf.stage3RoutingTtd || { status: 'Menunggu TTD' };
+                              const updatedS3 = {
+                                ...curS3,
+                                isCompleted: checked,
+                                status: checked ? ('Selesai TTD' as const) : ('In Progress' as const),
+                                signedDate: checked && !curS3.signedDate ? new Date().toISOString().substring(0, 10) : curS3.signedDate
+                              };
+                              return { ...prev, workflow: { ...baseWf, stage3RoutingTtd: updatedS3 } };
+                            });
+                          }}
+                          className="w-4 h-4 rounded border-slate-700 text-emerald-500 focus:ring-emerald-400 bg-slate-900 cursor-pointer accent-emerald-500"
+                        />
+                        <span className="text-[11px] font-semibold text-slate-200">
+                          Centang jika Tahap 3 selesai (tanda tangan approver User lengkap)
+                        </span>
+                      </label>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-0.5">Nama Approver User</label>
+                          <input
+                            type="text"
+                            placeholder="Contoh: Pak Budi (PM) / Bu Sarah..."
+                            value={formData.workflow?.stage3RoutingTtd?.approverNames || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setFormData(prev => {
+                                const baseWf = prev.workflow || getDefaultBASTWorkflow(prev.woNumber);
+                                const curS3 = baseWf.stage3RoutingTtd || { status: 'Menunggu TTD' };
+                                const updatedS3 = { ...curS3, approverNames: val };
+                                return { ...prev, workflow: { ...baseWf, stage3RoutingTtd: updatedS3 } };
+                              });
+                            }}
+                            className="w-full bg-slate-950 border border-slate-800 text-[11px] text-slate-200 rounded-lg p-1.5 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-0.5">Tanggal TTD Selesai</label>
+                          <input
+                            type="date"
+                            value={formData.workflow?.stage3RoutingTtd?.signedDate || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setFormData(prev => {
+                                const baseWf = prev.workflow || getDefaultBASTWorkflow(prev.woNumber);
+                                const curS3 = baseWf.stage3RoutingTtd || { status: 'Menunggu TTD' };
+                                const updatedS3 = { ...curS3, signedDate: val };
+                                return { ...prev, workflow: { ...baseWf, stage3RoutingTtd: updatedS3 } };
+                              });
+                            }}
+                            className="w-full bg-slate-950 border border-slate-800 text-[11px] font-mono text-slate-200 rounded-lg p-1.5 outline-none"
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="text-[10px] text-slate-400 block mb-0.5">Catatan Ringkas</label>
+                          <input
+                            type="text"
+                            placeholder="Catatan proses tanda tangan..."
+                            value={formData.workflow?.stage3RoutingTtd?.notes || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setFormData(prev => {
+                                const baseWf = prev.workflow || getDefaultBASTWorkflow(prev.woNumber);
+                                const curS3 = baseWf.stage3RoutingTtd || { status: 'Menunggu TTD' };
+                                const updatedS3 = { ...curS3, notes: val };
+                                return { ...prev, workflow: { ...baseWf, stage3RoutingTtd: updatedS3 } };
+                              });
+                            }}
+                            className="w-full bg-slate-950 border border-slate-800 text-[11px] text-slate-200 rounded-lg p-1.5 outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Tahap 4: Masuk ke Finance */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-3.5 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5 font-mono">
+                          <DollarSign className="w-3.5 h-3.5 text-emerald-400" /> Tahap 4: Masuk ke Finance
+                        </span>
+                        <select
+                          value={formData.workflow?.stage4Finance?.status || 'Menunggu Finance'}
+                          onChange={(e) => {
+                            const newStatus = e.target.value as 'Menunggu Finance' | 'Diterima Finance' | 'Siap Invoice';
+                            const isDone = newStatus === 'Siap Invoice';
+                            setFormData(prev => {
+                              const baseWf = prev.workflow || getDefaultBASTWorkflow(prev.woNumber);
+                              const curS4 = baseWf.stage4Finance || { status: 'Menunggu Finance' };
+                              const updatedS4 = {
+                                ...curS4,
+                                status: newStatus,
+                                isCompleted: isDone,
+                                receivedDate: !curS4.receivedDate ? new Date().toISOString().substring(0, 10) : curS4.receivedDate,
+                                tanggalMasukFinance: !curS4.tanggalMasukFinance ? new Date().toISOString().substring(0, 10) : curS4.tanggalMasukFinance
+                              };
+                              return { ...prev, workflow: { ...baseWf, stage4Finance: updatedS4 } };
+                            });
+                          }}
+                          className="bg-slate-950 border border-slate-750 text-[11px] font-mono text-slate-100 rounded-lg px-2.5 py-1 outline-none"
+                        >
+                          <option value="Menunggu Finance">Menunggu Finance</option>
+                          <option value="Diterima Finance">Diterima Finance</option>
+                          <option value="Siap Invoice">Siap Invoice</option>
+                        </select>
+                      </div>
+
+                      {/* Checkbox Selesai Tahap 4 */}
+                      <label className="flex items-center gap-2.5 p-2 rounded-lg bg-slate-950/80 border border-slate-800 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(formData.workflow?.stage4Finance?.isCompleted || formData.workflow?.stage4Finance?.status === 'Siap Invoice')}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setFormData(prev => {
+                              const baseWf = prev.workflow || getDefaultBASTWorkflow(prev.woNumber);
+                              const curS4 = baseWf.stage4Finance || { status: 'Menunggu Finance' };
+                              const updatedS4 = {
+                                ...curS4,
+                                isCompleted: checked,
+                                status: checked ? ('Siap Invoice' as const) : ('Diterima Finance' as const),
+                                receivedDate: checked && !curS4.receivedDate ? new Date().toISOString().substring(0, 10) : curS4.receivedDate,
+                                tanggalMasukFinance: checked && !curS4.tanggalMasukFinance ? new Date().toISOString().substring(0, 10) : curS4.tanggalMasukFinance
+                              };
+                              return { ...prev, workflow: { ...baseWf, stage4Finance: updatedS4 } };
+                            });
+                          }}
+                          className="w-4 h-4 rounded border-slate-700 text-emerald-500 focus:ring-emerald-400 bg-slate-900 cursor-pointer accent-emerald-500"
+                        />
+                        <span className="text-[11px] font-semibold text-slate-200">
+                          Centang jika Tahap 4 selesai (diterima finance &amp; siap dibuatkan invoice)
+                        </span>
+                      </label>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-0.5">Tanggal Masuk Finance</label>
+                          <input
+                            type="date"
+                            value={formData.workflow?.stage4Finance?.tanggalMasukFinance || formData.workflow?.stage4Finance?.receivedDate || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setFormData(prev => {
+                                const baseWf = prev.workflow || getDefaultBASTWorkflow(prev.woNumber);
+                                const curS4 = baseWf.stage4Finance || { status: 'Menunggu Finance' };
+                                const updatedS4 = { ...curS4, tanggalMasukFinance: val, receivedDate: val };
+                                return { ...prev, workflow: { ...baseWf, stage4Finance: updatedS4 } };
+                              });
+                            }}
+                            className="w-full bg-slate-950 border border-slate-800 text-[11px] font-mono text-slate-200 rounded-lg p-1.5 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-0.5">Nomor Referensi Finance</label>
+                          <input
+                            type="text"
+                            placeholder="Contoh: FIN-USR-2026-088"
+                            value={formData.workflow?.stage4Finance?.financeRefNumber || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setFormData(prev => {
+                                const baseWf = prev.workflow || getDefaultBASTWorkflow(prev.woNumber);
+                                const curS4 = baseWf.stage4Finance || { status: 'Menunggu Finance' };
+                                const updatedS4 = { ...curS4, financeRefNumber: val };
+                                return { ...prev, workflow: { ...baseWf, stage4Finance: updatedS4 } };
+                              });
+                            }}
+                            className="w-full bg-slate-950 border border-slate-800 text-[11px] text-slate-200 rounded-lg p-1.5 outline-none font-mono"
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="text-[10px] text-slate-400 block mb-0.5">Catatan Ringkas Finance</label>
+                          <input
+                            type="text"
+                            placeholder="Catatan dari finance..."
+                            value={formData.workflow?.stage4Finance?.notes || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setFormData(prev => {
+                                const baseWf = prev.workflow || getDefaultBASTWorkflow(prev.woNumber);
+                                const curS4 = baseWf.stage4Finance || { status: 'Menunggu Finance' };
+                                const updatedS4 = { ...curS4, notes: val };
+                                return { ...prev, workflow: { ...baseWf, stage4Finance: updatedS4 } };
+                              });
+                            }}
+                            className="w-full bg-slate-950 border border-slate-800 text-[11px] text-slate-200 rounded-lg p-1.5 outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
+                <div>
+                  {editingId && (
+                    <TouchButton
+                      variant="success"
+                      size="md"
+                      type="button"
+                      icon={<FileSpreadsheet className="w-4 h-4" />}
+                      onClick={() => {
+                        const currentItem = bastList.find(b => b.id === editingId);
+                        if (currentItem) {
+                          exportBASTToExcel([currentItem]);
+                          showToast('success', 'Excel Unduh', `Rekap Excel BAST WO ${currentItem.woNumber} berhasil diunduh!`);
+                        }
+                      }}
+                    >
+                      Export Excel BAST Ini (.xls)
+                    </TouchButton>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
                   <TouchButton variant="secondary" size="md" type="button" onClick={() => setIsModalOpen(false)}>
                     Batal
                   </TouchButton>
@@ -1065,21 +1613,18 @@ export const BASTPage: React.FC = () => {
         </div>
       )}
 
+      {/* Quick Sub Routing Workflow Modal */}
+      <BASTWorkflowModal
+        isOpen={routingModalBast !== null}
+        bast={routingModalBast}
+        onClose={() => setRoutingModalBast(null)}
+        onSave={handleSaveWorkflow}
+      />
+
       {/* PDF Viewer */}
       <PDFViewerModal 
         file={previewPdf} 
-        onClose={() => {
-          setPreviewPdf(null);
-          setPreviewingBastContext(null);
-        }} 
-        onDownloadWord={previewingBastContext ? () => {
-          exportBastToWord(previewingBastContext);
-          showToast('success', 'Download Word BAST', `Dokumen BAST ${previewingBastContext.woNumber} berhasil diunduh dalam format .doc.`);
-        } : undefined}
-        onDownloadExcel={previewingBastContext ? () => {
-          exportBastToExcel(previewingBastContext);
-          showToast('success', 'Download Excel BAST', `Dokumen BAST ${previewingBastContext.woNumber} berhasil diunduh dalam format .xls.`);
-        } : undefined}
+        onClose={() => setPreviewPdf(null)} 
       />
 
       {/* Delete Confirmation Modal */}

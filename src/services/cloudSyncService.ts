@@ -7,7 +7,6 @@ import {
   DailyReportItem, 
   BASTItem, 
   InvoiceItem, 
-  RFSItem, 
   PenagihanItem, 
   UserProfile, 
   SystemUser,
@@ -20,7 +19,6 @@ export interface SyncDataBundle {
   dailyReports: DailyReportItem[];
   bastList: BASTItem[];
   invoices: InvoiceItem[];
-  rfsList: RFSItem[];
   penagihanList: PenagihanItem[];
   userProfile: UserProfile;
   systemUsers: SystemUser[];
@@ -281,7 +279,6 @@ class CloudSyncService {
                 dailyReports: Array.isArray(rawData.dailyReports) ? rawData.dailyReports : [],
                 bastList: Array.isArray(rawData.bastList) ? rawData.bastList : [],
                 invoices: Array.isArray(rawData.invoices) ? rawData.invoices : [],
-                rfsList: Array.isArray(rawData.rfsList) ? rawData.rfsList : [],
                 penagihanList: Array.isArray(rawData.penagihanList) ? rawData.penagihanList : [],
                 teams: Array.isArray(rawData.teams) ? rawData.teams : [],
                 userProfile: rawData.userProfile || { username: 'admin', fullName: 'Administrator', email: '', role: 'Super Admin', updatedAt: new Date().toISOString() },
@@ -324,7 +321,6 @@ class CloudSyncService {
                   dailyReports: Array.isArray(result.data.dailyReports) ? result.data.dailyReports : [],
                   bastList: Array.isArray(result.data.bastList) ? result.data.bastList : [],
                   invoices: Array.isArray(result.data.invoices) ? result.data.invoices : [],
-                  rfsList: Array.isArray(result.data.rfsList) ? result.data.rfsList : [],
                   penagihanList: Array.isArray(result.data.penagihanList) ? result.data.penagihanList : [],
                   teams: Array.isArray(result.data.teams) ? result.data.teams : [],
                   userProfile: result.data.userProfile || { username: 'admin', fullName: 'Administrator', email: '', role: 'Super Admin', updatedAt: new Date().toISOString() },

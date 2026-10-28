@@ -12,8 +12,7 @@ import {
   AlertCircle,
   RefreshCw,
   Loader2,
-  Sparkles,
-  FileSpreadsheet
+  Sparkles
 } from 'lucide-react';
 import { PDFFileMeta } from '../types';
 import {
@@ -51,8 +50,6 @@ interface TaggingLocationSectionProps {
   onGetBrowserLocation?: (type: 'origin' | 'destination') => void;
   onDistanceCalculated?: (distanceMeters: number) => void;
   onPreviewFile?: (file: PDFFileMeta) => void;
-  onDownloadWord?: () => void;
-  onDownloadExcel?: () => void;
   routeGmapsUrl?: string | null;
 }
 
@@ -346,8 +343,6 @@ export const TaggingLocationSection: React.FC<TaggingLocationSectionProps> = ({
   onGetBrowserLocation,
   onDistanceCalculated,
   onPreviewFile,
-  onDownloadWord,
-  onDownloadExcel,
   routeGmapsUrl
 }) => {
   const [loadingGps, setLoadingGps] = useState<'origin' | 'destination' | null>(null);
@@ -505,28 +500,6 @@ export const TaggingLocationSection: React.FC<TaggingLocationSectionProps> = ({
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {onDownloadWord && (
-            <button
-              type="button"
-              onClick={onDownloadWord}
-              className="text-[11px] font-mono font-bold text-blue-400 hover:text-blue-300 bg-blue-950/80 hover:bg-blue-900/80 px-2.5 py-1 rounded-lg border border-blue-800/80 flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Download Word (.doc)"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>Word (.doc)</span>
-            </button>
-          )}
-          {onDownloadExcel && (
-            <button
-              type="button"
-              onClick={onDownloadExcel}
-              className="text-[11px] font-mono font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-950/80 hover:bg-emerald-900/80 px-2.5 py-1 rounded-lg border border-emerald-800/80 flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Download Excel (.xls)"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>Excel (.xls)</span>
-            </button>
-          )}
           {routeGmapsUrl && (
             <a
               href={routeGmapsUrl}

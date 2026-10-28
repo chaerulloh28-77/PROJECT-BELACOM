@@ -4,16 +4,14 @@ import {
   ClipboardList, 
   ShieldCheck, 
   ReceiptText, 
-  RadioTower, 
   WalletCards,
   CreditCard,
   ChevronDown,
   FolderKanban,
-  FileText,
-  FileCheck2,
   UserCog,
   Cloud,
-  RefreshCw
+  RefreshCw,
+  FileCheck
 } from 'lucide-react';
 import { useProjectContext } from '../context/ProjectContext';
 
@@ -21,12 +19,12 @@ export const Sidebar: React.FC = () => {
   const { 
     activeTab, 
     setActiveTab, 
-    dashboardView,
+    dashboardView, 
     setDashboardView,
     dailyReports, 
     bastList, 
     invoices, 
-    rfsList, 
+    fakturPajakList,
     penagihanList,
     syncStatus,
     lastCloudSyncTime,
@@ -35,21 +33,16 @@ export const Sidebar: React.FC = () => {
 
   const [isDashboardExpanded, setIsDashboardExpanded] = useState(true);
   const [isTagihanExpanded, setIsTagihanExpanded] = useState(true);
-  const [isFormExpanded, setIsFormExpanded] = useState(true);
 
   const isTagihanActive = 
     activeTab === 'daily-report' ||
     activeTab === 'dashboard-tagihan' ||
-    activeTab === 'rfs' ||
     activeTab === 'bast' ||
     activeTab === 'invoice' ||
+    activeTab === 'faktur-pajak' ||
     activeTab === 'penagihan';
 
-  const isFormActive =
-    activeTab === 'form-invoice' ||
-    activeTab === 'form-faktur-pajak';
-
-  const totalTagihanItems = dailyReports.length + penagihanList.length + invoices.length + bastList.length + rfsList.length;
+  const totalTagihanItems = dailyReports.length + penagihanList.length + invoices.length + bastList.length + fakturPajakList.length;
 
   return (
     <aside className="w-full lg:w-64 bg-slate-900 border-b lg:border-b-0 lg:border-r border-slate-800 shrink-0 select-none">
@@ -258,21 +251,21 @@ export const Sidebar: React.FC = () => {
                   </span>
                 </button>
 
-                {/* 4. Sub-item: RFS */}
+                {/* 4. Sub-item: Faktur Pajak */}
                 <button
-                  onClick={() => setActiveTab('rfs')}
+                  onClick={() => setActiveTab('faktur-pajak')}
                   className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                    activeTab === 'rfs'
-                      ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold'
+                    activeTab === 'faktur-pajak'
+                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold'
                       : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    <RadioTower className="w-3.5 h-3.5 text-blue-400" />
-                    <span>RFS</span>
+                    <FileCheck className="w-3.5 h-3.5 text-rose-400" />
+                    <span>Faktur Pajak</span>
                   </div>
-                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-950 text-blue-400 border border-slate-800">
-                    {rfsList.length}
+                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-950 text-rose-400 border border-slate-800">
+                    {fakturPajakList.length}
                   </span>
                 </button>
 
@@ -298,84 +291,7 @@ export const Sidebar: React.FC = () => {
             )}
           </div>
 
-          {/* 3. FORM (Sub-items: Form Invoice, Form Faktur Pajak) */}
-          <div className="flex flex-col gap-1">
-            <button
-              onClick={() => {
-                if (!isFormActive) {
-                  setActiveTab('form-invoice');
-                }
-                setIsFormExpanded(prev => !prev);
-              }}
-              className={`flex items-center justify-between gap-3 px-3.5 py-3 rounded-xl font-medium text-xs lg:text-sm transition-all duration-200 select-none cursor-pointer whitespace-nowrap lg:whitespace-normal group active:scale-95 relative overflow-hidden ${
-                isFormActive
-                  ? 'bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white shadow-lg shadow-amber-950/60 font-bold border border-amber-400/40'
-                  : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 border border-transparent'
-              }`}
-            >
-              {isFormActive && (
-                <div className="absolute left-0 top-1 bottom-1 w-1 bg-white rounded-r-full shadow-glow"></div>
-              )}
-              <div className="flex items-center gap-3">
-                <div className={`p-1 rounded-lg transition-transform duration-200 group-hover:scale-110 ${
-                  isFormActive ? 'text-white' : 'text-amber-400 group-hover:text-white'
-                }`}>
-                  <FileText className="w-5 h-5" />
-                </div>
-                <span className="tracking-wide">FORM</span>
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                <span className={`px-2 py-0.5 rounded-md text-[11px] font-mono font-bold ${
-                  isFormActive ? 'bg-white/20 text-white' : 'bg-slate-950/80 text-amber-400 border border-slate-800'
-                }`}>
-                  2
-                </span>
-                <ChevronDown className={`w-4 h-4 hidden lg:block transition-transform duration-200 ${
-                  isFormExpanded ? 'rotate-180' : ''
-                }`} />
-              </div>
-            </button>
-
-            {/* Sub-menu Navigation for FORM */}
-            {isFormExpanded && (
-              <div className="hidden lg:flex flex-col gap-1 pl-4 pt-1 border-l-2 border-slate-800/80 ml-5 my-0.5">
-
-                {/* 1. Sub-item: Form Invoice */}
-                <button
-                  onClick={() => setActiveTab('form-invoice')}
-                  className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                    activeTab === 'form-invoice'
-                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <ReceiptText className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Form Invoice</span>
-                  </div>
-                </button>
-
-                {/* 2. Sub-item: Form Faktur Pajak */}
-                <button
-                  onClick={() => setActiveTab('form-faktur-pajak')}
-                  className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                    activeTab === 'form-faktur-pajak'
-                      ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <FileCheck2 className="w-3.5 h-3.5 text-blue-400" />
-                    <span>Form Faktur Pajak</span>
-                  </div>
-                </button>
-
-              </div>
-            )}
-          </div>
-
-          {/* 4. Menu Setting (Pengaturan Pengguna & Akses Sistem) */}
+          {/* 3. Menu Setting (Pengaturan Pengguna & Akses Sistem) */}
           <button
             onClick={() => setActiveTab('user-settings')}
             className={`flex items-center justify-between gap-3 px-3.5 py-3 rounded-xl font-medium text-xs lg:text-sm transition-all duration-200 select-none cursor-pointer whitespace-nowrap lg:whitespace-normal group active:scale-95 relative overflow-hidden ${

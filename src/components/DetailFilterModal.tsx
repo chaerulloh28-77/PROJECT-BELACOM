@@ -15,7 +15,6 @@ import {
   FolderKanban,
   FileSpreadsheet,
   Receipt,
-  FileCheck2,
   CreditCard,
   ShieldCheck,
   Info,
@@ -26,7 +25,7 @@ import {
 } from 'lucide-react';
 import { useProjectContext, DrilldownFilter } from '../context/ProjectContext';
 import { TouchButton } from './TouchButton';
-import { DailyReportItem, PenagihanItem, BASTItem, InvoiceItem, RFSItem } from '../types';
+import { DailyReportItem, PenagihanItem, BASTItem, InvoiceItem } from '../types';
 
 interface DetailFilterModalProps {
   filter: DrilldownFilter | null;
@@ -38,7 +37,6 @@ export const DetailFilterModal: React.FC<DetailFilterModalProps> = ({ filter, on
     dailyReports, 
     bastList, 
     invoices, 
-    rfsList, 
     penagihanList,
     setActiveTab 
   } = useProjectContext();
@@ -162,18 +160,6 @@ export const DetailFilterModal: React.FC<DetailFilterModalProps> = ({ filter, on
     return false;
   });
 
-  const matchedRfs: RFSItem[] = rfsList.filter(r => {
-    if (modalSearch) {
-      const q = modalSearch.toLowerCase();
-      if (!r.rfsNumber.toLowerCase().includes(q) && !r.woNumber.toLowerCase().includes(q)) return false;
-    }
-    if (filter.category === 'rfs') {
-      if (filter.value.toLowerCase() === 'semua rfs' || filter.value.toLowerCase().includes('rfs')) return true;
-      return r.statusRfs.toLowerCase() === filter.value.toLowerCase();
-    }
-    return false;
-  });
-
   const matchedPenagihan: PenagihanItem[] = penagihanList.filter(p => {
     if (modalSearch) {
       const q = modalSearch.toLowerCase();
@@ -234,10 +220,9 @@ export const DetailFilterModal: React.FC<DetailFilterModalProps> = ({ filter, on
   // Find linked documents for inspector
   const getLinkedBast = (woNumber: string) => bastList.find(b => b.woNumber === woNumber);
   const getLinkedInvoice = (woNumber: string) => invoices.find(i => i.woNumber === woNumber);
-  const getLinkedRfs = (woNumber: string) => rfsList.find(r => r.woNumber === woNumber);
   const getLinkedPenagihan = (woNumber: string) => penagihanList.find(p => p.woNumber === woNumber);
 
-  const totalItemCount = matchedReports.length + matchedBast.length + matchedInvoice.length + matchedRfs.length + matchedPenagihan.length;
+  const totalItemCount = matchedReports.length + matchedBast.length + matchedInvoice.length + matchedPenagihan.length;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
@@ -256,9 +241,8 @@ export const DetailFilterModal: React.FC<DetailFilterModalProps> = ({ filter, on
               {filter.category === 'wo' && <FileSpreadsheet className="w-5 h-5" />}
               {filter.category === 'bast' && <ShieldCheck className="w-5 h-5 text-emerald-400" />}
               {filter.category === 'invoice' && <Receipt className="w-5 h-5 text-amber-400" />}
-              {filter.category === 'rfs' && <FileCheck2 className="w-5 h-5 text-cyan-400" />}
               {(filter.category === 'penagihan' || filter.category === 'statusPenagihan') && <CreditCard className="w-5 h-5 text-purple-400" />}
-              {!['project', 'area', 'team', 'cancel', 'timeline', 'finishDate', 'wo', 'bast', 'invoice', 'rfs', 'penagihan', 'statusPenagihan'].includes(filter.category) && (
+              {!['project', 'area', 'team', 'cancel', 'timeline', 'finishDate', 'wo', 'bast', 'invoice', 'penagihan', 'statusPenagihan'].includes(filter.category) && (
                 <BarChart3 className="w-5 h-5" />
               )}
             </div>
@@ -528,40 +512,7 @@ export const DetailFilterModal: React.FC<DetailFilterModalProps> = ({ filter, on
             </div>
           )}
 
-          {/* RFS List */}
-          {matchedRfs.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider font-mono flex items-center gap-2">
-                <FileCheck2 className="w-4 h-4 text-cyan-400" />
-                Detail Dokumen RFS ({matchedRfs.length} Item)
-              </h3>
-              <div className="space-y-2">
-                {matchedRfs.map((rfs) => (
-                  <div key={rfs.id} className="p-4 bg-slate-950/80 rounded-xl border border-slate-800 hover:border-cyan-500/40 transition-all flex flex-col md:flex-row md:items-center justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-cyan-400 font-mono">{rfs.rfsNumber}</span>
-                        {getStatusBadge(rfs.statusRfs)}
-                      </div>
-                      <p className="text-xs font-semibold text-slate-200">Klien: {rfs.clientInfo.clientCompanyName}</p>
-                      <p className="text-[11px] text-slate-400">PIC: {rfs.clientInfo.picName}</p>
-                    </div>
-                    <TouchButton
-                      variant="outline"
-                      size="sm"
-                      icon={<ExternalLink className="w-3.5 h-3.5" />}
-                      onClick={() => {
-                        onClose();
-                        setActiveTab('rfs');
-                      }}
-                    >
-                      Buka RFS
-                    </TouchButton>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+
 
           {/* Penagihan List */}
           {matchedPenagihan.length > 0 && (
@@ -725,17 +676,7 @@ export const DetailFilterModal: React.FC<DetailFilterModalProps> = ({ filter, on
                     </div>
                   </div>
 
-                  {/* RFS */}
-                  <div className="p-2.5 bg-slate-900 rounded-lg border border-slate-800">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400 font-bold flex items-center gap-1"><FileCheck2 className="w-3.5 h-3.5 text-cyan-400" /> Dokumen RFS:</span>
-                      {getLinkedRfs(selectedProjectDetail.woNumber) ? (
-                        <span className="text-cyan-400 font-bold">{getLinkedRfs(selectedProjectDetail.woNumber)?.statusRfs}</span>
-                      ) : (
-                        <span className="text-slate-500">Belum rilis</span>
-                      )}
-                    </div>
-                  </div>
+
 
                   {/* Penagihan */}
                   <div className="p-2.5 bg-slate-900 rounded-lg border border-slate-800">

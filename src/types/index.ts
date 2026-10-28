@@ -20,8 +20,6 @@ export type StatusTeamProject = 'Not Yet' | 'Waiting Schedule' | 'On Schedule' |
 
 export type StatusBAST = 'Not Yet' | 'Submit' | 'Done' | 'Submitted via Gmail' | 'Submitted via Email';
 
-export type StatusRFS = 'Not Yet' | 'Submit' | 'Done';
-
 export type StatusInvoice = 'Not Yet' | 'Submit' | 'Revision' | 'Done';
 
 export type StatusPenagihan = 'Draft' | 'Dalam Review' | 'Disetujui' | 'Lunas' | 'Ditolak';
@@ -117,10 +115,60 @@ export interface BASTItem {
   destinationCoordinates?: string;
   destinationPhotoFile?: PDFFileMeta;
   destinationTaggingDocFile?: PDFFileMeta;
-  routeMapFile?: PDFFileMeta;
-  routeGmapsUrl?: string;
+  // Sub Routing Workflow Alur BAST (4 Tahapan Berurutan)
+  workflow?: BASTWorkflow;
   createdAt: string;
   updatedAt: string;
+}
+
+export type BASTWorkflowStage1Status = 'Pending' | 'Selesai' | 'Sent';
+export type BASTWorkflowStage2Status = 'Menunggu Pengecekan' | 'Approved' | 'Ada Catatan Revisi';
+export type BASTWorkflowStage3Status = 'Menunggu TTD' | 'In Progress' | 'Selesai TTD';
+export type BASTWorkflowStage4Status = 'Menunggu Finance' | 'Diterima Finance' | 'Siap Invoice';
+
+export interface BASTWorkflowStage1 {
+  status: BASTWorkflowStage1Status;
+  isCompleted?: boolean;
+  tanggalKirim?: string;
+  emailSentDate?: string;
+  emailSubject?: string;
+  emailNumber?: string;
+  notes?: string;
+}
+
+export interface BASTWorkflowStage2 {
+  status: BASTWorkflowStage2Status;
+  isCompleted?: boolean;
+  adminName?: string;
+  checkedDate?: string;
+  notes?: string;
+}
+
+export interface BASTWorkflowStage3 {
+  status: BASTWorkflowStage3Status;
+  isCompleted?: boolean;
+  approverNames?: string;
+  signedDate?: string;
+  notes?: string;
+}
+
+export interface BASTWorkflowStage4 {
+  status: BASTWorkflowStage4Status;
+  isCompleted?: boolean;
+  tanggalMasukFinance?: string;
+  receivedDate?: string;
+  financeRefNumber?: string;
+  notes?: string;
+}
+
+export interface BASTWorkflow {
+  stage1EmailUser?: BASTWorkflowStage1;
+  stage1EmailFmi?: BASTWorkflowStage1;
+  stage2AdminUser?: BASTWorkflowStage2;
+  stage2AdminFmi?: BASTWorkflowStage2;
+  stage3RoutingTtd?: BASTWorkflowStage3;
+  stage4Finance?: BASTWorkflowStage4;
+  updatedAt?: string;
 }
 
 export interface InvoiceItem {
@@ -133,39 +181,8 @@ export interface InvoiceItem {
   poPdf?: PDFFileMeta;
   fakturPajakNumber: string;
   fakturPajakPdf?: PDFFileMeta;
-  rfsNumber: string;
-  rfsPdf?: PDFFileMeta;
   amountRupiah: number;
   issueDate: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CompanyHeaderDetails {
-  companyName: string;
-  phone: string;
-  email: string;
-  address: string;
-  letterNumber: string;
-}
-
-export interface ClientInformation {
-  clientCompanyName: string;
-  picName: string;
-}
-
-export interface RFSItem {
-  id: string;
-  rfsNumber: string;
-  woNumber: string;
-  companyHeader: CompanyHeaderDetails;
-  clientInfo: ClientInformation;
-  scopeOfService: string;
-  boqPdf?: PDFFileMeta;
-  sphPdf?: PDFFileMeta;
-  timelinePdf?: PDFFileMeta;
-  statusRfs: StatusRFS;
-  submissionDate: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -199,10 +216,67 @@ export interface PenagihanItem {
   dataMaterialPdf?: PDFFileMeta;
   boqPdf?: PDFFileMeta;
   fakturPajakPdf?: PDFFileMeta;
-  rfsPdf?: PDFFileMeta;
   
   totalNominalRupiah: number;
   remarks?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type StatusFakturPajak = 'Approval Sukses' | 'Draft' | 'Siap Upload DJP' | 'Batal';
+
+export interface FakturPajakItemLine {
+  id: string;
+  itemNumber: number;
+  itemCode: string; // default '000000'
+  name: string; // Uraian Barang / Jasa
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  totalPrice: number;
+  discount: number;
+  ppnbm: number;
+  netPrice: number;
+}
+
+export interface FakturPajakParty {
+  name: string;
+  address: string;
+  npwp: string;
+  nikPaspor?: string;
+}
+
+export interface FakturPajakItem {
+  id: string;
+  nsfp: string; // Kode & Nomor Seri Faktur Pajak (contoh: 04002600421285795)
+  invoiceReference: string; // contoh: INV233/FMI/JASA/MS-2026
+  fakturDate: string; // YYYY-MM-DD
+  status: StatusFakturPajak;
+  
+  // PKP Penjual
+  seller: FakturPajakParty;
+  
+  // Pembeli / Penerima Jasa
+  buyer: FakturPajakParty;
+  
+  // Dynamic Items
+  items: FakturPajakItemLine[];
+  
+  // Calculations
+  totalGross: number; // Total Harga Jual / Penggantian
+  totalDiscount: number; // Dikurangi Potongan Harga
+  downPayment: number; // Dikurangi Uang Muka yang telah diterima
+  dpp: number; // Dasar Pengenaan Pajak
+  ppnRate: number; // e.g. 11 (%)
+  ppnAmount: number; // Jumlah PPN
+  ppnbmAmount: number; // Jumlah PPnBM
+  
+  // Signatory
+  signingCity: string; // KOTA BEKASI
+  signatoryName: string; // RIO
+  signatoryTitle?: string;
+  
+  notes?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -213,10 +287,8 @@ export type ActiveTab =
   | 'daily-report' 
   | 'bast' 
   | 'invoice' 
-  | 'rfs' 
+  | 'faktur-pajak'
   | 'penagihan'
-  | 'form-invoice'
-  | 'form-faktur-pajak'
   | 'user-settings';
 
 export interface UserProfile {

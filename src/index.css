@@ -28,3 +28,33 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(14, 165, 233, 0.8);
 }
+
+/* Official A4 Print Styling */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+  
+  body {
+    background: white !important;
+    color: black !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  header, aside, main > div:not(:has(#djp-efaktur-print-area)), button, .no-print {
+    display: none !important;
+  }
+
+  #djp-efaktur-print-area {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    border: 2px solid black !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+  }
+}

@@ -44,7 +44,6 @@ export const DashboardOverviewPage: React.FC<DashboardOverviewPageProps> = ({ in
     dailyReports, 
     bastList,
     invoices,
-    rfsList,
     penagihanList,
     drilldownFilter,
     setDrilldownFilter,
@@ -54,7 +53,7 @@ export const DashboardOverviewPage: React.FC<DashboardOverviewPageProps> = ({ in
   } = useProjectContext();
 
   const [isPmWidgetExpanded, setIsPmWidgetExpanded] = useState<boolean>(true);
-  const totalTagihanItems = dailyReports.length + bastList.length + invoices.length + rfsList.length + penagihanList.length;
+  const totalTagihanItems = dailyReports.length + bastList.length + invoices.length + penagihanList.length;
 
   // Sub-Tab State: 'operational' vs 'financial'
   const [dashboardSubTab, setDashboardSubTab] = useState<'operational' | 'financial'>(initialSubTab);

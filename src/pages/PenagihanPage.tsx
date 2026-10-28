@@ -42,7 +42,6 @@ export const PenagihanPage: React.FC = () => {
     dataMaterialPdf: undefined,
     boqPdf: undefined,
     fakturPajakPdf: undefined,
-    rfsPdf: undefined,
     totalNominalRupiah: 145000000,
     remarks: 'Paket berkas penagihan lengkap telah diverifikasi.'
   });
@@ -64,7 +63,6 @@ export const PenagihanPage: React.FC = () => {
       dataMaterialPdf: undefined,
       boqPdf: undefined,
       fakturPajakPdf: undefined,
-      rfsPdf: undefined,
       totalNominalRupiah: 185000000,
       remarks: 'Seluruh lampiran penagihan lengkap dan siap kirim.'
     });
@@ -115,7 +113,7 @@ export const PenagihanPage: React.FC = () => {
             <CreditCard className="w-4 h-4" /> Paket Berkas Penagihan Lengkap
           </div>
           <h2 className="text-xl font-bold text-white mt-1">Halaman Penagihan Belacom</h2>
-          <p className="text-xs text-slate-400">Verifikasi 13 Komponen Berkas Penagihan Lengkap Kepada Klien</p>
+          <p className="text-xs text-slate-400">Verifikasi Komponen Berkas Penagihan Lengkap Kepada Klien</p>
         </div>
 
         <TouchButton
@@ -152,7 +150,7 @@ export const PenagihanPage: React.FC = () => {
                 <th className="py-2.5 px-3 font-semibold">No & Kode Penagihan</th>
                 <th className="py-2.5 px-3 font-semibold">Total Nominal</th>
                 <th className="py-2.5 px-3 font-semibold">Pekerjaan & Durasi</th>
-                <th className="py-2.5 px-3 font-semibold">13 Komponen Berkas PDF</th>
+                <th className="py-2.5 px-3 font-semibold">Komponen Berkas PDF</th>
                 <th className="py-2.5 px-3 font-semibold text-center">Status</th>
                 <th className="py-2.5 px-3 font-semibold text-right">Aksi</th>
               </tr>
@@ -237,11 +235,6 @@ export const PenagihanPage: React.FC = () => {
                       {penagihan.fakturPajakPdf && (
                         <button onClick={() => setPreviewPdf(penagihan.fakturPajakPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat Faktur Pajak PDF">
                           <Eye className="w-3 h-3 text-cyan-400" /> FP
-                        </button>
-                      )}
-                      {penagihan.rfsPdf && (
-                        <button onClick={() => setPreviewPdf(penagihan.rfsPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat RFS PDF">
-                          <FileText className="w-3 h-3 text-cyan-400" /> RFS
                         </button>
                       )}
                     </div>
@@ -357,7 +350,6 @@ export const PenagihanPage: React.FC = () => {
                   <PDFUploader label="10. Data Material" value={formData.dataMaterialPdf} onChange={(f) => setFormData(p => ({ ...p, dataMaterialPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
                   <PDFUploader label="11. BOQ" value={formData.boqPdf} onChange={(f) => setFormData(p => ({ ...p, boqPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
                   <PDFUploader label="12. Faktur Pajak" value={formData.fakturPajakPdf} onChange={(f) => setFormData(p => ({ ...p, fakturPajakPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="13. RFS" value={formData.rfsPdf} onChange={(f) => setFormData(p => ({ ...p, rfsPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
                 </div>
               </div>
 

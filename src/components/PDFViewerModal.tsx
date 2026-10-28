@@ -12,7 +12,6 @@ import {
   Lock,
   Building,
   FileCheck,
-  FileSpreadsheet,
   Image as ImageIcon,
   Archive,
   FileCode
@@ -24,15 +23,11 @@ import { getFileBadgeStyle, getFileExtension } from '../utils/fileHelper';
 interface PDFViewerModalProps {
   file: PDFFileMeta | null;
   onClose: () => void;
-  onDownloadWord?: () => void;
-  onDownloadExcel?: () => void;
 }
 
 export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ 
   file, 
-  onClose,
-  onDownloadWord,
-  onDownloadExcel 
+  onClose 
 }) => {
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
@@ -336,30 +331,6 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {onDownloadWord && (
-              <button
-                type="button"
-                onClick={onDownloadWord}
-                className="px-3 py-1.5 rounded-xl bg-indigo-600/15 hover:bg-indigo-600/25 text-indigo-300 border border-indigo-500/30 font-mono text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                title="Download Dokumen BAST Visual ke Microsoft Word (.doc)"
-              >
-                <FileText className="w-4 h-4 text-indigo-400" />
-                <span>Word (.doc)</span>
-              </button>
-            )}
-
-            {onDownloadExcel && (
-              <button
-                type="button"
-                onClick={onDownloadExcel}
-                className="px-3 py-1.5 rounded-xl bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-300 border border-emerald-500/30 font-mono text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                title="Download Dokumen BAST Visual ke Microsoft Excel (.xls)"
-              >
-                <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-                <span>Excel (.xls)</span>
-              </button>
-            )}
-
             <TouchButton
               variant="secondary"
               size="sm"

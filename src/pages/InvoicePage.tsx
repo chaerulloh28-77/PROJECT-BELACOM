@@ -6,8 +6,7 @@ import {
   Trash2, 
   Search, 
   X,
-  Eye,
-  FileText
+  Eye
 } from 'lucide-react';
 import { useProjectContext } from '../context/ProjectContext';
 import { InvoiceItem, StatusInvoice, PDFFileMeta } from '../types';
@@ -36,8 +35,6 @@ export const InvoicePage: React.FC = () => {
     poPdf: undefined,
     fakturPajakNumber: '010.003-26.88990011',
     fakturPajakPdf: undefined,
-    rfsNumber: 'RFS-BEL-2026-050',
-    rfsPdf: undefined,
     amountRupiah: 150000000,
     issueDate: new Date().toISOString().substring(0, 10)
   });
@@ -53,8 +50,6 @@ export const InvoicePage: React.FC = () => {
       poPdf: undefined,
       fakturPajakNumber: `010.003-26.${Math.floor(10000000 + Math.random() * 90000000)}`,
       fakturPajakPdf: undefined,
-      rfsNumber: `RFS-BEL-2026-${Math.floor(100 + Math.random() * 900)}`,
-      rfsPdf: undefined,
       amountRupiah: 175000000,
       issueDate: new Date().toISOString().substring(0, 10)
     });
@@ -105,7 +100,7 @@ export const InvoicePage: React.FC = () => {
             <Receipt className="w-4 h-4" /> Manajemen Penagihan & Invoice
           </div>
           <h2 className="text-xl font-bold text-white mt-1">Invoice Belacom</h2>
-          <p className="text-xs text-slate-400">Verifikasi BOQ, PO, Faktur Pajak, & RFS</p>
+          <p className="text-xs text-slate-400">Verifikasi BOQ, PO, & Faktur Pajak</p>
         </div>
 
         <TouchButton
@@ -142,7 +137,7 @@ export const InvoicePage: React.FC = () => {
                 <th className="py-2.5 px-3 font-semibold">No Invoice & Ref WO</th>
                 <th className="py-2.5 px-3 font-semibold">Nominal Rupiah</th>
                 <th className="py-2.5 px-3 font-semibold">Detail PO & Faktur Pajak</th>
-                <th className="py-2.5 px-3 font-semibold">Dokumen PDF (BOQ, PO, FP, RFS)</th>
+                <th className="py-2.5 px-3 font-semibold">Dokumen PDF (BOQ, PO, FP)</th>
                 <th className="py-2.5 px-3 font-semibold text-center">Status Invoice</th>
                 <th className="py-2.5 px-3 font-semibold text-right">Aksi</th>
               </tr>
@@ -180,11 +175,6 @@ export const InvoicePage: React.FC = () => {
                       {inv?.fakturPajakPdf && (
                         <button onClick={() => setPreviewPdf(inv.fakturPajakPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat Faktur Pajak PDF">
                           <Eye className="w-3 h-3 text-cyan-400" /> Faktur Pajak
-                        </button>
-                      )}
-                      {inv?.rfsPdf && (
-                        <button onClick={() => setPreviewPdf(inv.rfsPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat RFS PDF">
-                          <FileText className="w-3 h-3 text-cyan-400" /> RFS
                         </button>
                       )}
                     </div>
@@ -315,17 +305,11 @@ export const InvoicePage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
                 <PDFUploader
                   label="2. Dokumen BOQ"
                   value={formData.boqPdf}
                   onChange={(f) => setFormData(p => ({ ...p, boqPdf: f }))}
-                  onPreview={(f) => setPreviewPdf(f)}
-                />
-                <PDFUploader
-                  label="5. Dokumen RFS"
-                  value={formData.rfsPdf}
-                  onChange={(f) => setFormData(p => ({ ...p, rfsPdf: f }))}
                   onPreview={(f) => setPreviewPdf(f)}
                 />
               </div>

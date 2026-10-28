@@ -8,10 +8,8 @@ import { DashboardTagihanPage } from './pages/DashboardTagihanPage';
 import { DailyReportPage } from './pages/DailyReportPage';
 import { BASTPage } from './pages/BASTPage';
 import { InvoicePage } from './pages/InvoicePage';
-import { RFSPage } from './pages/RFSPage';
+import { FakturPajakPage } from './pages/FakturPajakPage';
 import { PenagihanPage } from './pages/PenagihanPage';
-import { FormInvoicePage } from './pages/FormInvoicePage';
-import { FormFakturPajakPage } from './pages/FormFakturPajakPage';
 import { UserSettingsPage } from './pages/UserSettingsPage';
 
 const MainApp: React.FC = () => {
@@ -33,14 +31,10 @@ const MainApp: React.FC = () => {
         return <BASTPage />;
       case 'invoice':
         return <InvoicePage />;
-      case 'rfs':
-        return <RFSPage />;
+      case 'faktur-pajak':
+        return <FakturPajakPage />;
       case 'penagihan':
         return <PenagihanPage />;
-      case 'form-invoice':
-        return <FormInvoicePage />;
-      case 'form-faktur-pajak':
-        return <FormFakturPajakPage />;
       case 'user-settings':
         return <UserSettingsPage />;
       default:
