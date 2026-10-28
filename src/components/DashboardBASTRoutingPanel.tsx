@@ -48,7 +48,7 @@ export const DashboardBASTRoutingPanel: React.FC<DashboardBASTRoutingPanelProps>
   const { bastList: contextBastList, showToast } = useProjectContext();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedStageFilter, setSelectedStageFilter] = useState<string>('ALL');
+  const [selectedStageFilter, setSelectedStageFilter] = useState<string | null>(null);
   const [hoveredSliceId, setHoveredSliceId] = useState<string | null>(null);
 
   // Raw BAST list from props or context
@@ -161,6 +161,8 @@ export const DashboardBASTRoutingPanel: React.FC<DashboardBASTRoutingPanelProps>
 
   // Filter items based on selected stage filter & search
   const filteredBastItems = useMemo(() => {
+    if (!selectedStageFilter) return [];
+
     return safeBastList.filter(bast => {
       const evalWf = evaluateBASTWorkflow(bast);
       const matchesSearch = 
@@ -242,13 +244,13 @@ export const DashboardBASTRoutingPanel: React.FC<DashboardBASTRoutingPanelProps>
             <span className="px-3 py-1 bg-slate-950 text-cyan-300 border border-slate-800 rounded-xl font-bold">
               Total: <strong className="text-white">{total}</strong> BAST
             </span>
-            {selectedStageFilter !== 'ALL' && (
+            {selectedStageFilter && (
               <button
                 type="button"
-                onClick={() => setSelectedStageFilter('ALL')}
+                onClick={() => setSelectedStageFilter(null)}
                 className="px-2.5 py-1 bg-rose-500/10 text-rose-300 border border-rose-500/20 hover:bg-rose-500/20 rounded-xl text-xs font-mono flex items-center gap-1 cursor-pointer transition-colors"
               >
-                <X className="w-3.5 h-3.5" /> Reset Filter
+                <X className="w-3.5 h-3.5" /> Tutup Rincian
               </button>
             )}
           </div>
@@ -306,11 +308,11 @@ export const DashboardBASTRoutingPanel: React.FC<DashboardBASTRoutingPanelProps>
                           className="transition-all duration-200 cursor-pointer"
                           style={{
                             filter: isSelected || isHovered ? `drop-shadow(0 0 14px ${slice.color})` : 'none',
-                            opacity: selectedStageFilter !== 'ALL' && !isSelected && hoveredSliceId === null ? 0.4 : hoveredSliceId !== null && !isHovered ? 0.55 : 1
+                            opacity: selectedStageFilter && !isSelected && hoveredSliceId === null ? 0.4 : hoveredSliceId !== null && !isHovered ? 0.55 : 1
                           }}
                           onMouseEnter={() => setHoveredSliceId(slice.id)}
                           onMouseLeave={() => setHoveredSliceId(null)}
-                          onClick={() => setSelectedStageFilter(isSelected ? 'ALL' : slice.id)}
+                          onClick={() => setSelectedStageFilter(isSelected ? null : slice.id)}
                         />
                       );
                     });
@@ -353,12 +355,12 @@ export const DashboardBASTRoutingPanel: React.FC<DashboardBASTRoutingPanelProps>
 
             {/* Instruction tooltip note */}
             <p className="text-[11px] text-slate-400 font-mono text-center mt-3">
-              {selectedStageFilter !== 'ALL' ? (
+              {selectedStageFilter ? (
                 <span className="text-cyan-300 font-bold">
-                  Filter Aktif: {slicesData.find(s => s.id === selectedStageFilter)?.label}
+                  Tahap Dipilih: {slicesData.find(s => s.id === selectedStageFilter)?.label} (Klik ulang untuk menutup)
                 </span>
               ) : (
-                "Arahkan kursor atau klik irisan grafik untuk melihat detail tahap"
+                "💡 Arahkan kursor atau klik salah satu irisan grafik pie / legenda di atas untuk membuka rincian dokumen."
               )}
             </p>
           </div>
@@ -380,7 +382,7 @@ export const DashboardBASTRoutingPanel: React.FC<DashboardBASTRoutingPanelProps>
                   <button
                     key={`stage-legend-${slice.id || index}`}
                     type="button"
-                    onClick={() => setSelectedStageFilter(isSelected ? 'ALL' : slice.id)}
+                    onClick={() => setSelectedStageFilter(isSelected ? null : slice.id)}
                     onMouseEnter={() => setHoveredSliceId(slice.id)}
                     onMouseLeave={() => setHoveredSliceId(null)}
                     className={`w-full flex items-center justify-between p-3 rounded-xl border text-xs transition-all duration-150 cursor-pointer active:scale-98 ${
@@ -424,14 +426,14 @@ export const DashboardBASTRoutingPanel: React.FC<DashboardBASTRoutingPanelProps>
             </div>
 
             {/* Quick Filter Reset */}
-            {selectedStageFilter !== 'ALL' && (
+            {selectedStageFilter && (
               <div className="pt-2 flex justify-end">
                 <button
                   type="button"
-                  onClick={() => setSelectedStageFilter('ALL')}
+                  onClick={() => setSelectedStageFilter(null)}
                   className="text-xs text-rose-400 hover:text-white font-mono flex items-center gap-1 bg-rose-950/60 hover:bg-rose-900/60 px-3 py-1.5 rounded-xl border border-rose-800/60 transition-colors cursor-pointer"
                 >
-                  <X className="w-3.5 h-3.5" /> Reset Filter (Tampilkan Semua BAST)
+                  <X className="w-3.5 h-3.5" /> Tutup / Sembunyikan Rincian
                 </button>
               </div>
             )}
@@ -441,220 +443,234 @@ export const DashboardBASTRoutingPanel: React.FC<DashboardBASTRoutingPanelProps>
 
       </div>
 
-      {/* 2. Tabel Monitoring Antrean Routing */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl space-y-4 p-4 sm:p-5">
-        
-        {/* Filter Controls Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
-          <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Cari No BAST, Ref WO, Nama Admin, Approver..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 text-xs text-slate-100 placeholder-slate-500 rounded-xl pl-9 pr-3 py-2.5 outline-none transition-all font-mono"
-            />
+      {/* 2. Tabel Monitoring Antrean Routing (Hanya Tampil Saat Irisan/Legenda Diklik) */}
+      {!selectedStageFilter ? (
+        <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-6 text-center space-y-2 font-mono animate-fadeIn">
+          <p className="text-xs text-cyan-400 font-semibold">
+            💡 Arahkan kursor atau klik salah satu irisan grafik pie / legenda di atas untuk membuka rincian dokumen.
+          </p>
+        </div>
+      ) : (
+        <div className="bg-slate-900 border border-cyan-500/40 rounded-2xl overflow-hidden shadow-2xl space-y-4 p-4 sm:p-5 animate-fadeIn transition-all duration-300">
+          
+          {/* Filter Controls Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+            <div className="relative flex-1 max-w-md">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Cari No BAST, Ref WO, Nama Admin, Approver..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 text-xs text-slate-100 placeholder-slate-500 rounded-xl pl-9 pr-3 py-2.5 outline-none transition-all font-mono"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
+              <span className="text-slate-400 font-bold mr-1">Filter Tahap:</span>
+              
+              <button
+                onClick={() => setSelectedStageFilter('ALL')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer ${
+                  selectedStageFilter === 'ALL'
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 shadow'
+                    : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-slate-200'
+                }`}
+              >
+                Semua ({safeBastList.length})
+              </button>
+
+              {selectedStageFilter !== 'ALL' && (
+                <span className="px-3 py-1.5 rounded-xl bg-cyan-950 text-cyan-300 border border-cyan-800 font-bold">
+                  Tahap: {slicesData.find(s => s.id === selectedStageFilter)?.label} ({filteredBastItems.length})
+                </span>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setSelectedStageFilter(null)}
+                className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-mono font-bold flex items-center gap-1 cursor-pointer transition-colors"
+              >
+                <X className="w-3.5 h-3.5" /> Tutup / Sembunyikan Rincian
+              </button>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
-            <span className="text-slate-400 font-bold mr-1">Filter Tahap:</span>
-            
-            <button
-              onClick={() => setSelectedStageFilter('ALL')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer ${
-                selectedStageFilter === 'ALL'
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 shadow'
-                  : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-slate-200'
-              }`}
-            >
-              Semua ({safeBastList.length})
-            </button>
+          {/* Monitoring Queue Table */}
+          <div className="overflow-x-auto">
+            {filteredBastItems.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 space-y-2">
+                <Info className="w-8 h-8 text-slate-500 mx-auto" />
+                <p className="text-xs font-semibold">Tidak ada dokumen BAST yang ditemukan pada tahap ini</p>
+                <button
+                  type="button"
+                  onClick={() => setSelectedStageFilter(null)}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-mono rounded-lg transition-colors cursor-pointer mt-2"
+                >
+                  Sembunyikan Rincian
+                </button>
+              </div>
+            ) : (
+              <table className="w-full text-left text-xs text-slate-300">
+                <thead className="bg-slate-950/90 text-slate-400 font-mono text-[11px] uppercase tracking-wider border-b border-slate-800">
+                  <tr>
+                    <th className="py-2.5 px-3 font-semibold">No. BAST &amp; Ref WO</th>
+                    <th className="py-2.5 px-3 font-semibold">Pekerjaan / Subjek</th>
+                    <th className="py-2.5 px-3 font-semibold">Tahap Aktif Saat Ini</th>
+                    <th className="py-2.5 px-3 font-semibold">Tanggal &amp; Update</th>
+                    <th className="py-2.5 px-3 font-semibold">Approver / PIC Terakhir</th>
+                    <th className="py-2.5 px-3 font-semibold">Status &amp; Catatan</th>
+                    <th className="py-2.5 px-3 font-semibold text-right">Aksi Cepat</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 font-sans">
+                  {filteredBastItems.map((bast, index) => {
+                    const safeBast: BASTItem = {
+                      ...bast,
+                      workflow: bast.workflow || getDefaultBASTWorkflow(bast.woNumber)
+                    };
 
-            {selectedStageFilter !== 'ALL' && (
-              <span className="px-3 py-1.5 rounded-xl bg-cyan-950 text-cyan-300 border border-cyan-800 font-bold">
-                Filter: {slicesData.find(s => s.id === selectedStageFilter)?.label} ({filteredBastItems.length})
-              </span>
+                    const evalWf = evaluateBASTWorkflow(safeBast);
+                    const bastNo = bast.bastNumber || `BAST/${bast.woNumber}/BELACOM/2026`;
+                    const s1 = getStage1(safeBast.workflow);
+                    const s2 = getStage2(safeBast.workflow);
+                    const s3 = getStage3(safeBast.workflow);
+                    const s4 = getStage4(safeBast.workflow);
+
+                    // Extract last active approver name / date / detail info
+                    let activePic = '-';
+                    let activeDate = bast.finishDate || bast.createdAt;
+                    let activeNotes = bast.notes || '-';
+
+                    if (evalWf.currentStageNumber === 1) {
+                      activePic = s1.emailSubject || 'Email User';
+                      activeDate = s1.tanggalKirim || s1.emailSentDate || bast.createdAt;
+                      activeNotes = s1.notes || 'Menunggu pengiriman email ke User';
+                    } else if (evalWf.currentStageNumber === 2) {
+                      activePic = s2.adminName ? `Admin: ${s2.adminName}` : 'Admin User';
+                      activeDate = s2.checkedDate || bast.updatedAt || bast.createdAt;
+                      activeNotes = s2.notes || (s2.status === 'Ada Catatan Revisi' ? 'Ada catatan revisi dari Admin User' : 'Dalam pengecekan admin User');
+                    } else if (evalWf.currentStageNumber === 3) {
+                      activePic = s3.approverNames ? `Approver: ${s3.approverNames}` : 'Approver User';
+                      activeDate = s3.signedDate || bast.updatedAt || bast.createdAt;
+                      activeNotes = s3.notes || 'Sirkulasi TTD sedang berjalan';
+                    } else if (evalWf.currentStageNumber === 4) {
+                      activePic = s4.financeRefNumber ? `Ref: ${s4.financeRefNumber}` : 'Tim Finance';
+                      activeDate = s4.tanggalMasukFinance || s4.receivedDate || bast.updatedAt || bast.createdAt;
+                      activeNotes = s4.notes || 'Berkas diterima finance, proses penerbitan invoice';
+                    } else {
+                      activePic = s4.financeRefNumber || 'Finance Completed';
+                      activeDate = s4.tanggalMasukFinance || bast.updatedAt || bast.createdAt;
+                      activeNotes = 'Selesai 100% (Siap Invoice)';
+                    }
+
+                    return (
+                      <tr key={`bast-row-${bast.id || index}`} className="hover:bg-slate-800/60 transition-colors group">
+                        
+                        {/* Col 1: No. BAST & Ref WO */}
+                        <td className="py-2.5 px-3 whitespace-nowrap">
+                          <span className="font-bold text-emerald-400 font-mono block text-xs truncate max-w-[170px]" title={bastNo}>
+                            {bastNo}
+                          </span>
+                          <span className="text-[10px] text-cyan-400 font-mono block">WO: {bast.woNumber}</span>
+                        </td>
+
+                        {/* Col 2: Pekerjaan & Subjek */}
+                        <td className="py-2.5 px-3">
+                          <span className="font-medium text-slate-200 block max-w-[220px] truncate text-xs" title={bast.workType}>
+                            {bast.workType}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono block truncate max-w-[220px]">
+                            {bast.woType}
+                          </span>
+                        </td>
+
+                        {/* Col 3: Tahap Aktif Saat Ini */}
+                        <td className="py-2.5 px-3">
+                          <div 
+                            onClick={() => onOpenRoutingModal?.(bast)}
+                            className="flex items-center gap-2 bg-slate-950/80 px-2.5 py-1 rounded-xl border border-slate-800 hover:border-cyan-500/50 transition-all cursor-pointer max-w-[220px]"
+                            title="Klik untuk membuka BAST Workflow Modal"
+                          >
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span className={`w-2 h-2 rounded-full ${evalWf.stages[0].isCompleted ? 'bg-emerald-400' : 'bg-cyan-400 animate-pulse'}`} />
+                              <span className={`w-2 h-2 rounded-full ${evalWf.stages[1].isCompleted ? 'bg-emerald-400' : evalWf.stages[0].isCompleted ? (s2.status === 'Ada Catatan Revisi' ? 'bg-rose-400 animate-pulse' : 'bg-amber-400 animate-pulse') : 'bg-slate-700'}`} />
+                              <span className={`w-2 h-2 rounded-full ${evalWf.stages[2].isCompleted ? 'bg-emerald-400' : evalWf.stages[1].isCompleted ? 'bg-indigo-400 animate-pulse' : 'bg-slate-700'}`} />
+                              <span className={`w-2 h-2 rounded-full ${evalWf.stages[3].isCompleted ? 'bg-emerald-400' : evalWf.stages[2].isCompleted ? 'bg-purple-400 animate-pulse' : 'bg-slate-700'}`} />
+                            </div>
+                            <div className="text-[10px] font-mono truncate">
+                              <span className={`font-bold block ${
+                                evalWf.isAllCompleted ? 'text-emerald-400' :
+                                s2.status === 'Ada Catatan Revisi' ? 'text-rose-400' :
+                                'text-cyan-300'
+                              }`}>
+                                {evalWf.currentStageTitle}
+                              </span>
+                              <span className="text-slate-400 text-[9px]">{evalWf.percent}% Selesai</span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Col 4: Tanggal Masuk Tahap */}
+                        <td className="py-2.5 px-3 whitespace-nowrap font-mono">
+                          <span className="text-xs text-slate-200 block font-bold">{activeDate || '-'}</span>
+                          <span className="text-[10px] text-slate-400 block">Status Date</span>
+                        </td>
+
+                        {/* Col 5: Approver / PIC Terakhir */}
+                        <td className="py-2.5 px-3">
+                          <span className="font-semibold text-slate-200 block max-w-[170px] truncate text-xs" title={activePic}>
+                            {activePic}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono block">
+                            Tahap {evalWf.currentStageNumber > 4 ? 'Done' : evalWf.currentStageNumber}
+                          </span>
+                        </td>
+
+                        {/* Col 6: Status & Catatan */}
+                        <td className="py-2.5 px-3">
+                          <div className="flex items-center gap-1.5">
+                            {s2.status === 'Ada Catatan Revisi' ? (
+                              <span className="px-2 py-0.5 rounded-full bg-rose-950 text-rose-300 border border-rose-800 text-[10px] font-mono font-bold flex items-center gap-1 shrink-0">
+                                <AlertTriangle className="w-3 h-3 text-rose-400" /> Ada Revisi
+                              </span>
+                            ) : evalWf.isAllCompleted ? (
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-mono font-bold flex items-center gap-1 shrink-0">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Siap Invoice
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full bg-blue-950 text-blue-300 border border-blue-800 text-[10px] font-mono font-bold flex items-center gap-1 shrink-0">
+                                <Clock className="w-3 h-3 text-blue-400" /> In Routing
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-mono block truncate max-w-[200px] mt-0.5" title={activeNotes}>
+                            {activeNotes}
+                          </span>
+                        </td>
+
+                        {/* Col 7: Aksi Cepat */}
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => onOpenRoutingModal?.(bast)}
+                            className="px-2.5 py-1 rounded-xl bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-800 text-xs font-mono font-bold transition-all flex items-center gap-1.5 ml-auto cursor-pointer active:scale-95 shadow-sm"
+                            title="Buka Modal Workflow Alur BAST"
+                          >
+                            <GitBranch className="w-3.5 h-3.5 text-cyan-400" />
+                            <span>Update Routing</span>
+                          </button>
+                        </td>
+
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             )}
           </div>
         </div>
-
-        {/* Monitoring Queue Table */}
-        <div className="overflow-x-auto">
-          {filteredBastItems.length === 0 ? (
-            <div className="py-8 text-center text-slate-400 space-y-2">
-              <Info className="w-8 h-8 text-slate-500 mx-auto" />
-              <p className="text-xs font-semibold">Tidak ada dokumen BAST yang ditemukan pada filter ini</p>
-              {selectedStageFilter !== 'ALL' && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedStageFilter('ALL')}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-mono rounded-lg transition-colors cursor-pointer mt-2"
-                >
-                  Tampilkan Semua BAST
-                </button>
-              )}
-            </div>
-          ) : (
-            <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-950/90 text-slate-400 font-mono text-[11px] uppercase tracking-wider border-b border-slate-800">
-                <tr>
-                  <th className="py-2.5 px-3 font-semibold">No. BAST &amp; Ref WO</th>
-                  <th className="py-2.5 px-3 font-semibold">Pekerjaan / Subjek</th>
-                  <th className="py-2.5 px-3 font-semibold">Tahap Aktif Saat Ini</th>
-                  <th className="py-2.5 px-3 font-semibold">Tanggal &amp; Update</th>
-                  <th className="py-2.5 px-3 font-semibold">Approver / PIC Terakhir</th>
-                  <th className="py-2.5 px-3 font-semibold">Status &amp; Catatan</th>
-                  <th className="py-2.5 px-3 font-semibold text-right">Aksi Cepat</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60 font-sans">
-                {filteredBastItems.map((bast, index) => {
-                  const safeBast: BASTItem = {
-                    ...bast,
-                    workflow: bast.workflow || getDefaultBASTWorkflow(bast.woNumber)
-                  };
-
-                  const evalWf = evaluateBASTWorkflow(safeBast);
-                  const bastNo = bast.bastNumber || `BAST/${bast.woNumber}/BELACOM/2026`;
-                  const s1 = getStage1(safeBast.workflow);
-                  const s2 = getStage2(safeBast.workflow);
-                  const s3 = getStage3(safeBast.workflow);
-                  const s4 = getStage4(safeBast.workflow);
-
-                  // Extract last active approver name / date / detail info
-                  let activePic = '-';
-                  let activeDate = bast.finishDate || bast.createdAt;
-                  let activeNotes = bast.notes || '-';
-
-                  if (evalWf.currentStageNumber === 1) {
-                    activePic = s1.emailSubject || 'Email User';
-                    activeDate = s1.tanggalKirim || s1.emailSentDate || bast.createdAt;
-                    activeNotes = s1.notes || 'Menunggu pengiriman email ke User';
-                  } else if (evalWf.currentStageNumber === 2) {
-                    activePic = s2.adminName ? `Admin: ${s2.adminName}` : 'Admin User';
-                    activeDate = s2.checkedDate || bast.updatedAt || bast.createdAt;
-                    activeNotes = s2.notes || (s2.status === 'Ada Catatan Revisi' ? 'Ada catatan revisi dari Admin User' : 'Dalam pengecekan admin User');
-                  } else if (evalWf.currentStageNumber === 3) {
-                    activePic = s3.approverNames ? `Approver: ${s3.approverNames}` : 'Approver User';
-                    activeDate = s3.signedDate || bast.updatedAt || bast.createdAt;
-                    activeNotes = s3.notes || 'Sirkulasi TTD sedang berjalan';
-                  } else if (evalWf.currentStageNumber === 4) {
-                    activePic = s4.financeRefNumber ? `Ref: ${s4.financeRefNumber}` : 'Tim Finance';
-                    activeDate = s4.tanggalMasukFinance || s4.receivedDate || bast.updatedAt || bast.createdAt;
-                    activeNotes = s4.notes || 'Berkas diterima finance, proses penerbitan invoice';
-                  } else {
-                    activePic = s4.financeRefNumber || 'Finance Completed';
-                    activeDate = s4.tanggalMasukFinance || bast.updatedAt || bast.createdAt;
-                    activeNotes = 'Selesai 100% (Siap Invoice)';
-                  }
-
-                  return (
-                    <tr key={`bast-row-${bast.id || index}`} className="hover:bg-slate-800/60 transition-colors group">
-                      
-                      {/* Col 1: No. BAST & Ref WO */}
-                      <td className="py-2.5 px-3 whitespace-nowrap">
-                        <span className="font-bold text-emerald-400 font-mono block text-xs truncate max-w-[170px]" title={bastNo}>
-                          {bastNo}
-                        </span>
-                        <span className="text-[10px] text-cyan-400 font-mono block">WO: {bast.woNumber}</span>
-                      </td>
-
-                      {/* Col 2: Pekerjaan & Subjek */}
-                      <td className="py-2.5 px-3">
-                        <span className="font-medium text-slate-200 block max-w-[220px] truncate text-xs" title={bast.workType}>
-                          {bast.workType}
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-mono block truncate max-w-[220px]">
-                          {bast.woType}
-                        </span>
-                      </td>
-
-                      {/* Col 3: Tahap Aktif Saat Ini */}
-                      <td className="py-2.5 px-3">
-                        <div 
-                          onClick={() => onOpenRoutingModal?.(bast)}
-                          className="flex items-center gap-2 bg-slate-950/80 px-2.5 py-1 rounded-xl border border-slate-800 hover:border-cyan-500/50 transition-all cursor-pointer max-w-[220px]"
-                          title="Klik untuk membuka BAST Workflow Modal"
-                        >
-                          <div className="flex items-center gap-1 shrink-0">
-                            <span className={`w-2 h-2 rounded-full ${evalWf.stages[0].isCompleted ? 'bg-emerald-400' : 'bg-cyan-400 animate-pulse'}`} />
-                            <span className={`w-2 h-2 rounded-full ${evalWf.stages[1].isCompleted ? 'bg-emerald-400' : evalWf.stages[0].isCompleted ? (s2.status === 'Ada Catatan Revisi' ? 'bg-rose-400 animate-pulse' : 'bg-amber-400 animate-pulse') : 'bg-slate-700'}`} />
-                            <span className={`w-2 h-2 rounded-full ${evalWf.stages[2].isCompleted ? 'bg-emerald-400' : evalWf.stages[1].isCompleted ? 'bg-indigo-400 animate-pulse' : 'bg-slate-700'}`} />
-                            <span className={`w-2 h-2 rounded-full ${evalWf.stages[3].isCompleted ? 'bg-emerald-400' : evalWf.stages[2].isCompleted ? 'bg-purple-400 animate-pulse' : 'bg-slate-700'}`} />
-                          </div>
-                          <div className="text-[10px] font-mono truncate">
-                            <span className={`font-bold block ${
-                              evalWf.isAllCompleted ? 'text-emerald-400' :
-                              s2.status === 'Ada Catatan Revisi' ? 'text-rose-400' :
-                              'text-cyan-300'
-                            }`}>
-                              {evalWf.currentStageTitle}
-                            </span>
-                            <span className="text-slate-400 text-[9px]">{evalWf.percent}% Selesai</span>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Col 4: Tanggal Masuk Tahap */}
-                      <td className="py-2.5 px-3 whitespace-nowrap font-mono">
-                        <span className="text-xs text-slate-200 block font-bold">{activeDate || '-'}</span>
-                        <span className="text-[10px] text-slate-400 block">Status Date</span>
-                      </td>
-
-                      {/* Col 5: Approver / PIC Terakhir */}
-                      <td className="py-2.5 px-3">
-                        <span className="font-semibold text-slate-200 block max-w-[170px] truncate text-xs" title={activePic}>
-                          {activePic}
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-mono block">
-                          Tahap {evalWf.currentStageNumber > 4 ? 'Done' : evalWf.currentStageNumber}
-                        </span>
-                      </td>
-
-                      {/* Col 6: Status & Catatan */}
-                      <td className="py-2.5 px-3">
-                        <div className="flex items-center gap-1.5">
-                          {s2.status === 'Ada Catatan Revisi' ? (
-                            <span className="px-2 py-0.5 rounded-full bg-rose-950 text-rose-300 border border-rose-800 text-[10px] font-mono font-bold flex items-center gap-1 shrink-0">
-                              <AlertTriangle className="w-3 h-3 text-rose-400" /> Ada Revisi
-                            </span>
-                          ) : evalWf.isAllCompleted ? (
-                            <span className="px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-mono font-bold flex items-center gap-1 shrink-0">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Siap Invoice
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-full bg-blue-950 text-blue-300 border border-blue-800 text-[10px] font-mono font-bold flex items-center gap-1 shrink-0">
-                              <Clock className="w-3 h-3 text-blue-400" /> In Routing
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[10px] text-slate-400 font-mono block truncate max-w-[200px] mt-0.5" title={activeNotes}>
-                          {activeNotes}
-                        </span>
-                      </td>
-
-                      {/* Col 7: Aksi Cepat */}
-                      <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => onOpenRoutingModal?.(bast)}
-                          className="px-2.5 py-1 rounded-xl bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-800 text-xs font-mono font-bold transition-all flex items-center gap-1.5 ml-auto cursor-pointer active:scale-95 shadow-sm"
-                          title="Buka Modal Workflow Alur BAST"
-                        >
-                          <GitBranch className="w-3.5 h-3.5 text-cyan-400" />
-                          <span>Update Routing</span>
-                        </button>
-                      </td>
-
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
+      )}
 
     </div>
   );
