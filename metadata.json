@@ -1,6 +1,6 @@
 {
   "name": "Remix Controlling Project Belacom",
-  "description": "Sistem Informasi Controlling Project Belacom untuk Manajemen WO, Daily Report, BAST, Invoice, RFS, dan Penagihan Telecom secara Real-time.",
+  "description": "Sistem Informasi Controlling Belacom Project untuk Manajemen WO, Daily Report, BAST, Invoice, dan Penagihan Telecom secara Real-time.",
   "requestFramePermissions": [
     "geolocation"
   ],

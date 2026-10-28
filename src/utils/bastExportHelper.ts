@@ -50,7 +50,7 @@ export function generateVisualGeotagPhotoDataUrl(
     <text x="32" y="41" fill="${accentHex}" font-family="Arial, sans-serif" font-size="12" font-weight="bold">📍 GEOTAG FOTO · ${label}</text>
     <!-- Overlay Metadata Box -->
     <rect x="20" y="245" width="560" height="115" rx="8" fill="#020617" opacity="0.92" stroke="#334155" stroke-width="1.2"/>
-    <text x="34" y="272" fill="#f8fafc" font-family="Arial, sans-serif" font-size="13" font-weight="bold">PT. BELACOM INDONESIA · DOKUMENTASI RESMI BAST</text>
+    <text x="34" y="272" fill="#f8fafc" font-family="Arial, sans-serif" font-size="13" font-weight="bold">PT. BELACOM PROJECT INDONESIA · DOKUMENTASI RESMI BAST</text>
     <text x="34" y="294" fill="#34d399" font-family="Consolas, monospace" font-size="12" font-weight="bold">LOKASI SITE : ${cleanSite}</text>
     <text x="34" y="314" fill="#38bdf8" font-family="Consolas, monospace" font-size="12" font-weight="bold">GPS KOORD   : ${cleanCoord}</text>
     <text x="34" y="333" fill="#94a3b8" font-family="Consolas, monospace" font-size="11">NO. WO / BAST: ${woNumber || 'WO-BEL-2026'} | ${bastNumber || 'BAST-2026'}</text>

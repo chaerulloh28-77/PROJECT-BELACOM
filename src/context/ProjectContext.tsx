@@ -344,7 +344,11 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [bastList, setBastList] = useState<BASTItem[]>(() => {
     const tombstonesSet = getStoredTombstoneSet();
     const list = safeGetLocalStorage<BASTItem[]>(STORAGE_KEYS.BAST, INITIAL_BAST_LIST);
-    return list.filter(b => !tombstonesSet.has(b.id) && !tombstonesSet.has(b.woNumber));
+    const filtered = list.filter(b => !tombstonesSet.has(b.id) && !tombstonesSet.has(b.woNumber));
+    if (filtered.length > 0) {
+      return filtered;
+    }
+    return INITIAL_BAST_LIST.filter(b => !tombstonesSet.has(b.id) && !tombstonesSet.has(b.woNumber));
   });
 
   const [invoices, setInvoices] = useState<InvoiceItem[]>(() => {

@@ -29,6 +29,7 @@ import { PDFViewerModal } from '../components/PDFViewerModal';
 import { DeleteConfirmModal } from '../components/DeleteConfirmModal';
 import { BASTWorkflowCardStepper } from '../components/BASTWorkflowCardStepper';
 import { BASTWorkflowModal } from '../components/BASTWorkflowModal';
+import { DashboardBASTRoutingPanel } from '../components/DashboardBASTRoutingPanel';
 import { getFileBadgeStyle } from '../utils/fileHelper';
 import { evaluateBASTWorkflow, getDefaultBASTWorkflow, WorkflowFilterTab } from '../utils/bastWorkflowHelper';
 import { exportBASTToExcel } from '../utils/excelExportHelper';
@@ -360,6 +361,11 @@ export const BASTPage: React.FC = () => {
           </TouchButton>
         </div>
       </div>
+
+      {/* Panel Dashboard Routing BAST */}
+      <DashboardBASTRoutingPanel
+        onOpenRoutingModal={(bast) => setRoutingModalBast(bast)}
+      />
 
       {/* Search Bar & Workflow Filter Tabs */}
       <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-3.5">

@@ -32,8 +32,11 @@ import { useProjectContext, DrilldownFilter } from '../context/ProjectContext';
 import { DetailFilterModal } from '../components/DetailFilterModal';
 import { InteractivePieChartCard, PieChartSliceData } from '../components/InteractivePieChartCard';
 import { ProjectDetailCardList, DetailCardItem } from '../components/ProjectDetailCardList';
+import { DashboardBASTRoutingPanel } from '../components/DashboardBASTRoutingPanel';
+import { BASTWorkflowModal } from '../components/BASTWorkflowModal';
 import { DashboardTagihanPage } from './DashboardTagihanPage';
-import { DailyReportItem } from '../types';
+import { DailyReportItem, BASTItem, BASTWorkflow } from '../types';
+import { evaluateBASTWorkflow, getDefaultBASTWorkflow } from '../utils/bastWorkflowHelper';
 
 interface DashboardOverviewPageProps {
   initialSubTab?: 'operational' | 'financial';
@@ -49,8 +52,17 @@ export const DashboardOverviewPage: React.FC<DashboardOverviewPageProps> = ({ in
     setDrilldownFilter,
     setActiveTab,
     dashboardView,
-    setDashboardView
+    setDashboardView,
+    updateBAST,
+    showToast
   } = useProjectContext();
+
+  const [dashboardRoutingModalBast, setDashboardRoutingModalBast] = useState<BASTItem | null>(null);
+
+  const handleSaveDashboardWorkflow = (bastId: string, updatedWorkflow: BASTWorkflow) => {
+    updateBAST(bastId, { workflow: updatedWorkflow });
+    showToast('success', 'Routing BAST Diperbarui', 'Alur BAST berhasil diperbarui dari Dashboard!');
+  };
 
   const [isPmWidgetExpanded, setIsPmWidgetExpanded] = useState<boolean>(true);
   const totalTagihanItems = dailyReports.length + bastList.length + invoices.length + penagihanList.length;
@@ -229,15 +241,28 @@ export const DashboardOverviewPage: React.FC<DashboardOverviewPageProps> = ({ in
     return 'Draft BAST';
   };
 
-  // 2. Dashboard BAST Metrics & Pie Data
-  const bastSudahCount = filteredReports.filter(r => getBastStatusForReport(r) === 'Sudah BAST').length;
-  const bastDraftCount = filteredReports.filter(r => getBastStatusForReport(r) === 'Draft BAST').length;
-  const bastPendingCount = filteredReports.filter(r => getBastStatusForReport(r) === 'Pending Review').length;
+  // 2. Dashboard BAST Metrics & Pie Data directly synced with bastList
+  const bastSudahCount = bastList.filter(b => {
+    const safeB = { ...b, workflow: b.workflow || getDefaultBASTWorkflow(b.woNumber) };
+    return evaluateBASTWorkflow(safeB).isAllCompleted;
+  }).length;
+
+  const bastDraftCount = bastList.filter(b => {
+    const safeB = { ...b, workflow: b.workflow || getDefaultBASTWorkflow(b.woNumber) };
+    return !evaluateBASTWorkflow(safeB).isAllCompleted && evaluateBASTWorkflow(safeB).currentStageNumber === 1;
+  }).length;
+
+  const bastPendingCount = bastList.filter(b => {
+    const safeB = { ...b, workflow: b.workflow || getDefaultBASTWorkflow(b.woNumber) };
+    return !evaluateBASTWorkflow(safeB).isAllCompleted && evaluateBASTWorkflow(safeB).currentStageNumber > 1;
+  }).length;
+
+  const totalBastCount = bastList.length;
 
   const bastPieData: PieChartSliceData[] = [
     {
       id: 'Sudah BAST',
-      label: 'Sudah BAST',
+      label: 'Sudah BAST (100% Selesai)',
       shortLabel: 'Sudah BAST',
       value: bastSudahCount,
       color: '#10b981', // emerald-500
@@ -246,21 +271,21 @@ export const DashboardOverviewPage: React.FC<DashboardOverviewPageProps> = ({ in
     },
     {
       id: 'Draft BAST',
-      label: 'Draft BAST',
+      label: 'Draft BAST (Tahap 1: Email)',
       shortLabel: 'Draft BAST',
       value: bastDraftCount,
-      color: '#f59e0b', // amber-500
+      color: '#06b6d4', // cyan-500
       icon: Clock,
-      subtext: 'Dalam Penyusunan'
+      subtext: 'Dalam Pengiriman Email'
     },
     {
       id: 'Pending Review',
-      label: 'Pending Review',
-      shortLabel: 'Pending Review',
+      label: 'In Routing / Review',
+      shortLabel: 'In Routing',
       value: bastPendingCount,
-      color: '#3b82f6', // blue-500
+      color: '#f59e0b', // amber-500
       icon: PlayCircle,
-      subtext: 'Menunggu Verifikasi'
+      subtext: 'Review & Routing TTD'
     }
   ];
 
@@ -429,7 +454,7 @@ export const DashboardOverviewPage: React.FC<DashboardOverviewPageProps> = ({ in
               <span className="p-1 rounded-md bg-cyan-500/20 text-cyan-400">
                 <Activity className="w-3.5 h-3.5 animate-pulse" />
               </span>
-              <span>Dashboard Control & Monitoring Operasional Belacom</span>
+              <span>Dashboard Control & Monitoring Operasional Belacom Project</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-white mt-1.5 flex items-center gap-2">
               Dashboard
@@ -693,8 +718,8 @@ export const DashboardOverviewPage: React.FC<DashboardOverviewPageProps> = ({ in
               <div className="max-w-2xl mx-auto w-full">
                 <InteractivePieChartCard
                   title="STATUS DOKUMEN BAST"
-                  subtitle="Kelompok status BAST (Sudah BAST, Draft BAST, Pending Review)"
-                  total={totalWoCount}
+                  subtitle="Kelompok status BAST (Sudah BAST, Draft BAST, In Routing)"
+                  total={totalBastCount}
                   data={bastPieData}
                   selectedId={selectedBastStatus}
                   onSelectSlice={(id) => setSelectedBastStatus(id)}
@@ -715,6 +740,14 @@ export const DashboardOverviewPage: React.FC<DashboardOverviewPageProps> = ({ in
                   />
                 </div>
               )}
+
+              {/* Panel Dashboard Routing & Pipeline Alur BAST 4-Tahap */}
+              <div className="pt-4 border-t border-slate-800">
+                <DashboardBASTRoutingPanel
+                  items={bastList}
+                  onOpenRoutingModal={(bast) => setDashboardRoutingModalBast(bast)}
+                />
+              </div>
             </div>
           )}
 
@@ -783,6 +816,14 @@ export const DashboardOverviewPage: React.FC<DashboardOverviewPageProps> = ({ in
       <DetailFilterModal
         filter={drilldownFilter}
         onClose={() => setDrilldownFilter(null)}
+      />
+
+      {/* BAST Workflow Modal for Quick Updating Routing */}
+      <BASTWorkflowModal
+        isOpen={Boolean(dashboardRoutingModalBast)}
+        bast={dashboardRoutingModalBast}
+        onClose={() => setDashboardRoutingModalBast(null)}
+        onSave={handleSaveDashboardWorkflow}
       />
 
     </div>

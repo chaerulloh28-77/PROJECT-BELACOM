@@ -50,7 +50,7 @@ export const Header: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-sm sm:text-base lg:text-lg font-black tracking-wider text-white uppercase flex items-center gap-2 font-mono">
-                PROJECT BELACOM
+                BELACOM PROJECT
               </h1>
             </div>
           </div>
