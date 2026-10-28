@@ -41,10 +41,14 @@ export const InteractivePieChartCard: React.FC<InteractivePieChartCardProps> = (
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
   // SVG parameters
-  const radius = 75;
-  const strokeWidth = 26;
-  const center = 100;
-  const circumference = 2 * Math.PI * radius;
+  const safeNum = (val: number | undefined | null, fallback = 0): number => {
+    return typeof val === 'number' && Number.isFinite(val) ? val : fallback;
+  };
+
+  const radius = safeNum(75, 75);
+  const strokeWidth = safeNum(26, 26);
+  const center = safeNum(100, 100);
+  const circumference = safeNum(2 * Math.PI * radius, 471.24);
   let cumulativeAngle = 0;
 
   const activeIndex = data.findIndex(item => item.id === selectedId);
@@ -74,55 +78,66 @@ export const InteractivePieChartCard: React.FC<InteractivePieChartCardProps> = (
         </div>
 
         <span className="px-2.5 py-0.5 rounded-md bg-slate-950 text-cyan-400 border border-slate-800 text-xs font-mono font-bold">
-          Total: <strong className="text-white">{total}</strong>
+          Total: <strong className="text-white">{safeNum(total, 0)}</strong>
         </span>
       </div>
 
       {/* SVG Donut Chart */}
       <div className="relative flex items-center justify-center py-5 my-auto">
         <svg viewBox="0 0 200 200" className="w-48 h-48 sm:w-52 sm:h-52 transform -rotate-90">
-          {total === 0 ? (
+          {safeNum(total, 0) === 0 ? (
             <circle
-              cx={center}
-              cy={center}
-              r={radius}
+              cx={safeNum(center, 100)}
+              cy={safeNum(center, 100)}
+              r={safeNum(radius, 75)}
               fill="none"
               stroke="#1e293b"
-              strokeWidth={strokeWidth}
+              strokeWidth={safeNum(strokeWidth, 26)}
             />
           ) : (
-            data.map((item, index) => {
-              if (item.value === 0) return null;
-              const percentage = item.value / total;
-              const strokeDasharray = `${percentage * circumference} ${circumference}`;
-              const strokeDashoffset = -cumulativeAngle * circumference;
-              cumulativeAngle += percentage;
+            (() => {
+              let angleAcc = 0;
+              return data.map((item, index) => {
+                const val = safeNum(item.value, 0);
+                const safeTotal = safeNum(total, 0);
+                if (val <= 0 || safeTotal <= 0) return null;
 
-              const isHovered = hoveredIndex === index;
-              const isSelected = selectedId === item.id;
+                const rawPercent = val / safeTotal;
+                const percentage = Number.isFinite(rawPercent) && rawPercent > 0 ? rawPercent : 0;
+                if (percentage <= 0) return null;
 
-              return (
-                <circle
-                  key={item.id}
-                  cx={center}
-                  cy={center}
-                  r={radius}
-                  fill="none"
-                  stroke={item.color}
-                  strokeWidth={isSelected ? strokeWidth + 9 : isHovered ? strokeWidth + 5 : strokeWidth}
-                  strokeDasharray={strokeDasharray}
-                  strokeDashoffset={strokeDashoffset}
-                  className="transition-all duration-200 cursor-pointer"
-                  style={{
-                    filter: isSelected || isHovered ? `drop-shadow(0 0 12px ${item.color})` : 'none',
-                    opacity: selectedId && !isSelected && hoveredIndex === null ? 0.45 : hoveredIndex !== null && !isHovered ? 0.6 : 1
-                  }}
-                  onMouseEnter={() => setHoveredIndex(index)}
-                  onMouseLeave={() => setHoveredIndex(null)}
-                  onClick={() => onSelectSlice(isSelected ? null : item.id)}
-                />
-              );
-            })
+                const dashLen = safeNum(percentage * circumference, 0);
+                const strokeDasharray = `${dashLen} ${safeNum(circumference, 471.24)}`;
+                const strokeDashoffset = safeNum(-angleAcc * circumference, 0);
+                angleAcc += percentage;
+
+                const isHovered = hoveredIndex === index;
+                const isSelected = selectedId === item.id;
+                const calculatedStrokeWidth = safeNum(isSelected ? strokeWidth + 9 : isHovered ? strokeWidth + 5 : strokeWidth, 26);
+
+                return (
+                  <circle
+                    key={`donut-slice-${item.id || index}`}
+                    cx={safeNum(center, 100)}
+                    cy={safeNum(center, 100)}
+                    r={safeNum(radius, 75)}
+                    fill="none"
+                    stroke={item.color || '#06b6d4'}
+                    strokeWidth={calculatedStrokeWidth}
+                    strokeDasharray={strokeDasharray}
+                    strokeDashoffset={strokeDashoffset}
+                    className="transition-all duration-200 cursor-pointer"
+                    style={{
+                      filter: isSelected || isHovered ? `drop-shadow(0 0 12px ${item.color})` : 'none',
+                      opacity: selectedId && !isSelected && hoveredIndex === null ? 0.45 : hoveredIndex !== null && !isHovered ? 0.6 : 1
+                    }}
+                    onMouseEnter={() => setHoveredIndex(index)}
+                    onMouseLeave={() => setHoveredIndex(null)}
+                    onClick={() => onSelectSlice(isSelected ? null : item.id)}
+                  />
+                );
+              });
+            })()
           )}
         </svg>
 
@@ -169,7 +184,7 @@ export const InteractivePieChartCard: React.FC<InteractivePieChartCardProps> = (
 
           return (
             <button
-              key={item.id}
+              key={`donut-legend-${item.id || index}`}
               type="button"
               onClick={() => onSelectSlice(isSelected ? null : item.id)}
               onMouseEnter={() => setHoveredIndex(index)}

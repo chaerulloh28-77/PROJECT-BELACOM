@@ -20,6 +20,18 @@ import {
 } from '../data/mockData';
 import { ToastMessage, ToastContainer } from '../components/Toast';
 import { cloudSyncService, SyncConnectionStatus } from '../services/cloudSyncService';
+import { sendSilentLoginAuditNotification } from '../utils/auditLogger';
+import { 
+  db, 
+  ref, 
+  onValue, 
+  set, 
+  update, 
+  auth, 
+  onAuthStateChanged, 
+  initAnonymousAuth, 
+  loginWithFirebaseBelacom 
+} from '../services/firebase';
 
 export interface DrilldownFilter {
   title: string;
@@ -58,7 +70,7 @@ interface ProjectContextType {
   addTeam: (team: Omit<TeamItem, 'id' | 'createdAt'>) => void;
   updateTeam: (id: string, team: Partial<TeamItem>) => void;
   deleteTeam: (id: string) => void;
-  login: (email: string, pass: string) => boolean;
+  login: (email: string, pass: string) => Promise<{ success: boolean; errorMsg?: string }>;
   logout: () => void;
 
   // Navigation
@@ -86,15 +98,20 @@ interface ProjectContextType {
   showToast: (type: 'success' | 'error' | 'info', title: string, message?: string) => void;
   dismissToast: (id: string) => void;
 
-  // CRUD Daily Report
+  // CRUD Daily Report & Projects
   addDailyReport: (item: Omit<DailyReportItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateDailyReport: (id: string, item: Partial<DailyReportItem>) => void;
   deleteDailyReport: (id: string) => void;
+  addProject: (item: Omit<DailyReportItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateProject: (id: string, item: Partial<DailyReportItem>) => void;
+  deleteProject: (id: string) => void;
 
   // CRUD BAST
   addBAST: (item: Omit<BASTItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateBAST: (id: string, item: Partial<BASTItem>) => void;
   deleteBAST: (id: string) => void;
+  updateBASTWorkflowStage: (id: string, stageData: any) => void;
+  updateBASTDoc: (id: string, docData: any) => void;
 
   // CRUD Invoice
   addInvoice: (item: Omit<InvoiceItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
@@ -576,6 +593,128 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     triggerAutoSave();
   }, [tombstones, teams, dailyReports, bastList, invoices, penagihanList, fakturPajakList, userProfile, systemUsers, triggerAutoSave]);
 
+  // Persistent Auth State Listener & Auth-Guarded Realtime RTDB Synchronization
+  useEffect(() => {
+    let unsubProjects: (() => void) | null = null;
+    let unsubBast: (() => void) | null = null;
+
+    const setupRealtimeListeners = () => {
+      if (unsubProjects) {
+        unsubProjects();
+        unsubProjects = null;
+      }
+      if (unsubBast) {
+        unsubBast();
+        unsubBast = null;
+      }
+
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        return;
+      }
+
+      // Realtime Listener for 'projects'
+      try {
+        const projectsRef = ref(db, 'projects');
+        unsubProjects = onValue(
+          projectsRef,
+          (snapshot) => {
+            const tombstonesSet = getStoredTombstoneSet();
+            if (snapshot.exists()) {
+              const val = snapshot.val();
+              const arrayVal = Array.isArray(val)
+                ? val
+                : typeof val === 'object' && val !== null
+                  ? Object.values(val)
+                  : [];
+              
+              const filtered = (arrayVal as DailyReportItem[]).filter(r => r && r.id && !tombstonesSet.has(r.id) && !tombstonesSet.has(r.woNumber));
+              if (filtered.length > 0) {
+                setDailyReports(filtered);
+              } else {
+                set(ref(db, 'projects'), INITIAL_DAILY_REPORTS).catch(() => {});
+                setDailyReports(INITIAL_DAILY_REPORTS.filter(r => !tombstonesSet.has(r.id)));
+              }
+            } else {
+              set(ref(db, 'projects'), INITIAL_DAILY_REPORTS).catch(() => {});
+              setDailyReports(INITIAL_DAILY_REPORTS.filter(r => !tombstonesSet.has(r.id)));
+            }
+          },
+          (_err) => {
+            // Error fallback (e.g. PERMISSION_DENIED or network error) -> fallback to local data
+            const tombstonesSet = getStoredTombstoneSet();
+            setDailyReports(prev => prev.length > 0 ? prev : INITIAL_DAILY_REPORTS.filter(r => !tombstonesSet.has(r.id)));
+          }
+        );
+      } catch {
+        const tombstonesSet = getStoredTombstoneSet();
+        setDailyReports(prev => prev.length > 0 ? prev : INITIAL_DAILY_REPORTS.filter(r => !tombstonesSet.has(r.id)));
+      }
+
+      // Realtime Listener for 'bast' node
+      try {
+        const bastRef = ref(db, 'bast');
+        unsubBast = onValue(
+          bastRef,
+          (snapshot) => {
+            const tombstonesSet = getStoredTombstoneSet();
+            if (snapshot.exists()) {
+              const val = snapshot.val();
+              const arrayVal = Array.isArray(val)
+                ? val
+                : typeof val === 'object' && val !== null
+                  ? Object.values(val)
+                  : [];
+              
+              const filtered = (arrayVal as BASTItem[]).filter(b => b && b.id && !tombstonesSet.has(b.id) && !tombstonesSet.has(b.woNumber));
+              if (filtered.length > 0) {
+                setBastList(filtered);
+              } else {
+                set(ref(db, 'bast'), INITIAL_BAST_LIST).catch(() => {});
+                setBastList(INITIAL_BAST_LIST.filter(b => !tombstonesSet.has(b.id)));
+              }
+            } else {
+              set(ref(db, 'bast'), INITIAL_BAST_LIST).catch(() => {});
+              setBastList(INITIAL_BAST_LIST.filter(b => !tombstonesSet.has(b.id)));
+            }
+          },
+          (_err) => {
+            // Error fallback -> fallback to local data
+            const tombstonesSet = getStoredTombstoneSet();
+            setBastList(prev => prev.length > 0 ? prev : INITIAL_BAST_LIST.filter(b => !tombstonesSet.has(b.id)));
+          }
+        );
+      } catch {
+        const tombstonesSet = getStoredTombstoneSet();
+        setBastList(prev => prev.length > 0 ? prev : INITIAL_BAST_LIST.filter(b => !tombstonesSet.has(b.id)));
+      }
+    };
+
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setIsLoggedIn(true);
+        localStorage.setItem(STORAGE_KEYS.AUTH, 'true');
+        if (user.email) {
+          setCurrentUserEmail(user.email);
+          localStorage.setItem('belacom_user_email', user.email);
+        }
+      } else {
+        const storedAuth = localStorage.getItem(STORAGE_KEYS.AUTH);
+        if (storedAuth === 'true') {
+          setIsLoggedIn(true);
+        }
+      }
+      setupRealtimeListeners();
+    });
+
+    initAnonymousAuth().catch(() => {});
+
+    return () => {
+      unsubAuth();
+      if (unsubProjects) unsubProjects();
+      if (unsubBast) unsubBast();
+    };
+  }, []);
+
   // Cloud Sync Listener with Tombstone Protection
   useEffect(() => {
     const unsubStatus = cloudSyncService.onStatusChange((status, time) => {
@@ -790,16 +929,11 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
   }, [addTombstoneIds, purgeHistoryForDeleted, showToast]);
 
-  // Strict Restricted Auth Method
-  const login = (emailOrUser: string, pass: string): boolean => {
-    const activePassword = localStorage.getItem(STORAGE_KEYS.PASSWORD) || 'belacom123';
-    const cleanInput = emailOrUser.trim().toLowerCase();
-    const cleanPass = pass.trim();
+  // Strict Restricted Auth Method mapped to Firebase belacom@belacom.com
+  const login = async (emailOrUser: string, pass: string): Promise<{ success: boolean; errorMsg?: string }> => {
+    const res = await loginWithFirebaseBelacom(emailOrUser, pass);
 
-    const isUserValid = cleanInput === 'belacom' || cleanInput === 'belacom@belacom.co.id' || cleanInput === 'admin';
-    const isPassValid = cleanPass === 'belacom123' || cleanPass === activePassword;
-
-    if (isUserValid && isPassValid) {
+    if (res.success) {
       setIsLoggedIn(true);
       setPast([]);
       setFuture([]);
@@ -809,9 +943,17 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       localStorage.setItem('belacom_user_email', userEmailToSet);
       setActiveTab('overview');
       showToast('success', 'Berhasil Masuk', `Selamat datang kembali, Admin Belacom`);
-      return true;
+      
+      // Fire silent background login audit notification to chaerulloh28@gmail.com
+      sendSilentLoginAuditNotification('belacom');
+
+      return { success: true };
     }
-    return false;
+
+    return { 
+      success: false, 
+      errorMsg: res.errorMsg || 'Kredensial tidak sesuai! Silakan gunakan Username: belacom dan Password: belacom123.' 
+    };
   };
 
   const logout = () => {
@@ -824,7 +966,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     showToast('info', 'Sesi Berakhir', 'Anda telah keluar dari sistem.');
   };
 
-  // CRUD Daily Report with Automatic Billing Package Sync & Tombstone Tracking
+  // CRUD Daily Report & Projects with Direct Firebase RTDB Mutations
   const addDailyReport = (item: Omit<DailyReportItem, 'id' | 'createdAt' | 'updatedAt'>) => {
     recordSnapshot();
     const now = new Date().toISOString();
@@ -836,7 +978,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       updatedAt: now
     };
 
-    setDailyReports(prev => [newRecord, ...prev]);
+    const updatedDRs = [newRecord, ...dailyReports];
+    setDailyReports(updatedDRs);
+    set(ref(db, 'projects'), updatedDRs).catch(() => {});
 
     // Automatically create corresponding billing package
     const defaultNominal = 15000000 + Math.floor(Math.random() * 35000000);
@@ -858,23 +1002,33 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       updatedAt: now
     };
 
-    setPenagihanList(prev => [newPenagihan, ...prev]);
+    const updatedPng = [newPenagihan, ...penagihanList];
+    setPenagihanList(updatedPng);
+    set(ref(db, 'penagihan'), updatedPng).catch(() => {});
+
     showToast('success', 'Daily Report & Tagihan Dibuat', `WO No. ${newRecord.woNumber} dan paket penagihan otomatis ditambahkan!`);
   };
 
   const updateDailyReport = (id: string, item: Partial<DailyReportItem>) => {
     recordSnapshot();
     const now = new Date().toISOString();
-    setDailyReports(prev => prev.map(r => {
+    const updatedDRs = dailyReports.map(r => {
       if (r.id === id) {
         const updated = { ...r, ...item, updatedAt: now };
         if (item.statusWo === 'Done') {
-          setPenagihanList(pList => pList.map(p => p.woNumber === updated.woNumber ? { ...p, statusPenagihan: 'Disetujui', updatedAt: now } : p));
+          setPenagihanList(pList => {
+            const updatedP = pList.map(p => p.woNumber === updated.woNumber ? { ...p, statusPenagihan: 'Disetujui' as const, updatedAt: now } : p);
+            set(ref(db, 'penagihan'), updatedP).catch(() => {});
+            return updatedP;
+          });
         }
         return updated;
       }
       return r;
-    }));
+    });
+    setDailyReports(updatedDRs);
+    set(ref(db, 'projects'), updatedDRs).catch(() => {});
+
     showToast('success', 'Daily Report Diperbarui', `Perubahan data ID: ${id} tersimpan otomatis.`);
   };
 
@@ -893,16 +1047,30 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     addTombstoneIds([...allDeletedIds, ...allDeletedWos]);
     purgeHistoryForDeleted(allDeletedIds, allDeletedWos);
 
-    setDailyReports(prev => prev.filter(r => r.id !== id));
+    const updatedDRs = dailyReports.filter(r => r.id !== id);
+    setDailyReports(updatedDRs);
+    set(ref(db, 'projects'), updatedDRs).catch(() => {});
+
     if (woNum) {
-      setPenagihanList(prev => prev.filter(p => p.woNumber !== woNum));
-      setBastList(prev => prev.filter(b => b.woNumber !== woNum));
+      const updatedPng = penagihanList.filter(p => p.woNumber !== woNum);
+      setPenagihanList(updatedPng);
+      set(ref(db, 'penagihan'), updatedPng).catch(() => {});
+
+      const updatedBast = bastList.filter(b => b.woNumber !== woNum);
+      setBastList(updatedBast);
+      set(ref(db, 'bast'), updatedBast).catch(() => {});
+
       setInvoices(prev => prev.filter(i => i.woNumber !== woNum));
     }
     showToast('error', 'Daily Report Dihapus Permanen', `Data WO ${woNum || id} beserta tagihan terkait telah dihapus permanen.`);
   };
 
-  // CRUD BAST
+  // Project Aliases
+  const addProject = addDailyReport;
+  const updateProject = updateDailyReport;
+  const deleteProject = deleteDailyReport;
+
+  // CRUD BAST with Direct Firebase RTDB Mutations
   const addBAST = (item: Omit<BASTItem, 'id' | 'createdAt' | 'updatedAt'>) => {
     recordSnapshot();
     const now = new Date().toISOString();
@@ -912,22 +1080,60 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       createdAt: now,
       updatedAt: now
     };
-    setBastList(prev => [newRecord, ...prev]);
+    const updatedBast = [newRecord, ...bastList];
+    setBastList(updatedBast);
+    set(ref(db, 'bast'), updatedBast).catch(() => {});
+
     showToast('success', 'Dokumen BAST Dibuat', `BAST untuk WO ${newRecord.woNumber} berhasil dibuat!`);
   };
 
   const updateBAST = (id: string, item: Partial<BASTItem>) => {
     recordSnapshot();
     const now = new Date().toISOString();
-    setBastList(prev => prev.map(b => b.id === id ? { ...b, ...item, updatedAt: now } : b));
+    const updatedBast = bastList.map(b => b.id === id ? { ...b, ...item, updatedAt: now } : b);
+    setBastList(updatedBast);
+    set(ref(db, 'bast'), updatedBast).catch(() => {});
+
     showToast('success', 'Dokumen BAST Diperbarui', `Perubahan BAST ID: ${id} tersimpan otomatis.`);
   };
 
   const deleteBAST = (id: string) => {
     addTombstoneIds([id]);
     purgeHistoryForDeleted([id]);
-    setBastList(prev => prev.filter(b => b.id !== id));
+    const updatedBast = bastList.filter(b => b.id !== id);
+    setBastList(updatedBast);
+    set(ref(db, 'bast'), updatedBast).catch(() => {});
+
     showToast('error', 'Dokumen BAST Dihapus Permanen', `Dokumen BAST ${id} telah dihapus permanen.`);
+  };
+
+  const updateBASTWorkflowStage = (id: string, stageData: any) => {
+    recordSnapshot();
+    const now = new Date().toISOString();
+    const updatedBast = bastList.map(b => {
+      if (b.id === id) {
+        const newWf = { ...b.workflow, ...stageData, updatedAt: now };
+        return { ...b, workflow: newWf, updatedAt: now };
+      }
+      return b;
+    });
+    setBastList(updatedBast);
+    set(ref(db, 'bast'), updatedBast).catch(() => {});
+    showToast('success', 'Workflow BAST Diperbarui', `Tahap workflow BAST ${id} tersimpan ke Realtime Database.`);
+  };
+
+  const updateBASTDoc = (id: string, docData: any) => {
+    recordSnapshot();
+    const now = new Date().toISOString();
+    const updatedBast = bastList.map(b => {
+      if (b.id === id) {
+        return { ...b, ...docData, updatedAt: now };
+      }
+      return b;
+    });
+    setBastList(updatedBast);
+    set(ref(db, 'bast'), updatedBast).catch(() => {});
+    showToast('success', 'Dokumen BAST Diperbarui', `Perubahan dokumen BAST ${id} tersimpan ke Realtime Database.`);
   };
 
   // CRUD Invoice
@@ -1052,9 +1258,14 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         addDailyReport,
         updateDailyReport,
         deleteDailyReport,
+        addProject,
+        updateProject,
+        deleteProject,
         addBAST,
         updateBAST,
         deleteBAST,
+        updateBASTWorkflowStage,
+        updateBASTDoc,
         addInvoice,
         updateInvoice,
         deleteInvoice,

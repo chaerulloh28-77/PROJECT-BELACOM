@@ -144,11 +144,15 @@ export const DashboardBASTRoutingPanel: React.FC<DashboardBASTRoutingPanelProps>
     };
   }, [safeBastList]);
 
-  // SVG Donut Chart Parameters
-  const radius = 75;
-  const strokeWidth = 26;
-  const center = 100;
-  const circumference = 2 * Math.PI * radius;
+  // SVG Donut Chart Parameters with Number.isFinite safety
+  const safeNum = (val: number | undefined | null, fallback = 0): number => {
+    return typeof val === 'number' && Number.isFinite(val) ? val : fallback;
+  };
+
+  const radius = safeNum(75, 75);
+  const strokeWidth = safeNum(26, 26);
+  const center = safeNum(100, 100);
+  const circumference = safeNum(2 * Math.PI * radius, 471.23889);
 
   // Active Hovered or Selected Slice
   const activeHoveredSlice = slicesData.find(s => s.id === hoveredSliceId);
@@ -258,38 +262,45 @@ export const DashboardBASTRoutingPanel: React.FC<DashboardBASTRoutingPanelProps>
             
             <div className="relative flex items-center justify-center">
               <svg viewBox="0 0 200 200" className="w-56 h-56 sm:w-64 sm:h-64 transform -rotate-90">
-                {total === 0 ? (
+                {safeNum(total, 0) === 0 ? (
                   <circle
-                    cx={center}
-                    cy={center}
-                    r={radius}
+                    cx={safeNum(center, 100)}
+                    cy={safeNum(center, 100)}
+                    r={safeNum(radius, 75)}
                     fill="none"
                     stroke="#334155"
-                    strokeWidth={strokeWidth}
+                    strokeWidth={safeNum(strokeWidth, 26)}
                   />
                 ) : (
                   (() => {
                     let angleAcc = 0;
-                    return slicesData.map((slice) => {
-                      if (slice.count === 0) return null;
-                      const percentage = slice.count / total;
-                      if (isNaN(percentage) || percentage <= 0) return null;
-                      const strokeDasharray = `${percentage * circumference} ${circumference}`;
-                      const strokeDashoffset = -angleAcc * circumference;
+                    return slicesData.map((slice, index) => {
+                      const count = safeNum(slice.count, 0);
+                      const safeTotal = safeNum(total, 0);
+                      if (count <= 0 || safeTotal <= 0) return null;
+
+                      const rawPercent = count / safeTotal;
+                      const percentage = Number.isFinite(rawPercent) && rawPercent > 0 ? rawPercent : 0;
+                      if (percentage <= 0) return null;
+
+                      const dashLen = safeNum(percentage * circumference, 0);
+                      const strokeDasharray = `${dashLen} ${safeNum(circumference, 471.24)}`;
+                      const strokeDashoffset = safeNum(-angleAcc * circumference, 0);
                       angleAcc += percentage;
 
                       const isHovered = hoveredSliceId === slice.id;
                       const isSelected = selectedStageFilter === slice.id;
+                      const calculatedStrokeWidth = safeNum(isSelected ? strokeWidth + 9 : isHovered ? strokeWidth + 5 : strokeWidth, 26);
 
                       return (
                         <circle
-                          key={slice.id}
-                          cx={center}
-                          cy={center}
-                          r={radius}
+                          key={`stage-${slice.id || index}`}
+                          cx={safeNum(center, 100)}
+                          cy={safeNum(center, 100)}
+                          r={safeNum(radius, 75)}
                           fill="none"
-                          stroke={slice.color}
-                          strokeWidth={isSelected ? strokeWidth + 9 : isHovered ? strokeWidth + 5 : strokeWidth}
+                          stroke={slice.color || '#06b6d4'}
+                          strokeWidth={calculatedStrokeWidth}
                           strokeDasharray={strokeDasharray}
                           strokeDashoffset={strokeDashoffset}
                           className="transition-all duration-200 cursor-pointer"
@@ -359,7 +370,7 @@ export const DashboardBASTRoutingPanel: React.FC<DashboardBASTRoutingPanelProps>
             </h5>
 
             <div className="space-y-2">
-              {slicesData.map((slice) => {
+              {slicesData.map((slice, index) => {
                 const percentage = total > 0 ? Math.round((slice.count / total) * 100) : 0;
                 const isHovered = hoveredSliceId === slice.id;
                 const isSelected = selectedStageFilter === slice.id;
@@ -367,7 +378,7 @@ export const DashboardBASTRoutingPanel: React.FC<DashboardBASTRoutingPanelProps>
 
                 return (
                   <button
-                    key={slice.id}
+                    key={`stage-legend-${slice.id || index}`}
                     type="button"
                     onClick={() => setSelectedStageFilter(isSelected ? 'ALL' : slice.id)}
                     onMouseEnter={() => setHoveredSliceId(slice.id)}
@@ -498,7 +509,7 @@ export const DashboardBASTRoutingPanel: React.FC<DashboardBASTRoutingPanelProps>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-sans">
-                {filteredBastItems.map((bast) => {
+                {filteredBastItems.map((bast, index) => {
                   const safeBast: BASTItem = {
                     ...bast,
                     workflow: bast.workflow || getDefaultBASTWorkflow(bast.woNumber)
@@ -539,7 +550,7 @@ export const DashboardBASTRoutingPanel: React.FC<DashboardBASTRoutingPanelProps>
                   }
 
                   return (
-                    <tr key={bast.id} className="hover:bg-slate-800/60 transition-colors group">
+                    <tr key={`bast-row-${bast.id || index}`} className="hover:bg-slate-800/60 transition-colors group">
                       
                       {/* Col 1: No. BAST & Ref WO */}
                       <td className="py-2.5 px-3 whitespace-nowrap">

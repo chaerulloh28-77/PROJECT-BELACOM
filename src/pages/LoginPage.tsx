@@ -17,13 +17,21 @@ export const LoginPage: React.FC = () => {
   const [secretKey, setSecretKey] = useState('');
   const [showSecret, setShowSecret] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
-    const success = login(username, secretKey);
-    if (!success) {
-      setErrorMsg('Kredensial tidak sesuai! Silakan gunakan Username: belacom dan Password: belacom123.');
+    setIsSubmitting(true);
+    try {
+      const res = await login(username, secretKey);
+      if (!res.success) {
+        setErrorMsg(res.errorMsg || 'Kredensial tidak sesuai! Silakan gunakan Username: belacom dan Password: belacom123.');
+      }
+    } catch {
+      setErrorMsg('Terjadi kesalahan saat otentikasi. Silakan periksa kembali kredensial Anda.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -111,11 +119,12 @@ export const LoginPage: React.FC = () => {
             type="submit"
             variant="primary"
             size="lg"
+            disabled={isSubmitting}
             className="w-full font-bold"
             icon={<ShieldCheck className="w-5 h-5" />}
             showFingerIcon
           >
-            Masuk ke System
+            {isSubmitting ? 'Memproses Otentikasi...' : 'Masuk ke System'}
           </TouchButton>
 
         </form>

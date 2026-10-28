@@ -253,7 +253,7 @@ export const TeamActivityPieChart: React.FC<TeamActivityPieChartProps> = ({
 
               return (
                 <circle
-                  key={item.label + index}
+                  key={`team-act-slice-${item.label || index}-${index}`}
                   cx={center}
                   cy={center}
                   r={radius}
@@ -325,7 +325,7 @@ export const TeamActivityPieChart: React.FC<TeamActivityPieChartProps> = ({
 
             return (
               <button
-                key={item.label + index}
+                key={`team-act-legend-${item.label || index}-${index}`}
                 type="button"
                 onClick={() => {
                   if (viewMode === 'team-status-drill') {

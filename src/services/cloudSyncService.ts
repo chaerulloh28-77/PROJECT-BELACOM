@@ -231,7 +231,7 @@ class CloudSyncService {
 
         this.notifyStatus('connected');
       } catch (err) {
-        console.warn('[CloudSync] Push error, saving to offline cache:', err);
+        // Silent push error handling
         this.queueOfflineChange(data);
         this.notifyStatus('offline');
       } finally {
@@ -294,7 +294,7 @@ class CloudSyncService {
             }
           }
         } catch (fetchErr) {
-          console.warn('[CloudSync] Firebase GET timeout or error:', fetchErr);
+          // Silent fetch error handling
         }
       }
 
@@ -353,7 +353,7 @@ class CloudSyncService {
             try {
               cb(cloudData!.data, cloudData!.lastUpdated);
             } catch (cbErr) {
-              console.warn('[CloudSync] subscriber callback error:', cbErr);
+              // Silent callback error handling
             }
           });
         }
@@ -380,7 +380,7 @@ class CloudSyncService {
     try {
       localStorage.setItem(STORAGE_KEYS.OFFLINE_QUEUE, JSON.stringify(data));
     } catch (e) {
-      console.warn('[CloudSync] Failed to save offline queue:', e);
+      // Silent queue error handling
     }
   }
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ProjectProvider, useProjectContext } from './context/ProjectContext';
 import { LoginPage } from './pages/LoginPage';
 import { Header } from './components/Header';
@@ -11,9 +11,15 @@ import { InvoicePage } from './pages/InvoicePage';
 import { FakturPajakPage } from './pages/FakturPajakPage';
 import { PenagihanPage } from './pages/PenagihanPage';
 import { UserSettingsPage } from './pages/UserSettingsPage';
+import { initAnonymousAuth } from './services/firebase';
 
 const MainApp: React.FC = () => {
   const { isLoggedIn, activeTab } = useProjectContext();
+
+  useEffect(() => {
+    // Initialize anonymous Firebase Auth on load so Realtime Database connection is authenticated (auth != null)
+    initAnonymousAuth().catch(() => {});
+  }, []);
 
   if (!isLoggedIn) {
     return <LoginPage />;

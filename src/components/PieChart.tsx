@@ -73,7 +73,7 @@ export const PieChart: React.FC<PieChartProps> = ({
 
               return (
                 <circle
-                  key={item.label}
+                  key={`pie-slice-${item.label || index}`}
                   cx={center}
                   cy={center}
                   r={radius}
@@ -114,7 +114,7 @@ export const PieChart: React.FC<PieChartProps> = ({
 
           return (
             <button
-              key={item.label}
+              key={`pie-legend-${item.label || index}`}
               type="button"
               onClick={() => onSliceClick && onSliceClick(item)}
               onMouseEnter={() => setHoveredIndex(index)}

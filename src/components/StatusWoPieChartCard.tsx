@@ -127,7 +127,7 @@ export const StatusWoPieChartCard: React.FC<StatusWoPieChartCardProps> = ({
 
               return (
                 <circle
-                  key={item.status}
+                  key={`status-wo-slice-${item.status || index}`}
                   cx={center}
                   cy={center}
                   r={radius}
@@ -192,7 +192,7 @@ export const StatusWoPieChartCard: React.FC<StatusWoPieChartCardProps> = ({
 
           return (
             <button
-              key={item.status}
+              key={`status-wo-legend-${item.status || index}`}
               type="button"
               onClick={() => onStatusClick && onStatusClick(item.status)}
               onMouseEnter={() => setHoveredIndex(index)}
