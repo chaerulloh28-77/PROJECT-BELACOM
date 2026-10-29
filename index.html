@@ -1,6 +1,21 @@
 <!doctype html>
 <html lang="id">
   <head>
+    <script>
+      window.addEventListener('unhandledrejection', function(event) {
+        var reason = event.reason && (event.reason.message || event.reason.toString());
+        if (reason && (reason.includes('WebSocket') || reason.includes('websocket') || reason.includes('HMR'))) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      });
+      window.addEventListener('error', function(event) {
+        if (event.message && (event.message.includes('WebSocket') || event.message.includes('websocket'))) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      });
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Belacom Project - Telecom Operations</title>

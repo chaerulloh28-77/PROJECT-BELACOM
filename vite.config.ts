@@ -16,14 +16,8 @@ export default defineConfig(() => {
       host: '0.0.0.0',
       port: 3000,
       strictPort: true,
-      hmr: process.env.DISABLE_HMR === 'true' ? false : {
-        protocol: 'wss',
-        clientPort: 443,
-      },
-      watch: process.env.DISABLE_HMR === 'true' ? null : {
-        usePolling: true,
-        interval: 1000,
-      },
+      hmr: false as const,
+      ws: false as const,
     },
   };
 });
