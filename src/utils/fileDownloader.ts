@@ -37,7 +37,7 @@ export function buildPdfRawContent(fileName: string, extraNote?: string): string
   const downloadDate = new Date().toLocaleString('id-ID');
 
   const pdf = `%PDF-1.5
-%Dokumen Resmi Controlling Project Belacom & Citratel
+%Dokumen Resmi Controlling Belacom Project & Citratel
 1 0 obj
 <<
   /Type /Catalog
@@ -96,7 +96,7 @@ BT
 0 -24 Td
 (Dokumen ini merupakan lampiran digital sah yang diunggah melalui) Tj
 0 -16 Td
-(Aplikasi Controlling Project Belacom untuk pengajuan sistem SAP.) Tj
+(Aplikasi Controlling Belacom Project untuk pengajuan sistem SAP.) Tj
 ET
 endstream
 endobj

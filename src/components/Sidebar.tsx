@@ -3,7 +3,6 @@ import {
   LayoutDashboard, 
   ClipboardList, 
   ShieldCheck, 
-  ReceiptText, 
   WalletCards,
   CreditCard,
   ChevronDown,
@@ -36,10 +35,9 @@ export const Sidebar: React.FC = () => {
     activeTab === 'daily-report' ||
     activeTab === 'dashboard-tagihan' ||
     activeTab === 'bast' ||
-    activeTab === 'invoice' ||
     activeTab === 'penagihan';
 
-  const totalTagihanItems = dailyReports.length + penagihanList.length + invoices.length + bastList.length;
+  const totalTagihanItems = dailyReports.length + penagihanList.length + bastList.length;
 
   return (
     <aside className="w-full lg:w-64 bg-slate-900 border-b lg:border-b-0 lg:border-r border-slate-800 shrink-0 select-none">
@@ -154,10 +152,13 @@ export const Sidebar: React.FC = () => {
             )}
           </div>
 
-          {/* 2. Project Management (Sub-items: Daily Report, BAST, Invoice, RFS, Paket Penagihan) */}
+          {/* 2. Project Management (Sub-items: Daily Report, BAST, Tagihan) */}
           <div className="flex flex-col gap-1">
             <button
               onClick={() => {
+                if (activeTab !== 'daily-report' && activeTab !== 'bast' && activeTab !== 'penagihan') {
+                  setActiveTab('daily-report');
+                }
                 setIsTagihanExpanded(prev => !prev);
               }}
               className={`flex items-center justify-between gap-3 px-3.5 py-3 rounded-xl font-medium text-xs lg:text-sm transition-all duration-200 select-none cursor-pointer whitespace-nowrap lg:whitespace-normal group active:scale-95 relative overflow-hidden ${
@@ -230,25 +231,7 @@ export const Sidebar: React.FC = () => {
                   </span>
                 </button>
 
-                {/* 3. Sub-item: Invoice */}
-                <button
-                  onClick={() => setActiveTab('invoice')}
-                  className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                    activeTab === 'invoice'
-                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <ReceiptText className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Invoice</span>
-                  </div>
-                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-950 text-amber-400 border border-slate-800">
-                    {invoices.length}
-                  </span>
-                </button>
-
-                {/* 4. Sub-item: Tagihan */}
+                {/* 3. Sub-item: Tagihan */}
                 <button
                   onClick={() => setActiveTab('penagihan')}
                   className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${

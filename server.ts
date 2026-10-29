@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { handleGetCloudSync, handlePostCloudSync, handleGetSyncStatus } from './api/cloud-sync.js';
+import { handleLoginNotify } from './api/audit-notify.js';
 
 dotenv.config();
 
@@ -22,6 +23,12 @@ async function startServer() {
   app.post('/api/sync/data', handlePostCloudSync);
   app.get('/api/sync/status', handleGetSyncStatus);
 
+  // API Route: Security Audit & Email Notification Dispatcher
+  app.post('/api/audit-notify', handleLoginNotify);
+  app.get('/api/audit-notify', handleLoginNotify);
+  app.post('/api/audit/login-notify', handleLoginNotify);
+  app.get('/api/audit/login-notify', handleLoginNotify);
+
   // Health check endpoint
   app.get('/api/health', (_req, res) => {
     res.json({
@@ -40,7 +47,11 @@ async function startServer() {
   } else {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: false,
+        ws: false,
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);

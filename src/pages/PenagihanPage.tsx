@@ -7,7 +7,8 @@ import {
   Search, 
   X,
   Eye,
-  FileText
+  FileText,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useProjectContext } from '../context/ProjectContext';
 import { PenagihanItem, StatusPenagihan, PDFFileMeta } from '../types';
@@ -15,6 +16,7 @@ import { TouchButton } from '../components/TouchButton';
 import { PDFUploader } from '../components/PDFUploader';
 import { PDFViewerModal } from '../components/PDFViewerModal';
 import { DeleteConfirmModal } from '../components/DeleteConfirmModal';
+import { exportPenagihanToExcel, exportSinglePenagihanToExcel } from '../utils/excelExportWithImages';
 
 export const PenagihanPage: React.FC = () => {
   const { penagihanList, addPenagihan, updatePenagihan, deletePenagihan, showToast, dailyReports } = useProjectContext();
@@ -30,10 +32,10 @@ export const PenagihanPage: React.FC = () => {
   const [formData, setFormData] = useState<Omit<PenagihanItem, 'id' | 'createdAt' | 'updatedAt'>>({
     billingCode: 'TAG/BEL/2026/10-003',
     woNumber: 'WO-BEL-2026-0082',
+    tanggalSubmit: new Date().toISOString().substring(0, 10),
     statusPenagihan: 'Dalam Review',
     invoicePdf: undefined,
     bastPdf: undefined,
-    kwitansiPdf: undefined,
     apdPdf: undefined,
     abdPdf: undefined,
     coreConnectionPdf: undefined,
@@ -50,10 +52,10 @@ export const PenagihanPage: React.FC = () => {
     setFormData({
       billingCode: `TAG/BEL/2026/10-${Math.floor(100 + Math.random() * 900)}`,
       woNumber: `WO-BEL-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+      tanggalSubmit: new Date().toISOString().substring(0, 10),
       statusPenagihan: 'Dalam Review',
       invoicePdf: undefined,
       bastPdf: undefined,
-      kwitansiPdf: undefined,
       apdPdf: undefined,
       abdPdf: undefined,
       coreConnectionPdf: undefined,
@@ -69,7 +71,10 @@ export const PenagihanPage: React.FC = () => {
 
   const handleOpenEditModal = (p: PenagihanItem) => {
     setEditingId(p.id);
-    setFormData({ ...p });
+    setFormData({
+      ...p,
+      tanggalSubmit: p.tanggalSubmit || new Date().toISOString().substring(0, 10)
+    });
     setIsModalOpen(true);
   };
 
@@ -114,15 +119,29 @@ export const PenagihanPage: React.FC = () => {
           <p className="text-xs text-slate-400">Verifikasi Komponen Berkas Penagihan Lengkap Kepada Klien</p>
         </div>
 
-        <TouchButton
-          variant="primary"
-          size="md"
-          icon={<Plus className="w-5 h-5" />}
-          onClick={handleOpenAddModal}
-          showFingerIcon
-        >
-          + Buat Tagihan
-        </TouchButton>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <TouchButton
+            variant="success"
+            size="sm"
+            icon={<FileSpreadsheet className="w-4 h-4" />}
+            onClick={() => {
+              exportPenagihanToExcel(filteredPenagihan);
+              showToast('success', 'Rekap Excel Penagihan Diunduh', 'Rekap Excel 9 berkas penagihan berhasil diunduh dalam format .xlsx!');
+            }}
+          >
+            Export Rekap Berkas Penagihan (.xlsx)
+          </TouchButton>
+
+          <TouchButton
+            variant="primary"
+            size="md"
+            icon={<Plus className="w-5 h-5" />}
+            onClick={handleOpenAddModal}
+            showFingerIcon
+          >
+            + Buat Tagihan
+          </TouchButton>
+        </div>
       </div>
 
       {/* Search */}
@@ -162,7 +181,8 @@ export const PenagihanPage: React.FC = () => {
                       <span className="text-slate-500 font-mono text-[11px]">#{index + 1}</span>
                       <div>
                         <span className="font-bold text-cyan-400 font-mono block">{penagihan.billingCode}</span>
-                        <span className="text-[10px] text-slate-500 font-mono">Ref WO: {penagihan.woNumber}</span>
+                        <span className="text-[10px] text-slate-500 font-mono block">Ref WO: {penagihan.woNumber}</span>
+                        <span className="text-[10px] text-emerald-400 font-mono block">Tgl Submit: {penagihan.tanggalSubmit || penagihan.createdAt?.substring(0, 10) || '-'}</span>
                       </div>
                     </div>
                   </td>
@@ -180,19 +200,14 @@ export const PenagihanPage: React.FC = () => {
 
                   <td className="py-2.5 px-3 font-mono">
                     <div className="flex flex-wrap gap-1 text-[10px] max-w-xs">
-                      {penagihan.invoicePdf && (
-                        <button onClick={() => setPreviewPdf(penagihan.invoicePdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat Invoice PDF">
-                          <Eye className="w-3 h-3 text-cyan-400" /> Inv
+                      {(penagihan.invoicePdf || penagihan.kwitansiPdf) && (
+                        <button onClick={() => setPreviewPdf(penagihan.invoicePdf || penagihan.kwitansiPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat Invoice / Kwitansi PDF">
+                          <Eye className="w-3 h-3 text-cyan-400" /> Inv / Kwitansi
                         </button>
                       )}
                       {penagihan.bastPdf && (
                         <button onClick={() => setPreviewPdf(penagihan.bastPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat BAST PDF">
                           <Eye className="w-3 h-3 text-cyan-400" /> BAST
-                        </button>
-                      )}
-                      {penagihan.kwitansiPdf && (
-                        <button onClick={() => setPreviewPdf(penagihan.kwitansiPdf!)} className="px-1.5 py-0.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat Kwitansi Document">
-                          <FileText className="w-3 h-3 text-emerald-400" /> Kwitansi
                         </button>
                       )}
                       {penagihan.apdPdf && (
@@ -247,6 +262,16 @@ export const PenagihanPage: React.FC = () => {
                   <td className="py-2.5 px-3 text-right">
                     <div className="flex items-center justify-end gap-1.5">
                       <button
+                        onClick={() => {
+                          exportSinglePenagihanToExcel(penagihan);
+                          showToast('success', 'Excel Tagihan Diunduh', `Berkas penagihan ${penagihan.billingCode} berhasil diunduh dalam format .xlsx!`);
+                        }}
+                        className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 cursor-pointer transition-colors"
+                        title="Download Excel Dokumen Tagihan Ini"
+                      >
+                        <FileSpreadsheet className="w-3.5 h-3.5" />
+                      </button>
+                      <button
                         onClick={() => handleOpenEditModal(penagihan)}
                         className="p-1.5 rounded-lg bg-slate-800 text-cyan-400 hover:bg-cyan-500/20 cursor-pointer"
                         title="Edit Penagihan"
@@ -286,7 +311,7 @@ export const PenagihanPage: React.FC = () => {
 
             <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-5">
               
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-slate-300 block mb-1">Kode Penagihan</label>
                   <input
@@ -299,12 +324,23 @@ export const PenagihanPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1">3. WO Ref Number</label>
+                  <label className="text-xs font-semibold text-slate-300 block mb-1">WO Ref Number</label>
                   <input
                     type="text"
                     required
                     value={formData.woNumber}
                     onChange={(e) => setFormData(p => ({ ...p, woNumber: e.target.value }))}
+                    className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 block mb-1">Tanggal Submit</label>
+                  <input
+                    type="date"
+                    required
+                    value={formData.tanggalSubmit || new Date().toISOString().substring(0, 10)}
+                    onChange={(e) => setFormData(p => ({ ...p, tanggalSubmit: e.target.value }))}
                     className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none font-mono"
                   />
                 </div>
@@ -332,16 +368,15 @@ export const PenagihanPage: React.FC = () => {
                 </h4>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <PDFUploader label="1. Invoice" value={formData.invoicePdf} onChange={(f) => setFormData(p => ({ ...p, invoicePdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
+                  <PDFUploader label="1. Invoice / Kwitansi" value={formData.invoicePdf} onChange={(f) => setFormData(p => ({ ...p, invoicePdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
                   <PDFUploader label="2. BAST" value={formData.bastPdf} onChange={(f) => setFormData(p => ({ ...p, bastPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="3. Kwitansi" value={formData.kwitansiPdf} onChange={(f) => setFormData(p => ({ ...p, kwitansiPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="4. APD" value={formData.apdPdf} onChange={(f) => setFormData(p => ({ ...p, apdPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="5. ABD" value={formData.abdPdf} onChange={(f) => setFormData(p => ({ ...p, abdPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="6. Core Connection" value={formData.coreConnectionPdf} onChange={(f) => setFormData(p => ({ ...p, coreConnectionPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="7. Foto Dokumentasi" value={formData.fotoDokumentasiPdf} onChange={(f) => setFormData(p => ({ ...p, fotoDokumentasiPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="9. Purchase Order (PO)" value={formData.poPdf} onChange={(f) => setFormData(p => ({ ...p, poPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="10. Data Material" value={formData.dataMaterialPdf} onChange={(f) => setFormData(p => ({ ...p, dataMaterialPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="11. BOQ" value={formData.boqPdf} onChange={(f) => setFormData(p => ({ ...p, boqPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
+                  <PDFUploader label="3. APD" value={formData.apdPdf} onChange={(f) => setFormData(p => ({ ...p, apdPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
+                  <PDFUploader label="4. ABD" value={formData.abdPdf} onChange={(f) => setFormData(p => ({ ...p, abdPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
+                  <PDFUploader label="5. Core Connection" value={formData.coreConnectionPdf} onChange={(f) => setFormData(p => ({ ...p, coreConnectionPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
+                  <PDFUploader label="6. Foto Dokumentasi" value={formData.fotoDokumentasiPdf} onChange={(f) => setFormData(p => ({ ...p, fotoDokumentasiPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
+                  <PDFUploader label="7. Purchase Order (PO)" value={formData.poPdf} onChange={(f) => setFormData(p => ({ ...p, poPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
+                  <PDFUploader label="8. Data Material" value={formData.dataMaterialPdf} onChange={(f) => setFormData(p => ({ ...p, dataMaterialPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
+                  <PDFUploader label="9. BOQ" value={formData.boqPdf} onChange={(f) => setFormData(p => ({ ...p, boqPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
                 </div>
               </div>
 
@@ -366,13 +401,31 @@ export const PenagihanPage: React.FC = () => {
                 />
               </div>
 
-              <div className="pt-4 border-t border-slate-800 flex justify-end gap-2">
-                <TouchButton variant="secondary" size="md" type="button" onClick={() => setIsModalOpen(false)}>
-                  Batal
-                </TouchButton>
-                <TouchButton variant="primary" size="md" type="submit" showFingerIcon>
-                  Simpan Paket Penagihan
-                </TouchButton>
+              <div className="pt-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  {editingId && (
+                    <TouchButton
+                      variant="success"
+                      size="md"
+                      type="button"
+                      icon={<FileSpreadsheet className="w-4 h-4" />}
+                      onClick={() => {
+                        exportSinglePenagihanToExcel({ id: editingId, ...formData } as PenagihanItem);
+                        showToast('success', 'Excel Tagihan Diunduh', `Berkas penagihan ${formData.billingCode} berhasil diunduh!`);
+                      }}
+                    >
+                      Export Excel Tagihan Ini (.xlsx)
+                    </TouchButton>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <TouchButton variant="secondary" size="md" type="button" onClick={() => setIsModalOpen(false)}>
+                    Batal
+                  </TouchButton>
+                  <TouchButton variant="primary" size="md" type="submit" showFingerIcon>
+                    Simpan Paket Penagihan
+                  </TouchButton>
+                </div>
               </div>
 
             </form>

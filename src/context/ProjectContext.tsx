@@ -210,21 +210,9 @@ export function safeSetLocalStorage(key: string, value: any): void {
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
 export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Auth state
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem(STORAGE_KEYS.AUTH) === 'true';
-    } catch {
-      return false;
-    }
-  });
-  const [currentUserEmail, setCurrentUserEmail] = useState<string>(() => {
-    try {
-      return localStorage.getItem('belacom_user_email') || 'belacom@belacom.co.id';
-    } catch {
-      return 'belacom@belacom.co.id';
-    }
-  });
+  // Auth state: always starts as false on fresh entry so every link or shortcut access lands on LoginPage
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string>('belacom@belacom.co.id');
 
   // Tombstone Tracking for Anti-Reappearance of Deleted Data
   const [tombstones, setTombstones] = useState<string[]>(() => {
@@ -655,20 +643,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     };
 
-    const unsubAuth = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setIsLoggedIn(true);
-        localStorage.setItem(STORAGE_KEYS.AUTH, 'true');
-        if (user.email) {
-          setCurrentUserEmail(user.email);
-          localStorage.setItem('belacom_user_email', user.email);
-        }
-      } else {
-        const storedAuth = localStorage.getItem(STORAGE_KEYS.AUTH);
-        if (storedAuth === 'true') {
-          setIsLoggedIn(true);
-        }
-      }
+    const unsubAuth = onAuthStateChanged(auth, () => {
+      // Background transport auth for Realtime DB; human authentication is handled strictly via LoginPage
       setupRealtimeListeners();
     });
 
@@ -905,8 +881,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setFuture([]);
       const userEmailToSet = 'belacom@belacom.co.id';
       setCurrentUserEmail(userEmailToSet);
-      localStorage.setItem(STORAGE_KEYS.AUTH, 'true');
-      localStorage.setItem('belacom_user_email', userEmailToSet);
       setActiveTab('overview');
       showToast('success', 'Berhasil Masuk', `Selamat datang kembali, Admin Belacom`);
       
@@ -927,8 +901,13 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setCurrentUserEmail('');
     setPast([]);
     setFuture([]);
-    localStorage.removeItem(STORAGE_KEYS.AUTH);
-    localStorage.removeItem('belacom_user_email');
+    try {
+      localStorage.removeItem(STORAGE_KEYS.AUTH);
+      localStorage.removeItem('belacom_auth_status');
+      localStorage.removeItem('belacom_user_email');
+    } catch {
+      // ignore
+    }
     showToast('info', 'Sesi Berakhir', 'Anda telah keluar dari sistem.');
   };
 

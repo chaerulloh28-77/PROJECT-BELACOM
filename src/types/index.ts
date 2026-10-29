@@ -44,6 +44,12 @@ export interface PhotoDocumentation {
   otdrPdf?: PDFFileMeta;
 }
 
+export interface PendingLogEntry {
+  pendingAt: string;   // Timestamp ISO saat diubah ke Pending
+  resumedAt?: string;  // Timestamp ISO saat dilanjutkan kembali
+  pendingDays?: number; // Jumlah hari jeda
+}
+
 export interface DailyReportItem {
   id: string;
   woType: WOOption;
@@ -66,6 +72,7 @@ export interface DailyReportItem {
   pathLengthMeters: number;
   documentation: PhotoDocumentation;
   remarks: string;
+  pendingLogs?: PendingLogEntry[];
   // Tagging End to End Location
   originLocation?: string;
   originCoordinates?: string;
@@ -191,6 +198,7 @@ export interface PenagihanItem {
   id: string;
   billingCode: string;
   woNumber: string;
+  tanggalSubmit?: string; // Format YYYY-MM-DD
   statusPenagihan: StatusPenagihan;
   invoicePdf?: PDFFileMeta;
   bastPdf?: PDFFileMeta;

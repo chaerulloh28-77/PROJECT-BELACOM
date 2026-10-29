@@ -134,67 +134,92 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
       {value ? (
         <div
           onClick={() => onPreview && onPreview(value)}
-          className="h-11 px-2.5 bg-slate-900/90 hover:bg-slate-800/90 hover:border-cyan-500/50 rounded-xl border border-slate-700/80 flex items-center justify-between gap-2 transition-all cursor-pointer group"
+          className="group relative rounded-2xl border border-slate-700/80 bg-slate-900/90 hover:border-cyan-400/80 transition-all overflow-hidden cursor-pointer shadow-xl p-2.5 flex flex-col gap-2 font-sans"
         >
-          <div className="flex items-center gap-2 overflow-hidden">
-            {isImageOrVisual && previewImageSrc ? (
+          {/* Large Preview Container (min-h 220px) */}
+          <div className="w-full h-48 sm:h-56 bg-slate-950 rounded-xl overflow-hidden flex items-center justify-center relative border border-slate-800/90 shadow-inner group-hover:border-cyan-500/40 transition-colors">
+            {previewImageSrc ? (
               <img
                 src={previewImageSrc}
                 alt={value.name}
-                className="w-7 h-7 rounded-md object-cover border border-slate-700 shrink-0 bg-slate-950"
+                className="w-full h-full object-contain p-1.5 group-hover:scale-105 transition-transform duration-300"
               />
             ) : (
-              <div className="w-7 h-7 rounded-md bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
-                <FileText className="w-3.5 h-3.5 text-cyan-400" />
+              <div className="flex flex-col items-center justify-center p-4 text-slate-400 space-y-2">
+                <div className="p-3 rounded-2xl bg-slate-900 border border-slate-800 text-cyan-400">
+                  <FileText className="w-10 h-10" />
+                </div>
+                <span className="text-xs font-mono font-bold text-slate-300 text-center truncate max-w-xs">
+                  {value.name}
+                </span>
+                <span className="text-[10px] font-mono text-cyan-400/80 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800/50">
+                  {ext || 'DOKUMEN PDF'}
+                </span>
               </div>
             )}
-            <span
-              className="text-xs font-medium text-slate-200 group-hover:text-cyan-300 transition-colors truncate"
-              title={value.name}
-            >
-              {value.name}
-            </span>
+
+            {/* Hover Fullscreen Lightbox Overlay */}
+            <div className="absolute inset-0 bg-slate-950/70 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-center gap-2 backdrop-blur-[2px]">
+              <div className="p-2.5 rounded-full bg-cyan-500 text-slate-950 shadow-glow animate-bounce">
+                <Eye className="w-6 h-6" />
+              </div>
+              <span className="px-3 py-1 rounded-xl bg-slate-900/90 text-cyan-300 font-mono text-xs font-bold border border-cyan-500/40 shadow-xl">
+                🔍 Klik untuk Buka Foto Ukuran Penuh
+              </span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-1 shrink-0">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (onPreview) onPreview(value);
-              }}
-              className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 transition-colors cursor-pointer"
-              title="Lihat / Preview"
-              aria-label={`Lihat ${value.name}`}
-            >
-              <Eye className="w-3.5 h-3.5" />
-            </button>
+          {/* Card Footer Details & Actions */}
+          <div className="flex items-center justify-between gap-2 px-1 pt-0.5">
+            <div className="overflow-hidden">
+              <span
+                className="text-xs font-bold text-slate-200 group-hover:text-cyan-300 transition-colors block truncate font-mono"
+                title={value.name}
+              >
+                {value.name}
+              </span>
+              <span className="text-[10px] text-slate-400 font-mono block">
+                {value.uploadDate} · {value.sizeBytes ? `${(value.sizeBytes / 1024).toFixed(1)} KB` : 'Dokumen Valid'}
+              </span>
+            </div>
 
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                fileInputRef.current?.click();
-              }}
-              className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer"
-              title="Ganti File"
-              aria-label={`Ganti ${value.name}`}
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onPreview) onPreview(value);
+                }}
+                className="px-2.5 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-mono text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                title="Lihat ukuran penuh"
+              >
+                <Eye className="w-3.5 h-3.5" /> Full
+              </button>
 
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onChange(undefined);
-              }}
-              className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-colors cursor-pointer"
-              title="Hapus File"
-              aria-label={`Hapus ${value.name}`}
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  fileInputRef.current?.click();
+                }}
+                className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer"
+                title="Ganti Berkas"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onChange(undefined);
+                }}
+                className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-colors cursor-pointer"
+                title="Hapus Berkas"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </div>
       ) : (
@@ -202,16 +227,28 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
-          className="h-11 px-3 border border-dashed border-slate-700/80 hover:border-cyan-500/60 rounded-xl bg-slate-900/50 hover:bg-slate-800/60 flex items-center justify-center gap-2 text-slate-400 hover:text-cyan-400 transition-all cursor-pointer group"
+          className="h-32 sm:h-36 px-4 border-2 border-dashed border-slate-700/80 hover:border-cyan-500/80 rounded-2xl bg-slate-950/60 hover:bg-slate-900/80 flex flex-col items-center justify-center gap-2 text-slate-400 hover:text-cyan-400 transition-all cursor-pointer group shadow-inner"
         >
           {isLoading ? (
-            <Loader2 className="w-4 h-4 animate-spin text-cyan-400 shrink-0" />
+            <div className="flex flex-col items-center gap-2">
+              <Loader2 className="w-7 h-7 animate-spin text-cyan-400" />
+              <span className="text-xs font-mono text-cyan-400 font-bold">Memproses Berkas...</span>
+            </div>
           ) : (
-            <UploadCloud className="w-4 h-4 shrink-0 text-slate-400 group-hover:text-cyan-400 transition-colors" />
+            <>
+              <div className="p-2.5 rounded-xl bg-slate-900 group-hover:bg-cyan-500/10 border border-slate-800 group-hover:border-cyan-500/30 transition-colors text-slate-400 group-hover:text-cyan-400">
+                <UploadCloud className="w-6 h-6" />
+              </div>
+              <div className="text-center">
+                <span className="text-xs font-bold text-slate-300 group-hover:text-cyan-300 block">
+                  Unggah Berkas / Foto {label}
+                </span>
+                <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
+                  Drag & Drop atau Klik (PNG, JPG, WEBP, PDF s/d {maxSizeMB}MB)
+                </span>
+              </div>
+            </>
           )}
-          <span className="text-xs font-medium tracking-wide">
-            {isLoading ? 'Uploading...' : 'Upload here'}
-          </span>
         </div>
       )}
 

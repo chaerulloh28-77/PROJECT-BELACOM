@@ -21,7 +21,8 @@ import {
   TeamCode, 
   StatusWO, 
   StatusTeamProject, 
-  PDFFileMeta 
+  PDFFileMeta,
+  PendingLogEntry 
 } from '../types';
 import { TouchButton } from '../components/TouchButton';
 import { PDFUploader } from '../components/PDFUploader';
@@ -117,6 +118,7 @@ export const DailyReportPage: React.FC = () => {
       otdrPdf: undefined
     },
     remarks: '',
+    pendingLogs: [],
     originLocation: '',
     originCoordinates: '',
     originPhotoFile: undefined,
@@ -173,6 +175,7 @@ export const DailyReportPage: React.FC = () => {
       pathLengthMeters: 1980,
       documentation: {},
       remarks: '',
+      pendingLogs: [],
       originLocation: '',
       originCoordinates: '',
       originPhotoFile: undefined,
@@ -194,6 +197,7 @@ export const DailyReportPage: React.FC = () => {
     setFormData({
       ...report,
       durationDays: calculatedDur,
+      pendingLogs: report.pendingLogs || [],
       originLocation: report.originLocation || '',
       originCoordinates: report.originCoordinates || '',
       originPhotoFile: report.originPhotoFile,
@@ -318,6 +322,106 @@ export const DailyReportPage: React.FC = () => {
     }
   };
 
+  const handleStatusWoChange = (newStatus: StatusWO) => {
+    const oldStatus = formData.statusWo;
+    if (oldStatus === newStatus) return;
+
+    const now = new Date();
+    const todayStr = now.toISOString().substring(0, 10);
+    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    const timestampStr = `${todayStr} ${timeStr}`;
+
+    let updatedFinishDate = formData.finishDate;
+    let updatedDurationDays = formData.durationDays;
+    let updatedPendingLogs = [...(formData.pendingLogs || [])];
+    let logEntryText = '';
+
+    if (newStatus === 'Pending') {
+      // 2a & 2c: Status WO diubah ke Pending (Single atau Multi-Pending)
+      updatedFinishDate = todayStr;
+      const activeWorkDays = calculateWorkDays(formData.startDate, todayStr) || 1;
+      updatedDurationDays = activeWorkDays;
+
+      const newPendingEntry: PendingLogEntry = {
+        pendingAt: now.toISOString()
+      };
+      updatedPendingLogs.push(newPendingEntry);
+
+      const pendingCount = updatedPendingLogs.length;
+
+      if (pendingCount === 1) {
+        logEntryText = `[${timestampStr}] SISTEM: Status WO diubah ke PENDING. Durasi kerja berjalan sebelum jeda: ${activeWorkDays} hari.`;
+      } else {
+        const totalPrevPendingDays = updatedPendingLogs
+          .slice(0, pendingCount - 1)
+          .reduce((sum, item) => sum + (item.pendingDays || 0), 0);
+
+        logEntryText = `[${timestampStr}] SISTEM (Pending #${pendingCount}): Status WO kembali PENDING. Akumulasi masa jeda sebelumnya: ${totalPrevPendingDays} hari.`;
+      }
+
+    } else if (newStatus === 'In Progress') {
+      // 2b: Status WO diubah kembali ke In Progress
+      const openLogIndex = updatedPendingLogs.findIndex(l => !l.resumedAt);
+      let pendingDaysForThisSession = 1;
+
+      if (openLogIndex !== -1) {
+        const openLog = updatedPendingLogs[openLogIndex];
+        const pendingStartStr = openLog.pendingAt.substring(0, 10);
+        pendingDaysForThisSession = calculateWorkDays(pendingStartStr, todayStr) || 1;
+
+        updatedPendingLogs[openLogIndex] = {
+          pendingAt: openLog.pendingAt,
+          resumedAt: now.toISOString(),
+          pendingDays: pendingDaysForThisSession
+        };
+      } else if (updatedPendingLogs.length > 0) {
+        pendingDaysForThisSession = updatedPendingLogs[updatedPendingLogs.length - 1].pendingDays || 1;
+      }
+
+      updatedFinishDate = '';
+
+      logEntryText = `[${timestampStr}] SISTEM: Pekerjaan dilanjutkan kembali (IN PROGRESS). Total masa jeda: ${pendingDaysForThisSession} hari.`;
+
+    } else if (newStatus === 'Done') {
+      // 2d: Status WO diubah ke Done
+      updatedFinishDate = todayStr;
+
+      // Close open pending log if any
+      const openLogIndex = updatedPendingLogs.findIndex(l => !l.resumedAt);
+      if (openLogIndex !== -1) {
+        const openLog = updatedPendingLogs[openLogIndex];
+        const pendingStartStr = openLog.pendingAt.substring(0, 10);
+        const pendingDaysForThisSession = calculateWorkDays(pendingStartStr, todayStr) || 1;
+        updatedPendingLogs[openLogIndex] = {
+          pendingAt: openLog.pendingAt,
+          resumedAt: now.toISOString(),
+          pendingDays: pendingDaysForThisSession
+        };
+      }
+
+      const totalRangeDays = calculateWorkDays(formData.startDate, todayStr) || 1;
+      const totalPendingDays = updatedPendingLogs.reduce((sum, item) => sum + (item.pendingDays || 0), 0);
+      const effectiveDays = Math.max(1, totalRangeDays - totalPendingDays);
+      updatedDurationDays = effectiveDays;
+
+      logEntryText = `[${timestampStr}] SISTEM: Pekerjaan SELESAI (DONE). Total rentang waktu: ${totalRangeDays} hari | Total jeda pending: ${totalPendingDays} hari | Durasi kerja efektif: ${effectiveDays} hari kerja.`;
+    }
+
+    const currentRemarks = formData.remarks || '';
+    const newRemarks = currentRemarks.trim().length > 0
+      ? `${currentRemarks.trim()}\n${logEntryText}`
+      : logEntryText;
+
+    setFormData(prev => ({
+      ...prev,
+      statusWo: newStatus,
+      finishDate: updatedFinishDate,
+      durationDays: updatedDurationDays,
+      pendingLogs: updatedPendingLogs,
+      remarks: newRemarks
+    }));
+  };
+
   // Filtered dataset
   const filteredReports = dailyReports.filter(report => {
     const matchesSearch = 
@@ -385,7 +489,7 @@ export const DailyReportPage: React.FC = () => {
           <div className="flex items-center gap-2 text-cyan-400 font-mono text-xs uppercase tracking-wider font-semibold">
             <FileSpreadsheet className="w-4 h-4" /> Manajemen Laporan Harian
           </div>
-          <h2 className="text-xl font-bold text-white mt-1">Daily Report Project Belacom</h2>
+          <h2 className="text-xl font-bold text-white mt-1">Daily Report Belacom Project</h2>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -395,10 +499,10 @@ export const DailyReportPage: React.FC = () => {
             icon={<FileSpreadsheet className="w-4 h-4" />}
             onClick={() => {
               exportDailyReportToExcel(filteredReports);
-              showToast('success', 'Excel Unduh', 'Rekap Excel Semua WO berhasil diunduh dengan foto visual!');
+              showToast('success', 'Excel Unduh', 'Rekap Excel Semua WO berhasil diunduh dalam format .xlsx dengan gambar visual!');
             }}
           >
-            Export Excel Rekap Semua WO (.xls)
+            Export Excel Rekap Semua WO (.xlsx)
           </TouchButton>
 
           <TouchButton
@@ -845,6 +949,22 @@ export const DailyReportPage: React.FC = () => {
                         onChange={(e) => handleDurationChange(parseInt(e.target.value) || 1)}
                         className="w-full bg-slate-950 border border-cyan-500/50 text-xs text-amber-400 font-extrabold rounded-xl p-2.5 outline-none font-mono focus:ring-1 focus:ring-cyan-500"
                       />
+                      {((formData.pendingLogs && formData.pendingLogs.length > 0) || formData.statusWo === 'Pending') && (
+                        <div className="mt-1.5 p-2 bg-amber-500/10 border border-amber-500/20 rounded-xl text-[11px] font-mono text-amber-300 flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 font-bold">
+                            <span>⏸️ Ada masa pending tercatat:</span>
+                            <span className="bg-amber-500/20 px-1.5 py-0.5 rounded text-amber-200">
+                              {formData.pendingLogs?.reduce((sum, item) => sum + (item.pendingDays || 0), 0) || 0} hari
+                            </span>
+                            <span className="text-[10px] text-amber-400/80">({formData.pendingLogs?.length || 0}x jeda)</span>
+                          </div>
+                          {formData.statusWo === 'Pending' && (
+                            <span className="text-[10px] bg-amber-500/30 text-amber-100 font-bold px-1.5 py-0.5 rounded">
+                              Status Aktif: Pending
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <p className="text-[10px] text-slate-400 font-mono italic mt-1">
@@ -899,8 +1019,8 @@ export const DailyReportPage: React.FC = () => {
                     <label className="text-xs font-semibold text-slate-300 block mb-1">16. Status WO</label>
                     <select
                       value={formData.statusWo}
-                      onChange={(e) => setFormData(p => ({ ...p, statusWo: e.target.value as StatusWO }))}
-                      className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none font-mono"
+                      onChange={(e) => handleStatusWoChange(e.target.value as StatusWO)}
+                      className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 font-bold text-cyan-400 rounded-xl p-2.5 outline-none font-mono"
                     >
                       {statusWoOptions.map(sw => (
                         <option key={sw} value={sw}>{sw}</option>
@@ -1134,8 +1254,31 @@ export const DailyReportPage: React.FC = () => {
                   </div>
                   {rep.remarks && (
                     <div className="pt-2 border-t border-slate-900">
-                      <span className="text-slate-500 text-xs block">Catatan Lapangan:</span>
-                      <p className="text-xs text-amber-200/90 mt-0.5">{rep.remarks}</p>
+                      <span className="text-slate-500 text-xs block">Catatan Lapangan & Log Audit:</span>
+                      <p className="text-xs text-amber-200/90 mt-0.5 whitespace-pre-line font-mono">{rep.remarks}</p>
+                    </div>
+                  )}
+                  {rep.pendingLogs && rep.pendingLogs.length > 0 && (
+                    <div className="pt-2 border-t border-slate-900">
+                      <div className="bg-slate-950 p-3 rounded-xl border border-amber-500/20 text-xs font-mono space-y-2">
+                        <div className="flex items-center justify-between text-amber-400 font-bold">
+                          <span>⏸️ RIWAYAT JEDA PEKERJAAN (PENDING LOGS)</span>
+                          <span className="text-[10px] bg-amber-500/20 px-2 py-0.5 rounded">
+                            Total Jeda: {rep.pendingLogs.reduce((s, i) => s + (i.pendingDays || 0), 0)} Hari
+                          </span>
+                        </div>
+                        <div className="space-y-1 divide-y divide-slate-800">
+                          {rep.pendingLogs.map((log, idx) => (
+                            <div key={idx} className="pt-1 flex items-center justify-between text-slate-300 text-[11px]">
+                              <div>
+                                <span className="text-amber-300 font-bold">Pending #{idx + 1}:</span> {log.pendingAt?.substring(0, 10)} {log.pendingAt?.substring(11, 16)}
+                                {log.resumedAt ? ` ➔ Lanjut: ${log.resumedAt.substring(0, 10)} ${log.resumedAt.substring(11, 16)}` : ' (Masih Pending)'}
+                              </div>
+                              <span className="text-amber-400 font-bold">{log.pendingDays ? `${log.pendingDays} Hari` : 'Aktif'}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1303,7 +1446,7 @@ export const DailyReportPage: React.FC = () => {
                       showToast('success', 'Excel Unduh', `Rekap Excel WO ${rep.woNumber} berhasil diunduh!`);
                     }}
                   >
-                    Export Excel WO Ini (.xls)
+                    Export Excel WO Ini (.xlsx)
                   </TouchButton>
                   <TouchButton variant="primary" size="sm" onClick={() => setDetailPreviewReport(null)}>
                     Tutup

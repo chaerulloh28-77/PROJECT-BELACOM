@@ -16,13 +16,14 @@ import {
   Redo2
 } from 'lucide-react';
 import { useProjectContext } from '../context/ProjectContext';
+import { useAuth } from '../context/AuthContext';
 
 export const Header: React.FC = () => {
   const { 
     currentUserEmail, 
     userProfile,
     setActiveTab,
-    logout, 
+    logout: projectContextLogout, 
     autoSaveStatus, 
     lastSavedTime,
     syncStatus,
@@ -37,6 +38,15 @@ export const Header: React.FC = () => {
     undoCount,
     redoCount
   } = useProjectContext();
+
+  const { logout: authLogout } = useAuth();
+
+  const handleLogout = () => {
+    authLogout();
+    if (projectContextLogout) {
+      projectContextLogout();
+    }
+  };
 
   return (
     <header className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 lg:px-6 py-3 flex items-center justify-between gap-4 select-none">
@@ -180,7 +190,7 @@ export const Header: React.FC = () => {
           </button>
 
           <button
-            onClick={logout}
+            onClick={handleLogout}
             className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all duration-150 cursor-pointer ml-1 active:scale-95"
             title="Keluar / Logout"
           >

@@ -90,6 +90,19 @@ export const InvoicePage: React.FC = () => {
     }
   };
 
+  // Get completed WO numbers from BAST and DailyReports
+  const completedWoOptions = Array.from(
+    new Set([
+      ...(bastList ?? [])
+        .filter(b => b.statusBast === 'Done' || b.workflow?.stage4Finance?.isCompleted || b.workflow?.stage4Finance?.status === 'Siap Invoice')
+        .map(b => b.woNumber),
+      ...(dailyReports ?? []).filter(r => r.statusWo === 'Done').map(r => r.woNumber),
+      ...(invoices ?? []).map(i => i.woNumber)
+    ].filter(Boolean))
+  );
+
+  const [isManualWo, setIsManualWo] = useState(false);
+
   const filteredInvoices = (invoices ?? []).filter(i => 
     (i?.invoiceNumber || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (i?.woNumber || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -273,14 +286,54 @@ export const InvoicePage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1">Nomor Ref WO</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.woNumber}
-                    onChange={(e) => setFormData(p => ({ ...p, woNumber: e.target.value }))}
-                    className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none font-mono"
-                  />
+                  <label className="text-xs font-semibold text-slate-300 block mb-1">
+                    Nomor Ref WO (Pilih dari WO Status BAST Done)
+                  </label>
+                  {!isManualWo ? (
+                    <select
+                      value={formData.woNumber}
+                      onChange={(e) => {
+                        if (e.target.value === '__MANUAL__') {
+                          setIsManualWo(true);
+                        } else {
+                          setFormData(p => ({ ...p, woNumber: e.target.value }));
+                        }
+                      }}
+                      className="w-full bg-slate-950 border border-slate-800 text-xs text-cyan-300 font-bold rounded-xl p-2.5 outline-none font-mono"
+                    >
+                      <option value="">-- Pilih Nomor WO --</option>
+                      {completedWoOptions.map(wo => {
+                        const bast = bastList.find(b => b.woNumber === wo);
+                        const dr = dailyReports.find(r => r.woNumber === wo);
+                        const desc = bast?.workType || dr?.workType || 'Project Done';
+                        return (
+                          <option key={wo} value={wo}>
+                            {wo} ({desc.substring(0, 25)}...)
+                          </option>
+                        );
+                      })}
+                      <option value="__MANUAL__">+ Input Nomor WO Manual...</option>
+                    </select>
+                  ) : (
+                    <div className="flex gap-1">
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ketik Ref WO..."
+                        value={formData.woNumber}
+                        onChange={(e) => setFormData(p => ({ ...p, woNumber: e.target.value }))}
+                        className="w-full bg-slate-950 border border-cyan-500/80 text-xs text-cyan-300 rounded-xl p-2.5 outline-none font-mono font-bold"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setIsManualWo(false)}
+                        className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-[10px] text-slate-300 rounded-xl font-mono cursor-pointer"
+                        title="Kembali ke Dropdown"
+                      >
+                        List
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 

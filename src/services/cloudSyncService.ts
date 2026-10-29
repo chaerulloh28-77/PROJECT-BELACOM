@@ -12,6 +12,7 @@ import {
   SystemUser,
   TeamItem
 } from '../types';
+import { auth } from './firebase';
 
 export type SyncConnectionStatus = 'connected' | 'syncing' | 'offline' | 'error';
 
@@ -50,10 +51,9 @@ function getDeviceId(): string {
   return id;
 }
 
-// Configurable endpoint with default shared public Firebase RTDB database
-export const DEFAULT_FIREBASE_RTDB_ENDPOINT = 
-  'https://project-belacom-default-rtdb.asia-southeast1.firebasedatabase.app/project_data.json';
+// Configurable endpoint with default internal Server / Vercel API endpoint
 export const SERVER_ENDPOINT = '/api/sync/data';
+export const DEFAULT_FIREBASE_RTDB_ENDPOINT = SERVER_ENDPOINT;
 
 class CloudSyncService {
   private status: SyncConnectionStatus = 'connected';
@@ -69,10 +69,14 @@ class CloudSyncService {
   private deviceId = getDeviceId();
 
   constructor() {
-    // Ensure default shared Firebase RTDB endpoint is set or migrated to new endpoint
-    const currentEndpoint = localStorage.getItem(STORAGE_KEYS.ENDPOINT);
-    if (!currentEndpoint || currentEndpoint.includes('belacom-controlling-default-rtdb') || currentEndpoint === SERVER_ENDPOINT) {
-      localStorage.setItem(STORAGE_KEYS.ENDPOINT, DEFAULT_FIREBASE_RTDB_ENDPOINT);
+    // Migrate legacy external RTDB endpoints to local /api/sync/data to avoid unauthenticated 401 errors
+    try {
+      const currentEndpoint = localStorage.getItem(STORAGE_KEYS.ENDPOINT);
+      if (!currentEndpoint || currentEndpoint.includes('firebasedatabase.app') || currentEndpoint.includes('belacom-controlling-default-rtdb')) {
+        localStorage.setItem(STORAGE_KEYS.ENDPOINT, SERVER_ENDPOINT);
+      }
+    } catch {
+      // ignore
     }
     this.initEventListeners();
     this.startBackgroundSync();
@@ -262,9 +266,25 @@ class CloudSyncService {
       // 1. Try Firebase RTDB REST endpoint first with 4 second timeout
       if (activeEndpoint && activeEndpoint.startsWith('http')) {
         try {
+          let urlToFetch = activeEndpoint;
+          if (activeEndpoint.includes('firebasedatabase.app')) {
+            const currentUser = auth?.currentUser;
+            if (!currentUser) {
+              // Skip unauthenticated fetch to eliminate 401 Unauthorized in console
+              this.isPulling = false;
+              return false;
+            }
+            const token = await currentUser.getIdToken().catch(() => null);
+            if (!token) {
+              this.isPulling = false;
+              return false;
+            }
+            urlToFetch = activeEndpoint + (activeEndpoint.includes('?') ? '&' : '?') + 'auth=' + token;
+          }
+
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 4000);
-          const fbRes = await fetch(activeEndpoint, {
+          const fbRes = await fetch(urlToFetch, {
             method: 'GET',
             headers: { 'Cache-Control': 'no-cache' },
             signal: controller.signal

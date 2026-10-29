@@ -337,10 +337,10 @@ export const BASTPage: React.FC = () => {
             icon={<FileSpreadsheet className="w-4 h-4" />}
             onClick={() => {
               exportBASTToExcel(filteredBast);
-              showToast('success', 'Rekap Excel Diunduh', 'Rekap Excel Semua BAST berhasil diunduh dengan foto visual!');
+              showToast('success', 'Rekap Excel Diunduh', 'Rekap Excel Semua BAST berhasil diunduh dalam format .xlsx dengan lampiran berkas visual!');
             }}
           >
-            Export Excel Rekap Semua BAST (.xls)
+            Export Excel Rekap Semua BAST (.xlsx)
           </TouchButton>
 
           <TouchButton

@@ -1,26 +1,28 @@
 import React, { useEffect } from 'react';
 import { ProjectProvider, useProjectContext } from './context/ProjectContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { LoginPage } from './pages/LoginPage';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { DashboardOverviewPage } from './pages/DashboardOverviewPage';
-import { DashboardTagihanPage } from './pages/DashboardTagihanPage';
 import { DailyReportPage } from './pages/DailyReportPage';
 import { BASTPage } from './pages/BASTPage';
-import { InvoicePage } from './pages/InvoicePage';
 import { PenagihanPage } from './pages/PenagihanPage';
 import { UserSettingsPage } from './pages/UserSettingsPage';
 import { initAnonymousAuth } from './services/firebase';
 
 const MainApp: React.FC = () => {
-  const { isLoggedIn, activeTab } = useProjectContext();
+  const { isLoggedIn: isProjectLoggedIn, activeTab } = useProjectContext();
+  const { isAuthenticated: isAuthAuthenticated } = useAuth();
 
   useEffect(() => {
-    // Initialize anonymous Firebase Auth on load so Realtime Database connection is authenticated (auth != null)
+    // Initialize anonymous Firebase Auth on load so Realtime Database connection is authenticated
     initAnonymousAuth().catch(() => {});
   }, []);
 
-  if (!isLoggedIn) {
+  const isUserAuthenticated = isAuthAuthenticated || isProjectLoggedIn;
+
+  if (!isUserAuthenticated) {
     return <LoginPage />;
   }
 
@@ -34,14 +36,12 @@ const MainApp: React.FC = () => {
         return <DailyReportPage />;
       case 'bast':
         return <BASTPage />;
-      case 'invoice':
-        return <InvoicePage />;
       case 'penagihan':
         return <PenagihanPage />;
       case 'user-settings':
         return <UserSettingsPage />;
       default:
-        return <DashboardOverviewPage />;
+        return <DailyReportPage />;
     }
   };
 
@@ -62,8 +62,10 @@ const MainApp: React.FC = () => {
 
 export default function App() {
   return (
-    <ProjectProvider>
-      <MainApp />
-    </ProjectProvider>
+    <AuthProvider>
+      <ProjectProvider>
+        <MainApp />
+      </ProjectProvider>
+    </AuthProvider>
   );
 }

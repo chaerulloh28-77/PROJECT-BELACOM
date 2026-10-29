@@ -115,7 +115,7 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
 
             <div class="doc-body">
               <h3 style="margin-top:0;">DOKUMEN DOKUMENTASI PROJECT TELECOM</h3>
-              <p>Berkas ini disimpan dan diverifikasi secara digital dalam sistem Controlling Project Belacom untuk kelengkapan administrasi teknis, pengujian lapangan, BAST, dan paket penagihan.</p>
+              <p>Berkas ini disimpan dan diverifikasi secara digital dalam sistem Controlling Belacom Project untuk kelengkapan administrasi teknis, pengujian lapangan, BAST, dan paket penagihan.</p>
               <br/><br/>
               <div style="margin-top: 100px; display: flex; justify-content: space-between; text-align: center;">
                 <div>
@@ -132,7 +132,7 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
             </div>
 
             <div class="footer">
-              Controlling Project Belacom © 2026 · Hak Cipta Dilindungi
+              Controlling Belacom Project © 2026 · Hak Cipta Dilindungi
             </div>
             <script>
               window.onload = function() { window.print(); }
@@ -218,15 +218,15 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
         <div className="flex-1 bg-slate-950 overflow-auto p-4 sm:p-6 flex items-center justify-center relative">
           
           <div
-            className="transition-transform duration-200 origin-top w-full max-w-3xl flex justify-center"
+            className="transition-transform duration-200 origin-top w-full max-w-4xl flex justify-center"
             style={{ transform: `scale(${zoomLevel / 100})` }}
           >
-            {isImage && isRealUrl ? (
-              <div className="flex flex-col items-center justify-center">
+            {(isImage && isRealUrl) || (file.imageDataUrl && file.imageDataUrl.startsWith('data:image/')) ? (
+              <div className="flex flex-col items-center justify-center w-full">
                 <img
-                  src={file.url}
+                  src={(file.url && file.url.startsWith('data:image/')) ? file.url : (file.imageDataUrl || file.url)}
                   alt={file.name}
-                  className="max-h-[65vh] object-contain rounded-2xl border border-slate-800 shadow-2xl bg-black/40"
+                  className="max-h-[72vh] min-h-[280px] w-full object-contain rounded-2xl border border-slate-800 shadow-2xl bg-black/60 p-2"
                 />
               </div>
             ) : isPdf && isRealUrl ? (
@@ -284,7 +284,7 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
                   </div>
 
                   <p className="text-xs leading-relaxed text-slate-600">
-                    Berkas ini tersimpan aman di dalam sistem Controlling Project Belacom. Klik tombol <strong>Download Berkas</strong> di bawah untuk mengunduh file ini secara utuh dalam format aslinya (<strong>.{ext}</strong>).
+                    Berkas ini tersimpan aman di dalam sistem Controlling Belacom Project. Klik tombol <strong>Download Berkas</strong> di bawah untuk mengunduh file ini secara utuh dalam format aslinya (<strong>.{ext}</strong>).
                   </p>
 
                   <div className="pt-2">
