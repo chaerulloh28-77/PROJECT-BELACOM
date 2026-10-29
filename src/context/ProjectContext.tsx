@@ -4,7 +4,6 @@ import {
   BASTItem, 
   InvoiceItem, 
   PenagihanItem, 
-  FakturPajakItem,
   ActiveTab,
   FilterState,
   UserProfile,
@@ -15,8 +14,7 @@ import {
   INITIAL_DAILY_REPORTS, 
   INITIAL_BAST_LIST, 
   INITIAL_INVOICE_LIST, 
-  INITIAL_PENAGIHAN_LIST,
-  INITIAL_FAKTUR_PAJAK_LIST
+  INITIAL_PENAGIHAN_LIST
 } from '../data/mockData';
 import { ToastMessage, ToastContainer } from '../components/Toast';
 import { cloudSyncService, SyncConnectionStatus } from '../services/cloudSyncService';
@@ -91,7 +89,6 @@ interface ProjectContextType {
   bastList: BASTItem[];
   invoices: InvoiceItem[];
   penagihanList: PenagihanItem[];
-  fakturPajakList: FakturPajakItem[];
 
   // Toast Notifications
   toasts: ToastMessage[];
@@ -117,11 +114,6 @@ interface ProjectContextType {
   addInvoice: (item: Omit<InvoiceItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateInvoice: (id: string, item: Partial<InvoiceItem>) => void;
   deleteInvoice: (id: string) => void;
-
-  // CRUD Faktur Pajak
-  addFakturPajak: (item: Omit<FakturPajakItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  updateFakturPajak: (id: string, item: Partial<FakturPajakItem>) => void;
-  deleteFakturPajak: (id: string) => void;
 
   // CRUD Penagihan
   addPenagihan: (item: Omit<PenagihanItem, 'id' | 'createdAt' | 'updatedAt'>) => void;
@@ -151,7 +143,6 @@ const STORAGE_KEYS = {
   DAILY_REPORTS: 'belacom_daily_reports_v2',
   BAST: 'belacom_bast_list_v2',
   INVOICE: 'belacom_invoice_list_v2',
-  FAKTUR_PAJAK: 'belacom_faktur_pajak_list_v1',
   PENAGIHAN: 'belacom_penagihan_list_v2',
   USER_PROFILE: 'belacom_user_profile_v1',
   PASSWORD: 'belacom_password_v1',
@@ -380,23 +371,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return list.filter(p => !tombstonesSet.has(p.id) && !tombstonesSet.has(p.woNumber));
   });
 
-  const [fakturPajakList, setFakturPajakList] = useState<FakturPajakItem[]>(() => {
-    const tombstonesSet = getStoredTombstoneSet();
-    const local = localStorage.getItem(STORAGE_KEYS.FAKTUR_PAJAK);
-    let list: FakturPajakItem[] = INITIAL_FAKTUR_PAJAK_LIST;
-    if (local) {
-      try {
-        const parsed = JSON.parse(local);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          list = parsed;
-        }
-      } catch (e) {
-        // fallback
-      }
-    }
-    return list.filter(f => !tombstonesSet.has(f.id) && !tombstonesSet.has(f.nsfp));
-  });
-
   // Global Filters
   const [filters, setFilters] = useState<FilterState>({
     searchQuery: '',
@@ -427,7 +401,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     bastList: BASTItem[];
     invoices: InvoiceItem[];
     penagihanList: PenagihanItem[];
-    fakturPajakList: FakturPajakItem[];
     teams: TeamItem[];
   }
 
@@ -440,12 +413,11 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       bastList: [...bastList],
       invoices: [...invoices],
       penagihanList: [...penagihanList],
-      fakturPajakList: [...fakturPajakList],
       teams: [...teams]
     };
     setPast(prev => [...prev.slice(-25), currentSnapshot]);
     setFuture([]);
-  }, [dailyReports, bastList, invoices, penagihanList, fakturPajakList, teams]);
+  }, [dailyReports, bastList, invoices, penagihanList, teams]);
 
   // Purge deleted items from past & future history so Undo can NEVER restore deleted records
   const purgeHistoryForDeleted = useCallback((deletedIds: string[], deletedWoNumbers: string[] = []) => {
@@ -457,7 +429,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       bastList: snap.bastList.filter(b => !idSet.has(b.id) && !woSet.has(b.woNumber)),
       invoices: snap.invoices.filter(i => !idSet.has(i.id) && !woSet.has(i.woNumber)),
       penagihanList: snap.penagihanList.filter(p => !idSet.has(p.id) && !woSet.has(p.woNumber)),
-      fakturPajakList: (snap.fakturPajakList || []).filter(f => !idSet.has(f.id) && !idSet.has(f.nsfp)),
       teams: snap.teams.filter(t => !idSet.has(t.id))
     });
 
@@ -477,7 +448,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       bastList: [...bastList],
       invoices: [...invoices],
       penagihanList: [...penagihanList],
-      fakturPajakList: [...fakturPajakList],
       teams: [...teams]
     };
 
@@ -490,11 +460,10 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setBastList(previous.bastList.filter(b => !tombstoneSet.has(b.id) && !tombstoneSet.has(b.woNumber)));
     setInvoices(previous.invoices.filter(i => !tombstoneSet.has(i.id) && !tombstoneSet.has(i.woNumber)));
     setPenagihanList(previous.penagihanList.filter(p => !tombstoneSet.has(p.id) && !tombstoneSet.has(p.woNumber)));
-    setFakturPajakList((previous.fakturPajakList || []).filter(f => !tombstoneSet.has(f.id) && !tombstoneSet.has(f.nsfp)));
     setTeams((previous.teams || []).filter(t => !tombstoneSet.has(t.id)));
 
     showToast('success', 'Undo Berhasil', '↩️ Edit teks berhasil dibatalkan (Undo)');
-  }, [past, dailyReports, bastList, invoices, penagihanList, fakturPajakList, teams, tombstones, showToast]);
+  }, [past, dailyReports, bastList, invoices, penagihanList, teams, tombstones, showToast]);
 
   const redo = useCallback(() => {
     if (future.length === 0) {
@@ -508,7 +477,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       bastList: [...bastList],
       invoices: [...invoices],
       penagihanList: [...penagihanList],
-      fakturPajakList: [...fakturPajakList],
       teams: [...teams]
     };
 
@@ -521,11 +489,10 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setBastList(next.bastList.filter(b => !tombstoneSet.has(b.id) && !tombstoneSet.has(b.woNumber)));
     setInvoices(next.invoices.filter(i => !tombstoneSet.has(i.id) && !tombstoneSet.has(i.woNumber)));
     setPenagihanList(next.penagihanList.filter(p => !tombstoneSet.has(p.id) && !tombstoneSet.has(p.woNumber)));
-    setFakturPajakList((next.fakturPajakList || []).filter(f => !tombstoneSet.has(f.id) && !tombstoneSet.has(f.nsfp)));
     setTeams((next.teams || []).filter(t => !tombstoneSet.has(t.id)));
 
     showToast('success', 'Redo Berhasil', '↪️ Edit teks berhasil dipulihkan (Redo)');
-  }, [future, dailyReports, bastList, invoices, penagihanList, fakturPajakList, teams, tombstones, showToast]);
+  }, [future, dailyReports, bastList, invoices, penagihanList, teams, tombstones, showToast]);
 
   const canUndo = past.length > 0;
   const canRedo = future.length > 0;
@@ -563,7 +530,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       safeSetLocalStorage(STORAGE_KEYS.DAILY_REPORTS, dailyReports);
       safeSetLocalStorage(STORAGE_KEYS.BAST, bastList);
       safeSetLocalStorage(STORAGE_KEYS.INVOICE, invoices);
-      safeSetLocalStorage(STORAGE_KEYS.FAKTUR_PAJAK, fakturPajakList);
       safeSetLocalStorage(STORAGE_KEYS.PENAGIHAN, penagihanList);
       safeSetLocalStorage(STORAGE_KEYS.USER_PROFILE, userProfile);
       safeSetLocalStorage(STORAGE_KEYS.SYSTEM_USERS, systemUsers);
@@ -587,11 +553,11 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }, 350);
 
     return () => clearTimeout(timer);
-  }, [tombstones, teams, dailyReports, bastList, invoices, penagihanList, fakturPajakList, userProfile, systemUsers]);
+  }, [tombstones, teams, dailyReports, bastList, invoices, penagihanList, userProfile, systemUsers]);
 
   useEffect(() => {
     triggerAutoSave();
-  }, [tombstones, teams, dailyReports, bastList, invoices, penagihanList, fakturPajakList, userProfile, systemUsers, triggerAutoSave]);
+  }, [tombstones, teams, dailyReports, bastList, invoices, penagihanList, userProfile, systemUsers, triggerAutoSave]);
 
   // Persistent Auth State Listener & Auth-Guarded Realtime RTDB Synchronization
   useEffect(() => {
@@ -1164,34 +1130,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     showToast('error', 'Invoice Dihapus Permanen', `Invoice ID: ${id} telah dihapus permanen.`);
   };
 
-  // CRUD Faktur Pajak
-  const addFakturPajak = (item: Omit<FakturPajakItem, 'id' | 'createdAt' | 'updatedAt'>) => {
-    recordSnapshot();
-    const now = new Date().toISOString();
-    const newRecord: FakturPajakItem = {
-      ...item,
-      id: 'FP-' + Math.floor(1000 + Math.random() * 9000),
-      createdAt: now,
-      updatedAt: now
-    };
-    setFakturPajakList(prev => [newRecord, ...prev]);
-    showToast('success', 'Faktur Pajak Dibuat', `NSFP: ${newRecord.nsfp} berhasil dibuat dan disimpan.`);
-  };
-
-  const updateFakturPajak = (id: string, item: Partial<FakturPajakItem>) => {
-    recordSnapshot();
-    const now = new Date().toISOString();
-    setFakturPajakList(prev => prev.map(f => f.id === id ? { ...f, ...item, updatedAt: now } : f));
-    showToast('success', 'Faktur Pajak Diperbarui', `Faktur Pajak ID: ${id} tersimpan otomatis.`);
-  };
-
-  const deleteFakturPajak = (id: string) => {
-    addTombstoneIds([id]);
-    purgeHistoryForDeleted([id]);
-    setFakturPajakList(prev => prev.filter(f => f.id !== id));
-    showToast('error', 'Faktur Pajak Dihapus', `Faktur Pajak ID: ${id} telah dihapus permanen.`);
-  };
-
   // CRUD Penagihan
   const addPenagihan = (item: Omit<PenagihanItem, 'id' | 'createdAt' | 'updatedAt'>) => {
     recordSnapshot();
@@ -1250,7 +1188,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         dailyReports,
         bastList,
         invoices,
-        fakturPajakList,
         penagihanList,
         toasts,
         showToast,
@@ -1269,9 +1206,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         addInvoice,
         updateInvoice,
         deleteInvoice,
-        addFakturPajak,
-        updateFakturPajak,
-        deleteFakturPajak,
         addPenagihan,
         updatePenagihan,
         deletePenagihan,

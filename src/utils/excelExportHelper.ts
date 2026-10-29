@@ -8,6 +8,7 @@
 
 import { DailyReportItem, BASTItem, PDFFileMeta } from '../types';
 import { generateVisualDocDataUrl } from './bastExportHelper';
+import { calculateWorkDays } from './dateUtils';
 
 /**
  * Mendapatkan Data URL gambar visual (dari imageDataUrl, url, atau SVG visual generator fallback)
@@ -138,7 +139,7 @@ export function exportDailyReportToExcel(reports: DailyReportItem[], customFilen
           <td class="center"><span class="${statusClass}">${item.statusWo}</span></td>
           <td class="center">${formatDateIndo(item.releaseDate)}</td>
           <td class="center">${formatDateIndo(item.finishDate)}</td>
-          <td class="center font-mono">${item.durationDays || 1} Hari</td>
+          <td class="center font-mono">${calculateWorkDays(item.startDate, item.finishDate) || item.durationDays || 1} Hari</td>
           <td class="img-cell">
             <img class="doc-img" src="${closureImg}" alt="Closure" />
             <span class="img-label">${item.documentation?.fotoClosurePdf?.name || 'Closure.jpg'}</span>
@@ -314,7 +315,7 @@ export function exportBASTToExcel(items: BASTItem[], customFilename?: string): v
           <td>${item.workType || '-'}</td>
           <td class="center">${formatDateIndo(item.releaseDate)}</td>
           <td class="center">${formatDateIndo(item.finishDate)}</td>
-          <td class="center font-mono">${item.durationDays || 1} Hari</td>
+          <td class="center font-mono">${calculateWorkDays(item.startDate, item.finishDate) || item.durationDays || 1} Hari</td>
           <td class="center"><span class="${statusClass}">${item.statusBast}</span></td>
           <td>${wfHtml}</td>
           <td class="center font-mono">${st4Obj?.financeRefNumber || '-'}</td>

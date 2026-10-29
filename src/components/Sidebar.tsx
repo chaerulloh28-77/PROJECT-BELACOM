@@ -10,8 +10,7 @@ import {
   FolderKanban,
   UserCog,
   Cloud,
-  RefreshCw,
-  FileCheck
+  RefreshCw
 } from 'lucide-react';
 import { useProjectContext } from '../context/ProjectContext';
 
@@ -24,7 +23,6 @@ export const Sidebar: React.FC = () => {
     dailyReports, 
     bastList, 
     invoices, 
-    fakturPajakList,
     penagihanList,
     syncStatus,
     lastCloudSyncTime,
@@ -39,10 +37,9 @@ export const Sidebar: React.FC = () => {
     activeTab === 'dashboard-tagihan' ||
     activeTab === 'bast' ||
     activeTab === 'invoice' ||
-    activeTab === 'faktur-pajak' ||
     activeTab === 'penagihan';
 
-  const totalTagihanItems = dailyReports.length + penagihanList.length + invoices.length + bastList.length + fakturPajakList.length;
+  const totalTagihanItems = dailyReports.length + penagihanList.length + invoices.length + bastList.length;
 
   return (
     <aside className="w-full lg:w-64 bg-slate-900 border-b lg:border-b-0 lg:border-r border-slate-800 shrink-0 select-none">
@@ -251,25 +248,7 @@ export const Sidebar: React.FC = () => {
                   </span>
                 </button>
 
-                {/* 4. Sub-item: Faktur Pajak */}
-                <button
-                  onClick={() => setActiveTab('faktur-pajak')}
-                  className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                    activeTab === 'faktur-pajak'
-                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <FileCheck className="w-3.5 h-3.5 text-rose-400" />
-                    <span>Faktur Pajak</span>
-                  </div>
-                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-950 text-rose-400 border border-slate-800">
-                    {fakturPajakList.length}
-                  </span>
-                </button>
-
-                {/* 5. Sub-item: Tagihan */}
+                {/* 4. Sub-item: Tagihan */}
                 <button
                   onClick={() => setActiveTab('penagihan')}
                   className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${

@@ -175,6 +175,7 @@ export const DashboardOverviewPage: React.FC<DashboardOverviewPageProps> = ({ in
   const totalWoCount = filteredReports.length;
   const doneCount = filteredReports.filter(r => r.statusWo === 'Done').length;
   const inProgressCount = filteredReports.filter(r => r.statusWo === 'In Progress').length;
+  const pendingCount = filteredReports.filter(r => r.statusWo === 'Pending').length;
   const notYetCount = filteredReports.filter(r => r.statusWo === 'Not Yet').length;
   const cancelCount = filteredReports.filter(r => r.statusWo === 'Cancel').length;
 
@@ -200,6 +201,15 @@ export const DashboardOverviewPage: React.FC<DashboardOverviewPageProps> = ({ in
       color: '#06b6d4', // cyan-500
       icon: PlayCircle,
       subtext: 'Sedang Berjalan'
+    },
+    {
+      id: 'Pending',
+      label: 'Pending (Tertunda)',
+      shortLabel: 'Pending',
+      value: pendingCount,
+      color: '#f59e0b', // amber-500
+      icon: Clock,
+      subtext: 'Tertunda'
     },
     {
       id: 'Not Yet',
@@ -379,6 +389,7 @@ export const DashboardOverviewPage: React.FC<DashboardOverviewPageProps> = ({ in
         statusBadgeColor: 
           r.statusWo === 'Done' ? 'bg-emerald-950 text-emerald-400 border-emerald-500/30' :
           r.statusWo === 'In Progress' ? 'bg-cyan-950 text-cyan-400 border-cyan-500/30' :
+          r.statusWo === 'Pending' ? 'bg-amber-950 text-amber-400 border-amber-500/30 font-bold' :
           r.statusWo === 'Cancel' ? 'bg-rose-950 text-rose-400 border-rose-500/30' :
           'bg-slate-950 text-slate-400 border-slate-800',
         estimatedDistanceMeters: r.estimatedDistanceMeters,

@@ -32,6 +32,7 @@ import { BASTWorkflowModal } from '../components/BASTWorkflowModal';
 import { getFileBadgeStyle } from '../utils/fileHelper';
 import { evaluateBASTWorkflow, getDefaultBASTWorkflow, WorkflowFilterTab } from '../utils/bastWorkflowHelper';
 import { exportBASTToExcel } from '../utils/excelExportHelper';
+import { calculateWorkDays, addWorkDays } from '../utils/dateUtils';
 
 export const BASTPage: React.FC = () => {
   const { bastList, addBAST, updateBAST, deleteBAST, showToast, dailyReports } = useProjectContext();
@@ -100,7 +101,9 @@ export const BASTPage: React.FC = () => {
     setEditingId(null);
     setIsCustomWoType(false);
     const today = new Date().toISOString().substring(0, 10);
-    const finish = new Date(Date.now() + 5 * 86400000).toISOString().substring(0, 10);
+    const initialTargetWorkDays = 5;
+    const finish = addWorkDays(today, initialTargetWorkDays);
+    const calculatedDur = calculateWorkDays(today, finish);
     const generatedWo = `WO-BEL-2026-${Math.floor(1000 + Math.random() * 9000)}`;
     setFormData({
       woNumber: generatedWo,
@@ -114,8 +117,8 @@ export const BASTPage: React.FC = () => {
       finishDate: finish,
       abdDate: finish,
       coreConnectionDate: finish,
-      durationDays: 5,
-      durasiDate: 5,
+      durationDays: calculatedDur,
+      durasiDate: calculatedDur,
       estimatedDistanceMeters: 1500,
       estimatedDistancePdf: undefined,
       totalDistanceMeters: 1480,
@@ -206,25 +209,13 @@ export const BASTPage: React.FC = () => {
     setIsModalOpen(false);
   };
 
-  // Auto calculate duration in days (inclusive)
+  // Auto calculate duration in active work days (excluding Sundays & Indonesian holidays)
   const calculateDurationDays = (startStr: string, finishStr: string): number => {
-    if (!startStr || !finishStr) return 1;
-    const start = new Date(startStr);
-    const finish = new Date(finishStr);
-    if (isNaN(start.getTime()) || isNaN(finish.getTime())) return 1;
-    if (finish < start) return 1;
-    const diffMs = finish.getTime() - start.getTime();
-    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1;
-    return diffDays > 0 ? diffDays : 1;
+    return calculateWorkDays(startStr, finishStr);
   };
 
   const calculateFinishDate = (startStr: string, durationDays: number): string => {
-    if (!startStr) return new Date().toISOString().substring(0, 10);
-    const start = new Date(startStr);
-    if (isNaN(start.getTime())) return new Date().toISOString().substring(0, 10);
-    const validDuration = Math.max(1, durationDays);
-    const finish = new Date(start.getTime() + (validDuration - 1) * 24 * 60 * 60 * 1000);
-    return finish.toISOString().substring(0, 10);
+    return addWorkDays(startStr, durationDays);
   };
 
   const handleReleaseDateChange = (val: string) => {
@@ -233,9 +224,11 @@ export const BASTPage: React.FC = () => {
       if (!newStart || newStart < val) {
         newStart = val;
       }
-      const dur = calculateDurationDays(newStart, prev.finishDate);
-      const newFinish = dur < 1 || prev.finishDate < newStart ? calculateFinishDate(newStart, dur) : prev.finishDate;
-      const calculatedDur = calculateDurationDays(newStart, newFinish);
+      let newFinish = prev.finishDate;
+      if (!newFinish || newFinish < newStart) {
+        newFinish = addWorkDays(newStart, prev.durationDays || 1);
+      }
+      const calculatedDur = calculateWorkDays(newStart, newFinish);
       return {
         ...prev,
         releaseDate: val,
@@ -251,9 +244,9 @@ export const BASTPage: React.FC = () => {
     setFormData(prev => {
       let newFinish = prev.finishDate;
       if (!newFinish || newFinish < val) {
-        newFinish = calculateFinishDate(val, prev.durationDays || 1);
+        newFinish = addWorkDays(val, prev.durationDays || 1);
       }
-      const dur = calculateDurationDays(val, newFinish);
+      const dur = calculateWorkDays(val, newFinish);
       return {
         ...prev,
         startDate: val,
@@ -270,7 +263,7 @@ export const BASTPage: React.FC = () => {
       if (!newStart || val < newStart) {
         newStart = val;
       }
-      const dur = calculateDurationDays(newStart, val);
+      const dur = calculateWorkDays(newStart, val);
       return {
         ...prev,
         startDate: newStart,
@@ -284,11 +277,12 @@ export const BASTPage: React.FC = () => {
   const handleDurationChange = (val: number) => {
     const validDur = Math.max(1, val);
     setFormData(prev => {
-      const newFinish = calculateFinishDate(prev.startDate, validDur);
+      const newFinish = addWorkDays(prev.startDate, validDur);
+      const actualDur = calculateWorkDays(prev.startDate, newFinish);
       return {
         ...prev,
-        durationDays: validDur,
-        durasiDate: validDur,
+        durationDays: actualDur,
+        durasiDate: actualDur,
         finishDate: newFinish
       };
     });

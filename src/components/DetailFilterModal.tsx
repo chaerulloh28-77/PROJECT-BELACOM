@@ -196,7 +196,7 @@ export const DetailFilterModal: React.FC<DetailFilterModalProps> = ({ filter, on
         </span>
       );
     }
-    if (s === 'revision' || s === 'waiting schedule' || s === 'draft') {
+    if (s === 'revision' || s === 'waiting schedule' || s === 'draft' || s === 'pending') {
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 shadow-sm">
           <AlertTriangle className="w-3.5 h-3.5 text-amber-400" /> {status}

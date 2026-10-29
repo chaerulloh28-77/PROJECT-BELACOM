@@ -41,7 +41,6 @@ export const PenagihanPage: React.FC = () => {
     poPdf: undefined,
     dataMaterialPdf: undefined,
     boqPdf: undefined,
-    fakturPajakPdf: undefined,
     totalNominalRupiah: 145000000,
     remarks: 'Paket berkas penagihan lengkap telah diverifikasi.'
   });
@@ -62,7 +61,6 @@ export const PenagihanPage: React.FC = () => {
       poPdf: undefined,
       dataMaterialPdf: undefined,
       boqPdf: undefined,
-      fakturPajakPdf: undefined,
       totalNominalRupiah: 185000000,
       remarks: 'Seluruh lampiran penagihan lengkap dan siap kirim.'
     });
@@ -232,11 +230,6 @@ export const PenagihanPage: React.FC = () => {
                           <Eye className="w-3 h-3 text-cyan-400" /> BOQ
                         </button>
                       )}
-                      {penagihan.fakturPajakPdf && (
-                        <button onClick={() => setPreviewPdf(penagihan.fakturPajakPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat Faktur Pajak PDF">
-                          <Eye className="w-3 h-3 text-cyan-400" /> FP
-                        </button>
-                      )}
                     </div>
                   </td>
 
@@ -349,7 +342,6 @@ export const PenagihanPage: React.FC = () => {
                   <PDFUploader label="9. Purchase Order (PO)" value={formData.poPdf} onChange={(f) => setFormData(p => ({ ...p, poPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
                   <PDFUploader label="10. Data Material" value={formData.dataMaterialPdf} onChange={(f) => setFormData(p => ({ ...p, dataMaterialPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
                   <PDFUploader label="11. BOQ" value={formData.boqPdf} onChange={(f) => setFormData(p => ({ ...p, boqPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="12. Faktur Pajak" value={formData.fakturPajakPdf} onChange={(f) => setFormData(p => ({ ...p, fakturPajakPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
                 </div>
               </div>
 

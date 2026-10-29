@@ -33,7 +33,7 @@ export const InvoicePage: React.FC = () => {
     boqPdf: undefined,
     poNumber: 'PO-TELKOM-889900',
     poPdf: undefined,
-    fakturPajakNumber: '010.003-26.88990011',
+    invoiceReceiptPdf: undefined,
     fakturPajakPdf: undefined,
     amountRupiah: 150000000,
     issueDate: new Date().toISOString().substring(0, 10)
@@ -48,7 +48,7 @@ export const InvoicePage: React.FC = () => {
       boqPdf: undefined,
       poNumber: `PO-TELKOM-${Math.floor(100000 + Math.random() * 900000)}`,
       poPdf: undefined,
-      fakturPajakNumber: `010.003-26.${Math.floor(10000000 + Math.random() * 90000000)}`,
+      invoiceReceiptPdf: undefined,
       fakturPajakPdf: undefined,
       amountRupiah: 175000000,
       issueDate: new Date().toISOString().substring(0, 10)
@@ -69,10 +69,16 @@ export const InvoicePage: React.FC = () => {
       return;
     }
 
+    const cleanData = { ...formData };
+    if (!cleanData.boqPdf) delete cleanData.boqPdf;
+    if (!cleanData.poPdf) delete cleanData.poPdf;
+    if (!cleanData.invoiceReceiptPdf) delete cleanData.invoiceReceiptPdf;
+    if (!cleanData.fakturPajakPdf) delete cleanData.fakturPajakPdf;
+
     if (editingId) {
-      updateInvoice(editingId, formData);
+      updateInvoice(editingId, cleanData);
     } else {
-      addInvoice(formData);
+      addInvoice(cleanData);
     }
     setIsModalOpen(false);
   };
@@ -100,7 +106,7 @@ export const InvoicePage: React.FC = () => {
             <Receipt className="w-4 h-4" /> Manajemen Penagihan & Invoice
           </div>
           <h2 className="text-xl font-bold text-white mt-1">Invoice Belacom</h2>
-          <p className="text-xs text-slate-400">Verifikasi BOQ, PO, & Faktur Pajak</p>
+          <p className="text-xs text-slate-400">Verifikasi BOQ, PO, Kwitansi & Faktur Pajak</p>
         </div>
 
         <TouchButton
@@ -136,8 +142,8 @@ export const InvoicePage: React.FC = () => {
               <tr>
                 <th className="py-2.5 px-3 font-semibold">No Invoice & Ref WO</th>
                 <th className="py-2.5 px-3 font-semibold">Nominal Rupiah</th>
-                <th className="py-2.5 px-3 font-semibold">Detail PO & Faktur Pajak</th>
-                <th className="py-2.5 px-3 font-semibold">Dokumen PDF (BOQ, PO, FP)</th>
+                <th className="py-2.5 px-3 font-semibold">Detail PO</th>
+                <th className="py-2.5 px-3 font-semibold">Dokumen PDF (BOQ, PO, Kwitansi, Pajak)</th>
                 <th className="py-2.5 px-3 font-semibold text-center">Status Invoice</th>
                 <th className="py-2.5 px-3 font-semibold text-right">Aksi</th>
               </tr>
@@ -157,7 +163,6 @@ export const InvoicePage: React.FC = () => {
 
                   <td className="py-2.5 px-3 font-mono text-[11px]">
                     <div className="text-slate-200">PO: {inv.poNumber}</div>
-                    <div className="text-slate-400 text-[10px]">FP: {inv.fakturPajakNumber || '-'}</div>
                   </td>
 
                   <td className="py-2.5 px-3 font-mono">
@@ -172,10 +177,18 @@ export const InvoicePage: React.FC = () => {
                           <Eye className="w-3 h-3 text-cyan-400" /> PO
                         </button>
                       )}
-                      {inv?.fakturPajakPdf && (
-                        <button onClick={() => setPreviewPdf(inv.fakturPajakPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat Faktur Pajak PDF">
-                          <Eye className="w-3 h-3 text-cyan-400" /> Faktur Pajak
+                      {inv?.invoiceReceiptPdf && (
+                        <button onClick={() => setPreviewPdf(inv.invoiceReceiptPdf!)} className="px-1.5 py-0.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat Dokumen Invoice/Kwitansi PDF">
+                          <Eye className="w-3 h-3 text-emerald-400" /> Kwitansi
                         </button>
+                      )}
+                      {inv?.fakturPajakPdf && (
+                        <button onClick={() => setPreviewPdf(inv.fakturPajakPdf!)} className="px-1.5 py-0.5 bg-fuchsia-500/10 hover:bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat Dokumen Faktur Pajak PDF">
+                          <Eye className="w-3 h-3 text-fuchsia-400" /> Faktur Pajak
+                        </button>
+                      )}
+                      {!inv?.boqPdf && !inv?.poPdf && !inv?.invoiceReceiptPdf && !inv?.fakturPajakPdf && (
+                        <span className="text-slate-600 italic">-</span>
                       )}
                     </div>
                   </td>
@@ -271,47 +284,56 @@ export const InvoicePage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1">3. Purchase Order (PO Number)</label>
-                  <input
-                    type="text"
-                    value={formData.poNumber}
-                    onChange={(e) => setFormData(p => ({ ...p, poNumber: e.target.value }))}
-                    className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none font-mono mb-2"
-                  />
-                  <PDFUploader
-                    label="Dokumen PO"
-                    value={formData.poPdf}
-                    onChange={(f) => setFormData(p => ({ ...p, poPdf: f }))}
-                    onPreview={(f) => setPreviewPdf(f)}
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1">4. Faktur Pajak Number</label>
-                  <input
-                    type="text"
-                    value={formData.fakturPajakNumber}
-                    onChange={(e) => setFormData(p => ({ ...p, fakturPajakNumber: e.target.value }))}
-                    className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none font-mono mb-2"
-                  />
-                  <PDFUploader
-                    label="Dokumen Faktur Pajak"
-                    value={formData.fakturPajakPdf}
-                    onChange={(f) => setFormData(p => ({ ...p, fakturPajakPdf: f }))}
-                    onPreview={(f) => setPreviewPdf(f)}
-                  />
-                </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-300 block mb-1">3. Purchase Order (PO Number)</label>
+                <input
+                  type="text"
+                  value={formData.poNumber}
+                  onChange={(e) => setFormData(p => ({ ...p, poNumber: e.target.value }))}
+                  className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none font-mono"
+                />
               </div>
 
               <div>
-                <PDFUploader
-                  label="2. Dokumen BOQ"
-                  value={formData.boqPdf}
-                  onChange={(f) => setFormData(p => ({ ...p, boqPdf: f }))}
-                  onPreview={(f) => setPreviewPdf(f)}
-                />
+                <label className="text-xs font-semibold text-slate-300 block mb-2">Dokumen Pendukung Invoice (2x2 Grid)</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <PDFUploader
+                      label="Dokumen PO"
+                      value={formData.poPdf}
+                      onChange={(f) => setFormData(p => ({ ...p, poPdf: f }))}
+                      onPreview={(f) => setPreviewPdf(f)}
+                      woNumber={formData.woNumber}
+                    />
+                  </div>
+                  <div>
+                    <PDFUploader
+                      label="Dokumen BOQ"
+                      value={formData.boqPdf}
+                      onChange={(f) => setFormData(p => ({ ...p, boqPdf: f }))}
+                      onPreview={(f) => setPreviewPdf(f)}
+                      woNumber={formData.woNumber}
+                    />
+                  </div>
+                  <div>
+                    <PDFUploader
+                      label="Dokumen Invoice / Kwitansi"
+                      value={formData.invoiceReceiptPdf}
+                      onChange={(f) => setFormData(p => ({ ...p, invoiceReceiptPdf: f }))}
+                      onPreview={(f) => setPreviewPdf(f)}
+                      woNumber={formData.woNumber}
+                    />
+                  </div>
+                  <div>
+                    <PDFUploader
+                      label="Dokumen Faktur Pajak"
+                      value={formData.fakturPajakPdf}
+                      onChange={(f) => setFormData(p => ({ ...p, fakturPajakPdf: f }))}
+                      onPreview={(f) => setPreviewPdf(f)}
+                      woNumber={formData.woNumber}
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

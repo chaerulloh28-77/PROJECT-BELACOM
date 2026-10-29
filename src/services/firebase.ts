@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithEmailAndPassword, onAuthStateChanged, User } from 'firebase/auth';
-import { getDatabase, ref, onValue, set, update, get } from 'firebase/database';
+import { getDatabase, ref, onValue, set as rawSet, update as rawUpdate, get } from 'firebase/database';
 import { sendSilentLoginAuditNotification } from '../utils/auditLogger';
 
 const firebaseConfig = {
@@ -19,7 +19,46 @@ export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfi
 export const auth = getAuth(app);
 export const db = getDatabase(app);
 
-export { ref, onValue, set, update, get, onAuthStateChanged };
+/**
+ * Recursively cleans an object/array to remove any undefined properties,
+ * because Firebase Realtime Database throws an error when trying to write an object containing 'undefined'.
+ */
+export function sanitizeForFirebase<T>(data: T): T {
+  if (data === undefined) {
+    return null as unknown as T;
+  }
+  if (data === null) {
+    return null as unknown as T;
+  }
+  if (Array.isArray(data)) {
+    return data.map(item => sanitizeForFirebase(item)) as unknown as T;
+  }
+  if (typeof data === 'object') {
+    if (data instanceof Date) return data.toISOString() as unknown as T;
+    const cleaned: Record<string, any> = {};
+    for (const key of Object.keys(data)) {
+      const val = (data as Record<string, any>)[key];
+      if (val !== undefined) {
+        const sanitizedVal = sanitizeForFirebase(val);
+        if (sanitizedVal !== undefined) {
+          cleaned[key] = sanitizedVal;
+        }
+      }
+    }
+    return cleaned as T;
+  }
+  return data;
+}
+
+export const set = (dbRef: any, value: any) => {
+  return rawSet(dbRef, sanitizeForFirebase(value));
+};
+
+export const update = (dbRef: any, value: any) => {
+  return rawUpdate(dbRef, sanitizeForFirebase(value));
+};
+
+export { ref, onValue, get, onAuthStateChanged };
 
 /**
  * Initializes anonymous authentication from firebase/auth when the application loads.

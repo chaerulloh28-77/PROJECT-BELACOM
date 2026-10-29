@@ -8,7 +8,6 @@ import { DashboardTagihanPage } from './pages/DashboardTagihanPage';
 import { DailyReportPage } from './pages/DailyReportPage';
 import { BASTPage } from './pages/BASTPage';
 import { InvoicePage } from './pages/InvoicePage';
-import { FakturPajakPage } from './pages/FakturPajakPage';
 import { PenagihanPage } from './pages/PenagihanPage';
 import { UserSettingsPage } from './pages/UserSettingsPage';
 import { initAnonymousAuth } from './services/firebase';
@@ -37,8 +36,6 @@ const MainApp: React.FC = () => {
         return <BASTPage />;
       case 'invoice':
         return <InvoicePage />;
-      case 'faktur-pajak':
-        return <FakturPajakPage />;
       case 'penagihan':
         return <PenagihanPage />;
       case 'user-settings':

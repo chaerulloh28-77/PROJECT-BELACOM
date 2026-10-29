@@ -16,6 +16,7 @@ interface StatusWoPieChartCardProps {
   inProgressCount: number;
   notYetCount: number;
   cancelCount: number;
+  pendingCount?: number;
   achievementRate: number;
   onStatusClick?: (status: StatusWO) => void;
 }
@@ -26,6 +27,7 @@ export const StatusWoPieChartCard: React.FC<StatusWoPieChartCardProps> = ({
   inProgressCount,
   notYetCount,
   cancelCount,
+  pendingCount = 0,
   achievementRate,
   onStatusClick
 }) => {
@@ -49,6 +51,15 @@ export const StatusWoPieChartCard: React.FC<StatusWoPieChartCardProps> = ({
       color: '#06b6d4', // cyan-500
       icon: PlayCircle,
       subtext: 'Sedang Berjalan'
+    },
+    {
+      status: 'Pending' as StatusWO,
+      label: 'Pending (Tertunda)',
+      shortLabel: 'Pending',
+      value: pendingCount,
+      color: '#f59e0b', // amber-500
+      icon: Clock,
+      subtext: 'Tertunda'
     },
     {
       status: 'Not Yet' as StatusWO,

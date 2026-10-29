@@ -30,6 +30,7 @@ import { DeleteConfirmModal } from '../components/DeleteConfirmModal';
 import { TaggingLocationSection } from '../components/TaggingLocationSection';
 import { getFileBadgeStyle } from '../utils/fileHelper';
 import { exportDailyReportToExcel } from '../utils/excelExportHelper';
+import { calculateWorkDays, addWorkDays } from '../utils/dateUtils';
 
 export const getGoogleMapsRouteUrl = (
   origCoord?: string,
@@ -74,6 +75,7 @@ export const DailyReportPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedWOType, setSelectedWOType] = useState<string>('ALL');
   const [selectedAssignment, setSelectedAssignment] = useState<string>('ALL');
+  const [selectedStatusWo, setSelectedStatusWo] = useState<string>('ALL');
   
   // Modal Form State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -146,6 +148,12 @@ export const DailyReportPage: React.FC = () => {
     setEditingId(null);
     setIsCustomWoType(false);
     const initialWo = 'Plan Network Interconection POP';
+    const relDate = new Date().toISOString().substring(0, 10);
+    const stDate = relDate;
+    const initialTargetWorkDays = 5;
+    const fnDate = addWorkDays(stDate, initialTargetWorkDays);
+    const calculatedDur = calculateWorkDays(stDate, fnDate);
+
     setFormData({
       woType: initialWo,
       monthReleaseWo: new Date().toISOString().substring(0, 7),
@@ -154,10 +162,10 @@ export const DailyReportPage: React.FC = () => {
       statusWo: 'In Progress',
       pic: 'Operator Belacom',
       workType: '',
-      releaseDate: new Date().toISOString().substring(0, 10),
-      startDate: new Date().toISOString().substring(0, 10),
-      finishDate: new Date(Date.now() + 5 * 86400000).toISOString().substring(0, 10),
-      durationDays: 5,
+      releaseDate: relDate,
+      startDate: stDate,
+      finishDate: fnDate,
+      durationDays: calculatedDur,
       woNumber: `WO-BEL-2026-${Math.floor(1000 + Math.random() * 9000)}`,
       estimatedDistanceMeters: 2000,
       totalDistanceMeters: 1980,
@@ -182,8 +190,10 @@ export const DailyReportPage: React.FC = () => {
   const handleOpenEditModal = (report: DailyReportItem) => {
     setEditingId(report.id);
     setIsCustomWoType(!defaultWOOptions.includes(report.woType));
+    const calculatedDur = calculateWorkDays(report.startDate, report.finishDate) || report.durationDays || 1;
     setFormData({
       ...report,
+      durationDays: calculatedDur,
       originLocation: report.originLocation || '',
       originCoordinates: report.originCoordinates || '',
       originPhotoFile: report.originPhotoFile,
@@ -225,26 +235,14 @@ export const DailyReportPage: React.FC = () => {
     setIsModalOpen(false);
   };
 
-  // Auto calculate duration in days (inclusive)
+  // Auto calculate duration in active work days (excluding Sundays & Indonesian holidays)
   const calculateDurationDays = (startStr: string, finishStr: string): number => {
-    if (!startStr || !finishStr) return 1;
-    const start = new Date(startStr);
-    const finish = new Date(finishStr);
-    if (isNaN(start.getTime()) || isNaN(finish.getTime())) return 1;
-    if (finish < start) return 1;
-    const diffMs = finish.getTime() - start.getTime();
-    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1;
-    return diffDays > 0 ? diffDays : 1;
+    return calculateWorkDays(startStr, finishStr);
   };
 
-  // Auto calculate finish date given start date and duration days
+  // Auto calculate finish date given start date and duration in work days
   const calculateFinishDate = (startStr: string, durationDays: number): string => {
-    if (!startStr) return new Date().toISOString().substring(0, 10);
-    const start = new Date(startStr);
-    if (isNaN(start.getTime())) return new Date().toISOString().substring(0, 10);
-    const validDuration = Math.max(1, durationDays);
-    const finish = new Date(start.getTime() + (validDuration - 1) * 24 * 60 * 60 * 1000);
-    return finish.toISOString().substring(0, 10);
+    return addWorkDays(startStr, durationDays);
   };
 
   const handleReleaseDateChange = (val: string) => {
@@ -253,14 +251,17 @@ export const DailyReportPage: React.FC = () => {
       if (!newStart || newStart < val) {
         newStart = val;
       }
-      const dur = calculateDurationDays(newStart, prev.finishDate);
-      const newFinish = dur < 1 || prev.finishDate < newStart ? calculateFinishDate(newStart, dur) : prev.finishDate;
+      let newFinish = prev.finishDate;
+      if (!newFinish || newFinish < newStart) {
+        newFinish = addWorkDays(newStart, prev.durationDays || 1);
+      }
+      const dur = calculateWorkDays(newStart, newFinish);
       return {
         ...prev,
         releaseDate: val,
         startDate: newStart,
         finishDate: newFinish,
-        durationDays: calculateDurationDays(newStart, newFinish)
+        durationDays: dur
       };
     });
   };
@@ -269,9 +270,9 @@ export const DailyReportPage: React.FC = () => {
     setFormData(prev => {
       let newFinish = prev.finishDate;
       if (!newFinish || newFinish < val) {
-        newFinish = calculateFinishDate(val, prev.durationDays || 1);
+        newFinish = addWorkDays(val, prev.durationDays || 1);
       }
-      const dur = calculateDurationDays(val, newFinish);
+      const dur = calculateWorkDays(val, newFinish);
       return {
         ...prev,
         startDate: val,
@@ -287,7 +288,7 @@ export const DailyReportPage: React.FC = () => {
       if (!newStart || val < newStart) {
         newStart = val;
       }
-      const dur = calculateDurationDays(newStart, val);
+      const dur = calculateWorkDays(newStart, val);
       return {
         ...prev,
         startDate: newStart,
@@ -300,10 +301,11 @@ export const DailyReportPage: React.FC = () => {
   const handleDurationChange = (val: number) => {
     const validDur = Math.max(1, val);
     setFormData(prev => {
-      const newFinish = calculateFinishDate(prev.startDate, validDur);
+      const newFinish = addWorkDays(prev.startDate, validDur);
+      const actualDur = calculateWorkDays(prev.startDate, newFinish);
       return {
         ...prev,
-        durationDays: validDur,
+        durationDays: actualDur,
         finishDate: newFinish
       };
     });
@@ -328,8 +330,9 @@ export const DailyReportPage: React.FC = () => {
 
     const matchesWO = selectedWOType === 'ALL' || report.woType === selectedWOType;
     const matchesAssignment = selectedAssignment === 'ALL' || report.assignment === selectedAssignment;
+    const matchesStatusWo = selectedStatusWo === 'ALL' || report.statusWo === selectedStatusWo;
 
-    return matchesSearch && matchesWO && matchesAssignment;
+    return matchesSearch && matchesWO && matchesAssignment && matchesStatusWo;
   });
 
   const exportToCSV = () => {
@@ -351,7 +354,7 @@ export const DailyReportPage: React.FC = () => {
       r.statusWo,
       r.startDate,
       r.finishDate,
-      r.durationDays
+      calculateWorkDays(r.startDate, r.finishDate) || r.durationDays || 1
     ]);
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
     const encodedUri = encodeURI(csvContent);
@@ -370,7 +373,7 @@ export const DailyReportPage: React.FC = () => {
 
   const assignmentOptions: AssignmentArea[] = ['Jabo 1', 'Jabo 2', 'Jabo 3'];
   const teamOptions: TeamCode[] = ['ABR 01', 'ABR 02', 'ABR 03', 'ABR 04', 'ABR 05', 'ABR 06', 'ABR 07', 'ABR 08', 'ABR 09', 'ABR 10'];
-  const statusWoOptions: StatusWO[] = ['Not Yet', 'In Progress', 'Done'];
+  const statusWoOptions: StatusWO[] = ['Not Yet', 'In Progress', 'Done', 'Cancel', 'Pending'];
   const statusTeamProjectOptions: StatusTeamProject[] = ['Not Yet', 'Waiting Schedule', 'On Schedule'];
 
   return (
@@ -420,7 +423,7 @@ export const DailyReportPage: React.FC = () => {
       </div>
 
       {/* Filter & Search Bar */}
-      <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="relative">
           <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
@@ -454,6 +457,19 @@ export const DailyReportPage: React.FC = () => {
             <option value="ALL">-- Semua Assignment Area --</option>
             {assignmentOptions.map(a => (
               <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <select
+            value={selectedStatusWo}
+            onChange={(e) => setSelectedStatusWo(e.target.value)}
+            className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 text-xs text-slate-200 rounded-xl px-3 py-2 outline-none font-mono"
+          >
+            <option value="ALL">-- Semua Status WO --</option>
+            {statusWoOptions.map(sw => (
+              <option key={sw} value={sw}>{sw}</option>
             ))}
           </select>
         </div>
@@ -523,6 +539,8 @@ export const DailyReportPage: React.FC = () => {
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
                         report.statusWo === 'Done' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
                         report.statusWo === 'In Progress' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' :
+                        report.statusWo === 'Pending' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                        report.statusWo === 'Cancel' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' :
                         'bg-slate-800 text-slate-400 border border-slate-700'
                       }`}>
                         {report.statusWo}
@@ -830,7 +848,7 @@ export const DailyReportPage: React.FC = () => {
                     </div>
                   </div>
                   <p className="text-[10px] text-slate-400 font-mono italic mt-1">
-                    * Durasi (Hari) dihitung otomatis dari (Finish Date - Start Date + 1). Mengubah durasi juga memperbarui Finish Date secara otomatis.
+                    * Dihitung otomatis (tidak termasuk hari Minggu &amp; libur nasional)
                   </p>
                 </div>
               </div>

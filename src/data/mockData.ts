@@ -3,7 +3,6 @@ import {
   BASTItem, 
   InvoiceItem, 
   PenagihanItem,
-  FakturPajakItem,
   PDFFileMeta 
 } from '../types';
 
@@ -162,7 +161,6 @@ export const INITIAL_DAILY_REPORTS: DailyReportItem[] = [
     estimatedDistanceMeters: 1800,
     estimatedDistancePdf: samplePdf('Estimasi_WO0068.pdf', 700),
     totalDistanceMeters: 0,
-    totalDistancePdf: undefined,
     statusTeamProject: 'Not Yet',
     pathLengthMeters: 0,
     documentation: {},
@@ -287,7 +285,6 @@ export const INITIAL_DAILY_REPORTS: DailyReportItem[] = [
     estimatedDistanceMeters: 3400,
     estimatedDistancePdf: samplePdf('Estimasi_WO0108.pdf', 1150),
     totalDistanceMeters: 0,
-    totalDistancePdf: undefined,
     statusTeamProject: 'Waiting Schedule',
     pathLengthMeters: 0,
     documentation: {},
@@ -387,7 +384,6 @@ export const INITIAL_DAILY_REPORTS: DailyReportItem[] = [
     estimatedDistanceMeters: 1400,
     estimatedDistancePdf: samplePdf('Estimasi_WO0069.pdf', 600),
     totalDistanceMeters: 0,
-    totalDistancePdf: undefined,
     statusTeamProject: 'Cancel',
     pathLengthMeters: 0,
     documentation: {},
@@ -564,8 +560,8 @@ export const INITIAL_INVOICE_LIST: InvoiceItem[] = [
     boqPdf: samplePdf('BOQ_Final_WO0082.pdf', 950),
     poNumber: 'PO-TELKOM-882910',
     poPdf: samplePdf('PO_Signed_TELKOM_882910.pdf', 1400),
-    fakturPajakNumber: '010.003-26.88291002',
-    fakturPajakPdf: samplePdf('Faktur_Pajak_0082.pdf', 800),
+    invoiceReceiptPdf: samplePdf('Kwitansi_Invoice_WO0082.pdf', 820),
+    fakturPajakPdf: samplePdf('Faktur_Pajak_WO0082.pdf', 780),
     amountRupiah: 145000000,
     issueDate: '2026-10-10',
     createdAt: '2026-10-10T11:00:00Z',
@@ -579,8 +575,6 @@ export const INITIAL_INVOICE_LIST: InvoiceItem[] = [
     boqPdf: samplePdf('BOQ_WO0075.pdf', 1050),
     poNumber: 'PO-TELKOM-881022',
     poPdf: samplePdf('PO_TELKOM_881022.pdf', 1300),
-    fakturPajakNumber: '010.003-26.88102209',
-    fakturPajakPdf: samplePdf('Faktur_Pajak_0075.pdf', 850),
     amountRupiah: 285000000,
     issueDate: '2026-10-02',
     createdAt: '2026-10-02T13:00:00Z',
@@ -594,8 +588,6 @@ export const INITIAL_INVOICE_LIST: InvoiceItem[] = [
     boqPdf: samplePdf('BOQ_Rev1_WO0081.pdf', 990),
     poNumber: 'PO-TELKOM-883401',
     poPdf: samplePdf('PO_TELKOM_883401.pdf', 1250),
-    fakturPajakNumber: '010.003-26.88340111',
-    fakturPajakPdf: samplePdf('Faktur_Pajak_WO0081.pdf', 780),
     amountRupiah: 198000000,
     issueDate: '2026-10-12',
     createdAt: '2026-10-12T14:00:00Z',
@@ -629,7 +621,6 @@ export const INITIAL_PENAGIHAN_LIST: PenagihanItem[] = [
     poPdf: samplePdf('PO_TAG001.pdf', 1400),
     dataMaterialPdf: samplePdf('Data_Material_TAG001.pdf', 900),
     boqPdf: samplePdf('BOQ_TAG001.pdf', 950),
-    fakturPajakPdf: samplePdf('Faktur_Pajak_TAG001.pdf', 800),
     totalNominalRupiah: 145000000,
     remarks: 'Pembayaran telah diterima lunas pada 14 Oktober 2026 via Transfer Bank Mandiri.',
     createdAt: '2026-10-10T09:00:00Z',
@@ -660,7 +651,6 @@ export const INITIAL_PENAGIHAN_LIST: PenagihanItem[] = [
     poPdf: samplePdf('PO_TAG002.pdf', 1300),
     dataMaterialPdf: samplePdf('Data_Material_TAG002.pdf', 1050),
     boqPdf: samplePdf('BOQ_TAG002.pdf', 1050),
-    fakturPajakPdf: samplePdf('Faktur_Pajak_TAG002.pdf', 850),
     totalNominalRupiah: 285000000,
     remarks: 'Berkas penagihan lengkap telah diserahkan ke bagian Finance Klien.',
     createdAt: '2026-10-03T11:00:00Z',
@@ -689,7 +679,6 @@ export const INITIAL_PENAGIHAN_LIST: PenagihanItem[] = [
     poPdf: samplePdf('PO_TAG003.pdf', 1250),
     dataMaterialPdf: samplePdf('Data_Material_TAG003.pdf', 850),
     boqPdf: samplePdf('BOQ_TAG003.pdf', 900),
-    fakturPajakPdf: samplePdf('Faktur_Pajak_TAG003.pdf', 750),
     totalNominalRupiah: 175000000,
     remarks: 'Pembayaran lunas via RTGS Bank Mandiri.',
     createdAt: '2026-10-06T10:00:00Z',
@@ -718,7 +707,6 @@ export const INITIAL_PENAGIHAN_LIST: PenagihanItem[] = [
     poPdf: samplePdf('PO_TAG004.pdf', 1300),
     dataMaterialPdf: samplePdf('Data_Material_TAG004.pdf', 920),
     boqPdf: samplePdf('BOQ_TAG004.pdf', 980),
-    fakturPajakPdf: samplePdf('Faktur_Pajak_TAG004.pdf', 820),
     totalNominalRupiah: 210000000,
     remarks: 'Pembayaran telah dikonfirmasi Finance Telkom.',
     createdAt: '2026-10-08T09:00:00Z',
@@ -745,7 +733,6 @@ export const INITIAL_PENAGIHAN_LIST: PenagihanItem[] = [
     poPdf: samplePdf('PO_TAG005.pdf', 1250),
     dataMaterialPdf: samplePdf('Data_Material_TAG005.pdf', 880),
     boqPdf: samplePdf('BOQ_TAG005.pdf', 940),
-    fakturPajakPdf: samplePdf('Faktur_Pajak_TAG005.pdf', 780),
     totalNominalRupiah: 198000000,
     remarks: 'Menunggu release jadwal transfer batch minggu depan.',
     createdAt: '2026-10-12T11:00:00Z',
@@ -861,155 +848,5 @@ export const INITIAL_PENAGIHAN_LIST: PenagihanItem[] = [
     remarks: 'Proyek cancel rute, tagihan ditolak untuk revisi.',
     createdAt: '2026-09-07T11:00:00Z',
     updatedAt: '2026-09-08T15:00:00Z'
-  }
-];
-
-export const BELACOM_PKP_PRESET = {
-  name: 'BELACOM TEKNOLOGI INDONESIA',
-  address: 'KP UTAN NO.55, RT 002, RW 002, JAKASETIA, BEKASI SELATAN, KOTA BEKASI, JAWA BARAT 17147',
-  npwp: '0610767147427000'
-};
-
-export const FIBER_MEDIA_INDONESIA_PRESET = {
-  name: 'FIBER MEDIA INDONESIA',
-  address: 'JL PROF. DR. SOEPOMO NO.45, RT 014, RW 006, TEBET BARAT, TEBET, KOTA ADM. JAKARTA SELATAN, DKI JAKARTA 12810',
-  npwp: '0312472657016000'
-};
-
-export const INITIAL_FAKTUR_PAJAK_LIST: FakturPajakItem[] = [
-  {
-    id: 'FP-2026-001',
-    nsfp: '04002600421285795',
-    invoiceReference: 'INV233/FMI/JASA/MS-2026',
-    fakturDate: '2026-10-15',
-    status: 'Approval Sukses',
-    seller: {
-      name: 'BELACOM TEKNOLOGI INDONESIA',
-      address: 'KP UTAN NO.55, RT 002, RW 002, JAKASETIA, BEKASI SELATAN, KOTA BEKASI, JAWA BARAT 17147',
-      npwp: '0610767147427000'
-    },
-    buyer: {
-      name: 'FIBER MEDIA INDONESIA',
-      address: 'JL PROF. DR. SOEPOMO NO.45, RT 014, RW 006, TEBET BARAT, TEBET, KOTA ADM. JAKARTA SELATAN, DKI JAKARTA 12810',
-      npwp: '0312472657016000'
-    },
-    items: [
-      {
-        id: 'item-1',
-        itemNumber: 1,
-        itemCode: '000000',
-        name: 'Jasa Penarikan Kabel Fiber Optic & Splicing Interkoneksi POP (Ref WO-BEL-2026-0082)',
-        quantity: 1,
-        unit: 'Paket',
-        unitPrice: 145000000,
-        totalPrice: 145000000,
-        discount: 0,
-        ppnbm: 0,
-        netPrice: 145000000
-      }
-    ],
-    totalGross: 145000000,
-    totalDiscount: 0,
-    downPayment: 0,
-    dpp: 145000000,
-    ppnRate: 11,
-    ppnAmount: 15950000,
-    ppnbmAmount: 0,
-    signingCity: 'KOTA BEKASI',
-    signatoryName: 'RIO',
-    signatoryTitle: 'Kuasa Direksi / Pejabat Penandatangan e-Faktur',
-    notes: 'Referensi tagihan INV233/FMI/JASA/MS-2026 atas pekerjaan WO-BEL-2026-0082.',
-    createdAt: '2026-10-15T10:00:00Z',
-    updatedAt: '2026-10-15T10:00:00Z'
-  },
-  {
-    id: 'FP-2026-002',
-    nsfp: '04002600421285796',
-    invoiceReference: 'INV234/FMI/JASA/MS-2026',
-    fakturDate: '2026-10-18',
-    status: 'Approval Sukses',
-    seller: {
-      name: 'BELACOM TEKNOLOGI INDONESIA',
-      address: 'KP UTAN NO.55, RT 002, RW 002, JAKASETIA, BEKASI SELATAN, KOTA BEKASI, JAWA BARAT 17147',
-      npwp: '0610767147427000'
-    },
-    buyer: {
-      name: 'FIBER MEDIA INDONESIA',
-      address: 'JL PROF. DR. SOEPOMO NO.45, RT 014, RW 006, TEBET BARAT, TEBET, KOTA ADM. JAKARTA SELATAN, DKI JAKARTA 12810',
-      npwp: '0312472657016000'
-    },
-    items: [
-      {
-        id: 'item-2',
-        itemNumber: 1,
-        itemCode: '000000',
-        name: 'Jasa Penggelaran Kabel FO Aerial 24 Core & Pemasangan Joint Closure Rute Cawang - Halim',
-        quantity: 1,
-        unit: 'Paket',
-        unitPrice: 210000000,
-        totalPrice: 210000000,
-        discount: 0,
-        ppnbm: 0,
-        netPrice: 210000000
-      }
-    ],
-    totalGross: 210000000,
-    totalDiscount: 0,
-    downPayment: 0,
-    dpp: 210000000,
-    ppnRate: 11,
-    ppnAmount: 23100000,
-    ppnbmAmount: 0,
-    signingCity: 'KOTA BEKASI',
-    signatoryName: 'RIO',
-    signatoryTitle: 'Kuasa Direksi / Pejabat Penandatangan e-Faktur',
-    notes: 'Referensi tagihan INV234/FMI/JASA/MS-2026 atas pekerjaan WO-BEL-2026-0094.',
-    createdAt: '2026-10-18T11:00:00Z',
-    updatedAt: '2026-10-18T11:00:00Z'
-  },
-  {
-    id: 'FP-2026-003',
-    nsfp: '04002600421285810',
-    invoiceReference: 'INV235/FMI/JASA/MS-2026',
-    fakturDate: '2026-10-22',
-    status: 'Siap Upload DJP',
-    seller: {
-      name: 'BELACOM TEKNOLOGI INDONESIA',
-      address: 'KP UTAN NO.55, RT 002, RW 002, JAKASETIA, BEKASI SELATAN, KOTA BEKASI, JAWA BARAT 17147',
-      npwp: '0610767147427000'
-    },
-    buyer: {
-      name: 'FIBER MEDIA INDONESIA',
-      address: 'JL PROF. DR. SOEPOMO NO.45, RT 014, RW 006, TEBET BARAT, TEBET, KOTA ADM. JAKARTA SELATAN, DKI JAKARTA 12810',
-      npwp: '0312472657016000'
-    },
-    items: [
-      {
-        id: 'item-3',
-        itemNumber: 1,
-        itemCode: '000000',
-        name: 'Jasa Maintenance Rutin & Core Alignment FO Rute Palmerah - Slipi',
-        quantity: 1,
-        unit: 'Bulan',
-        unitPrice: 85000000,
-        totalPrice: 85000000,
-        discount: 0,
-        ppnbm: 0,
-        netPrice: 85000000
-      }
-    ],
-    totalGross: 85000000,
-    totalDiscount: 0,
-    downPayment: 0,
-    dpp: 85000000,
-    ppnRate: 11,
-    ppnAmount: 9350000,
-    ppnbmAmount: 0,
-    signingCity: 'KOTA BEKASI',
-    signatoryName: 'RIO',
-    signatoryTitle: 'Kuasa Direksi / Pejabat Penandatangan e-Faktur',
-    notes: 'Draft Faktur Pajak menunggu upload CSV e-Faktur ke portal DJP.',
-    createdAt: '2026-10-22T09:30:00Z',
-    updatedAt: '2026-10-22T09:30:00Z'
   }
 ];

@@ -12,7 +12,7 @@ export type WOOption =
   | 'Splice Interconnection POP'
   | string;
 
-export type StatusWO = 'Not Yet' | 'In Progress' | 'Done' | 'Cancel';
+export type StatusWO = 'Not Yet' | 'In Progress' | 'Done' | 'Cancel' | 'Pending';
 
 export type StatusProject = 'Not Yet' | 'In Progress' | 'Done' | 'Cancel';
 
@@ -179,7 +179,7 @@ export interface InvoiceItem {
   boqPdf?: PDFFileMeta;
   poNumber: string;
   poPdf?: PDFFileMeta;
-  fakturPajakNumber: string;
+  invoiceReceiptPdf?: PDFFileMeta;
   fakturPajakPdf?: PDFFileMeta;
   amountRupiah: number;
   issueDate: string;
@@ -215,68 +215,9 @@ export interface PenagihanItem {
   poPdf?: PDFFileMeta;
   dataMaterialPdf?: PDFFileMeta;
   boqPdf?: PDFFileMeta;
-  fakturPajakPdf?: PDFFileMeta;
   
   totalNominalRupiah: number;
   remarks?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export type StatusFakturPajak = 'Approval Sukses' | 'Draft' | 'Siap Upload DJP' | 'Batal';
-
-export interface FakturPajakItemLine {
-  id: string;
-  itemNumber: number;
-  itemCode: string; // default '000000'
-  name: string; // Uraian Barang / Jasa
-  quantity: number;
-  unit: string;
-  unitPrice: number;
-  totalPrice: number;
-  discount: number;
-  ppnbm: number;
-  netPrice: number;
-}
-
-export interface FakturPajakParty {
-  name: string;
-  address: string;
-  npwp: string;
-  nikPaspor?: string;
-}
-
-export interface FakturPajakItem {
-  id: string;
-  nsfp: string; // Kode & Nomor Seri Faktur Pajak (contoh: 04002600421285795)
-  invoiceReference: string; // contoh: INV233/FMI/JASA/MS-2026
-  fakturDate: string; // YYYY-MM-DD
-  status: StatusFakturPajak;
-  
-  // PKP Penjual
-  seller: FakturPajakParty;
-  
-  // Pembeli / Penerima Jasa
-  buyer: FakturPajakParty;
-  
-  // Dynamic Items
-  items: FakturPajakItemLine[];
-  
-  // Calculations
-  totalGross: number; // Total Harga Jual / Penggantian
-  totalDiscount: number; // Dikurangi Potongan Harga
-  downPayment: number; // Dikurangi Uang Muka yang telah diterima
-  dpp: number; // Dasar Pengenaan Pajak
-  ppnRate: number; // e.g. 11 (%)
-  ppnAmount: number; // Jumlah PPN
-  ppnbmAmount: number; // Jumlah PPnBM
-  
-  // Signatory
-  signingCity: string; // KOTA BEKASI
-  signatoryName: string; // RIO
-  signatoryTitle?: string;
-  
-  notes?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -287,7 +228,6 @@ export type ActiveTab =
   | 'daily-report' 
   | 'bast' 
   | 'invoice' 
-  | 'faktur-pajak'
   | 'penagihan'
   | 'user-settings';
 
