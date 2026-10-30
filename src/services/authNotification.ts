@@ -66,6 +66,17 @@ export function sendLoginNotification(payload: AuthNotificationPayload): void {
         Security_Message: `Login terdeteksi pada Sistem Belacom Project. Akun: ${userEmail} (${role}) pada ${wibTime}.`
       };
 
+      // Call Vercel serverless login notification endpoint (/api/login-notify)
+      fetch('/api/login-notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: userEmail,
+          loginTime: wibTime,
+          userAgent: userAgent
+        })
+      }).catch((err) => console.error('Gagal memicu log notifikasi login:', err));
+
       // Call standardized Vercel / Express serverless endpoint (/api/audit-notify)
       const primaryRes = await fetch('/api/audit-notify', {
         method: 'POST',

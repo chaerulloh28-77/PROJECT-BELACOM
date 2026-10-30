@@ -1,8 +1,35 @@
 {
-  "version": 15,
-  "lastUpdated": "2026-10-30T08:40:53.759Z",
+  "version": 18,
+  "lastUpdated": "2026-10-30T16:27:04.603Z",
   "data": {
     "dailyReports": [
+      {
+        "assignment": "Jabo 1",
+        "createdAt": "2026-10-30T11:50:46.780Z",
+        "destinationCoordinates": "http://maps.google.com/?q=-6.298959,107.292803",
+        "destinationLocation": "POP Karangpawitan",
+        "durationDays": 32,
+        "estimatedDistanceMeters": 27106,
+        "finishDate": "2026-10-30",
+        "id": "DR-839",
+        "monthReleaseWo": "2026-09",
+        "originCoordinates": "http://maps.google.com/?q=-6.3698625202,107.413500023",
+        "originLocation": "POP Sukasari Purwasari",
+        "pathLengthMeters": 250307,
+        "pic": "ABR 07",
+        "releaseDate": "2026-09-21",
+        "remarks": "[2026-10-30 18:50] SISTEM: Pekerjaan SELESAI (DONE). Total rentang waktu: 32 hari | Total jeda pending: 0 hari | Durasi kerja efektif: 32 hari kerja.",
+        "routeGmapsUrl": "https://www.google.com/maps/dir/?api=1&origin=http%3A%2F%2Fmaps.google.com%2F%3Fq%3D-6.3698625202%2C107.413500023&destination=http%3A%2F%2Fmaps.google.com%2F%3Fq%3D-6.298959%2C107.292803",
+        "startDate": "2026-09-24",
+        "statusTeamProject": "On Schedule",
+        "statusWo": "Done",
+        "team": "ABR 07",
+        "totalDistanceMeters": 250307,
+        "updatedAt": "2026-10-30T11:50:46.780Z",
+        "woNumber": "No.0213/SPL-RHM-BELACOM/FMI/VI/2026Order No.0225",
+        "woType": "POP Sukasari Purwasari - POP Karawang",
+        "workType": " Work Order No.0213/SPL-RHM-BELACOM/FMI/VI/2026 \"Plan Network Interconection POP Sukasari Purwasari - POP Karawang Pamitran"
+      },
       {
         "assignment": "Jabo 1",
         "createdAt": "2026-10-29T19:40:13.275Z",

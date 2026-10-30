@@ -14,6 +14,7 @@ import {
 import { BASTItem, BASTWorkflow } from '../types';
 import { TouchButton } from './TouchButton';
 import { evaluateBASTWorkflow, getDefaultBASTWorkflow, getStage1, getStage2, getStage3, getStage4 } from '../utils/bastWorkflowHelper';
+import { handleDateInputClick } from '../utils/dateUtils';
 
 interface BASTWorkflowModalProps {
   isOpen: boolean;
@@ -311,7 +312,8 @@ export const BASTWorkflowModal: React.FC<BASTWorkflowModalProps> = ({
                     type="date"
                     value={stage1.tanggalKirim || stage1.emailSentDate || ''}
                     onChange={(e) => handleStage1Change({ tanggalKirim: e.target.value, emailSentDate: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 text-slate-100 rounded-xl p-2.5 outline-none font-mono focus:border-cyan-500"
+                    onClick={handleDateInputClick}
+                    className="w-full bg-slate-900 border border-slate-800 text-slate-100 rounded-xl p-2.5 outline-none font-mono focus:border-cyan-500 cursor-pointer"
                   />
                 </div>
 
@@ -432,7 +434,8 @@ export const BASTWorkflowModal: React.FC<BASTWorkflowModalProps> = ({
                     type="date"
                     value={stage2.checkedDate || ''}
                     onChange={(e) => handleStage2Change({ checkedDate: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 text-slate-100 rounded-xl p-2.5 outline-none font-mono focus:border-cyan-500"
+                    onClick={handleDateInputClick}
+                    className="w-full bg-slate-900 border border-slate-800 text-slate-100 rounded-xl p-2.5 outline-none font-mono focus:border-cyan-500 cursor-pointer"
                   />
                 </div>
 
@@ -531,7 +534,8 @@ export const BASTWorkflowModal: React.FC<BASTWorkflowModalProps> = ({
                     type="date"
                     value={stage3.signedDate || ''}
                     onChange={(e) => handleStage3Change({ signedDate: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 text-slate-100 rounded-xl p-2.5 outline-none font-mono focus:border-cyan-500"
+                    onClick={handleDateInputClick}
+                    className="w-full bg-slate-900 border border-slate-800 text-slate-100 rounded-xl p-2.5 outline-none font-mono focus:border-cyan-500 cursor-pointer"
                   />
                 </div>
 
@@ -619,7 +623,8 @@ export const BASTWorkflowModal: React.FC<BASTWorkflowModalProps> = ({
                     type="date"
                     value={stage4.tanggalMasukFinance || stage4.receivedDate || ''}
                     onChange={(e) => handleStage4Change({ tanggalMasukFinance: e.target.value, receivedDate: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 text-slate-100 rounded-xl p-2.5 outline-none font-mono focus:border-cyan-500"
+                    onClick={handleDateInputClick}
+                    className="w-full bg-slate-900 border border-slate-800 text-slate-100 rounded-xl p-2.5 outline-none font-mono focus:border-cyan-500 cursor-pointer"
                   />
                 </div>
 

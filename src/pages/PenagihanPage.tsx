@@ -26,6 +26,7 @@ import { PDFViewerModal } from '../components/PDFViewerModal';
 import { DeleteConfirmModal } from '../components/DeleteConfirmModal';
 import { exportPenagihanToExcel, exportSinglePenagihanToExcel } from '../utils/excelExportWithImages';
 import { exportSinglePenagihanToWord } from '../utils/wordExportService';
+import { handleDateInputClick } from '../utils/dateUtils';
 
 export const PenagihanPage: React.FC = () => {
   const { penagihanList, addPenagihan, updatePenagihan, deletePenagihan, showToast } = useProjectContext();
@@ -694,7 +695,8 @@ export const PenagihanPage: React.FC = () => {
                     required
                     value={formData.tanggalSubmit || new Date().toISOString().substring(0, 10)}
                     onChange={(e) => setFormData(p => ({ ...p, tanggalSubmit: e.target.value }))}
-                    className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none font-mono"
+                    onClick={handleDateInputClick}
+                    className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none font-mono focus:border-cyan-500 cursor-pointer"
                   />
                 </div>
 

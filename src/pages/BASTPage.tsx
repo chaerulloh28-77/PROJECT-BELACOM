@@ -18,10 +18,11 @@ import {
   ChevronUp,
   FileSpreadsheet,
   Table,
-  LayoutGrid
+  LayoutGrid,
+  Calendar
 } from 'lucide-react';
 import { useProjectContext } from '../context/ProjectContext';
-import { BASTItem, WOOption, StatusBAST, PDFFileMeta, BASTWorkflow } from '../types';
+import { BASTItem, WOOption, StatusBAST, PDFFileMeta, BASTWorkflow, DateScheduleEntry } from '../types';
 import { TouchButton } from '../components/TouchButton';
 import { PDFUploader } from '../components/PDFUploader';
 import { MultiPDFUploader } from '../components/MultiPDFUploader';
@@ -29,11 +30,14 @@ import { PDFViewerModal } from '../components/PDFViewerModal';
 import { DeleteConfirmModal } from '../components/DeleteConfirmModal';
 import { BASTWorkflowCardStepper } from '../components/BASTWorkflowCardStepper';
 import { BASTWorkflowModal } from '../components/BASTWorkflowModal';
+import { CalendarDatePickerModal } from '../components/CalendarDatePickerModal';
+import { DateBadgeHelper } from '../components/DateBadgeHelper';
+import { DurationBreakdownBadge } from '../components/DurationBreakdownBadge';
 import { getFileBadgeStyle } from '../utils/fileHelper';
 import { evaluateBASTWorkflow, getDefaultBASTWorkflow, WorkflowFilterTab } from '../utils/bastWorkflowHelper';
 import { exportBASTToExcel } from '../utils/excelExportHelper';
 import { exportSingleBASTToWord } from '../utils/wordExportService';
-import { calculateWorkDays, addWorkDays } from '../utils/dateUtils';
+import { calculateWorkDays, addWorkDays, handleDateInputClick, getTotalDurationDays } from '../utils/dateUtils';
 
 export const BASTPage: React.FC = () => {
   const { bastList, addBAST, updateBAST, deleteBAST, showToast, dailyReports } = useProjectContext();
@@ -50,6 +54,28 @@ export const BASTPage: React.FC = () => {
   // Delete Target Modal
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; woNumber: string } | null>(null);
   const [isCustomWoType, setIsCustomWoType] = useState<boolean>(false);
+
+  // Calendar Picker Modal State
+  const [calendarConfig, setCalendarConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    initialDate: string;
+    onSelect: (dateStr: string) => void;
+  }>({
+    isOpen: false,
+    title: 'Pilih Tanggal Kalender',
+    initialDate: '',
+    onSelect: () => {}
+  });
+
+  const openCalendarFor = (title: string, initialDate: string, onSelect: (dateStr: string) => void) => {
+    setCalendarConfig({
+      isOpen: true,
+      title,
+      initialDate: initialDate || new Date().toISOString().substring(0, 10),
+      onSelect
+    });
+  };
 
   const [formData, setFormData] = useState<Omit<BASTItem, 'id' | 'createdAt' | 'updatedAt'>>({
     woNumber: 'WO-BEL-2026-0082',
@@ -220,38 +246,23 @@ export const BASTPage: React.FC = () => {
   };
 
   const handleReleaseDateChange = (val: string) => {
-    setFormData(prev => {
-      let newStart = prev.startDate;
-      if (!newStart || newStart < val) {
-        newStart = val;
-      }
-      let newFinish = prev.finishDate;
-      if (!newFinish || newFinish < newStart) {
-        newFinish = addWorkDays(newStart, prev.durationDays || 1);
-      }
-      const calculatedDur = calculateWorkDays(newStart, newFinish);
-      return {
-        ...prev,
-        releaseDate: val,
-        startDate: newStart,
-        finishDate: newFinish,
-        durationDays: calculatedDur,
-        durasiDate: calculatedDur
-      };
-    });
+    setFormData(prev => ({
+      ...prev,
+      releaseDate: val
+    }));
   };
 
   const handleStartDateChange = (val: string) => {
     setFormData(prev => {
-      let newFinish = prev.finishDate;
-      if (!newFinish || newFinish < val) {
-        newFinish = addWorkDays(val, prev.durationDays || 1);
+      if (!val) {
+        return { ...prev, startDate: '' };
       }
-      const dur = calculateWorkDays(val, newFinish);
+      const finish = prev.finishDate;
+      const dur = finish ? (calculateWorkDays(val, finish) || Number(prev.durasiDate || prev.durationDays || 1)) : (prev.durationDays || 1);
       return {
         ...prev,
         startDate: val,
-        finishDate: newFinish,
+        finishDate: finish,
         durationDays: dur,
         durasiDate: dur
       };
@@ -260,14 +271,13 @@ export const BASTPage: React.FC = () => {
 
   const handleFinishDateChange = (val: string) => {
     setFormData(prev => {
-      let newStart = prev.startDate;
-      if (!newStart || val < newStart) {
-        newStart = val;
+      if (!val) {
+        return { ...prev, finishDate: '' };
       }
-      const dur = calculateWorkDays(newStart, val);
+      const start = prev.startDate;
+      const dur = start ? (calculateWorkDays(start, val) || Number(prev.durasiDate || prev.durationDays || 1)) : (prev.durationDays || 1);
       return {
         ...prev,
-        startDate: newStart,
         finishDate: val,
         durationDays: dur,
         durasiDate: dur
@@ -278,14 +288,78 @@ export const BASTPage: React.FC = () => {
   const handleDurationChange = (val: number) => {
     const validDur = Math.max(1, val);
     setFormData(prev => {
-      const newFinish = addWorkDays(prev.startDate, validDur);
-      const actualDur = calculateWorkDays(prev.startDate, newFinish);
+      const stDate = prev.startDate || prev.releaseDate || new Date().toISOString().substring(0, 10);
+      const newFinish = addWorkDays(stDate, validDur);
       return {
         ...prev,
-        durationDays: actualDur,
-        durasiDate: actualDur,
+        startDate: stDate,
+        durationDays: validDur,
+        durasiDate: validDur,
         finishDate: newFinish
       };
+    });
+  };
+
+  const handleAddScheduleRow = () => {
+    setFormData(prev => {
+      const curRows = prev.additionalSchedules || [];
+      const lastFinish = curRows.length > 0
+        ? curRows[curRows.length - 1].finishDate
+        : (prev.finishDate || prev.releaseDate || new Date().toISOString().substring(0, 10));
+      const newStart = lastFinish || new Date().toISOString().substring(0, 10);
+      const defaultDur = 1;
+      const newFinish = addWorkDays(newStart, defaultDur);
+      const newRow: DateScheduleEntry = {
+        id: `sched_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        startDate: newStart,
+        finishDate: newFinish,
+        durationDays: defaultDur
+      };
+      return {
+        ...prev,
+        additionalSchedules: [...curRows, newRow]
+      };
+    });
+  };
+
+  const handleRemoveScheduleRow = (id: string) => {
+    setFormData(prev => ({
+      ...prev,
+      additionalSchedules: (prev.additionalSchedules || []).filter(r => r.id !== id)
+    }));
+  };
+
+  const handleRowDateChange = (id: string, field: 'startDate' | 'finishDate', val: string) => {
+    setFormData(prev => {
+      const updated = (prev.additionalSchedules || []).map(row => {
+        if (row.id !== id) return row;
+        if (!val) {
+          return { ...row, [field]: '' };
+        }
+        if (field === 'startDate') {
+          const finish = row.finishDate;
+          const dur = finish ? (calculateWorkDays(val, finish) || row.durationDays || 1) : (row.durationDays || 1);
+          return { ...row, startDate: val, finishDate: finish, durationDays: dur };
+        } else {
+          const start = row.startDate;
+          const dur = start ? (calculateWorkDays(start, val) || row.durationDays || 1) : (row.durationDays || 1);
+          return { ...row, finishDate: val, durationDays: dur };
+        }
+      });
+      return { ...prev, additionalSchedules: updated };
+    });
+  };
+
+  const handleRowDurationChange = (id: string, dur: number) => {
+    const safeDur = Math.max(1, dur);
+    setFormData(prev => {
+      const updated = (prev.additionalSchedules || []).map(row => {
+        if (row.id !== id) return row;
+        const st = row.startDate || prev.startDate || new Date().toISOString().substring(0, 10);
+        const newFinish = addWorkDays(st, safeDur);
+        return { ...row, durationDays: safeDur, finishDate: newFinish };
+      });
+      return { ...prev, additionalSchedules: updated };
     });
   };
 
@@ -592,7 +666,7 @@ export const BASTPage: React.FC = () => {
                       {/* Col 5: Durasi & Tanggal */}
                       <td className="py-2 px-3 text-center whitespace-nowrap font-mono">
                         <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20 mb-0.5">
-                          [ {bast.durasiDate ?? bast.durationDays ?? 1} Hari ]
+                          [ {getTotalDurationDays(bast)} Hari ]
                         </span>
                         <span className="text-[10px] text-slate-400 block">{bast.finishDate || '-'}</span>
                       </td>
@@ -709,9 +783,9 @@ export const BASTPage: React.FC = () => {
                       <span className="text-cyan-300 font-semibold">{bast.coreConnectionDate || bast.finishDate || '-'}</span>
                     </div>
                     <div className="flex items-center justify-between pt-1 border-t border-slate-800/60">
-                      <span className="text-slate-400">Durasi Date:</span>
+                      <span className="text-slate-400">Total Durasi:</span>
                       <span className="px-2 py-0.5 rounded-md text-[11px] font-extrabold bg-cyan-950 text-cyan-300 border border-cyan-800/60">
-                        [ {bast.durasiDate ?? bast.durationDays ?? 1} Hari ]
+                        [ {getTotalDurationDays(bast)} Hari ]
                       </span>
                     </div>
                     {bast.totalDistanceMeters ? (
@@ -1015,68 +1089,192 @@ export const BASTPage: React.FC = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  <div>
-                    <label className="text-xs font-semibold text-slate-300 block mb-1">Release Date</label>
-                    <input
-                      type="date"
-                      value={formData.releaseDate}
-                      onChange={(e) => handleReleaseDateChange(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 text-xs text-slate-100 rounded-xl p-2 outline-none font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-slate-300 block mb-1">Start Date</label>
-                    <input
-                      type="date"
-                      value={formData.startDate}
-                      onChange={(e) => handleStartDateChange(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 text-xs text-slate-100 rounded-xl p-2 outline-none font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-slate-300 block mb-1">Finish Date</label>
-                    <input
-                      type="date"
-                      value={formData.finishDate}
-                      onChange={(e) => handleFinishDateChange(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 text-xs text-slate-100 rounded-xl p-2 outline-none font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-slate-300 block mb-1">ABD Date (Tanggal ABD)</label>
-                    <input
-                      type="date"
-                      value={formData.abdDate || formData.finishDate}
-                      onChange={(e) => setFormData(p => ({ ...p, abdDate: e.target.value }))}
-                      className="w-full bg-slate-900 border border-slate-800 text-xs text-cyan-300 rounded-xl p-2 outline-none font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-slate-300 block mb-1">Core Connection Date</label>
-                    <input
-                      type="date"
-                      value={formData.coreConnectionDate || formData.finishDate}
-                      onChange={(e) => setFormData(p => ({ ...p, coreConnectionDate: e.target.value }))}
-                      className="w-full bg-slate-900 border border-slate-800 text-xs text-cyan-300 rounded-xl p-2 outline-none font-mono"
-                    />
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs font-semibold text-slate-300">Durasi Date (Hari)</label>
-                      <span className="text-[10px] text-cyan-400 font-mono font-bold bg-cyan-950/80 px-1.5 py-0.5 rounded border border-cyan-800/60">
-                        ⚡ Otomatis
-                      </span>
+                  {/* Multi-Row Schedule Layout: Release Date Single + Multi-Row Start/Finish/Duration */}
+                  <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 bg-slate-950/80 p-3.5 rounded-xl border border-slate-800/80">
+                    {/* Left Column: Release Date (Tetap Tunggal) */}
+                    <div className="lg:col-span-1 border-b lg:border-b-0 lg:border-r border-slate-800 pb-3 lg:pb-0 lg:pr-3 space-y-2">
+                      <div>
+                        <label className="text-xs font-semibold text-slate-300 block mb-1">Release Date</label>
+                        <input
+                          type="date"
+                          value={formData.releaseDate}
+                          onChange={(e) => handleReleaseDateChange(e.target.value)}
+                          onClick={handleDateInputClick}
+                          className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none font-mono focus:border-cyan-500 cursor-pointer"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-semibold text-slate-300 block mb-1">ABD Date</label>
+                        <input
+                          type="date"
+                          value={formData.abdDate || formData.finishDate}
+                          onChange={(e) => setFormData(p => ({ ...p, abdDate: e.target.value }))}
+                          onClick={handleDateInputClick}
+                          className="w-full bg-slate-950 border border-slate-800 text-xs text-cyan-300 rounded-xl p-2.5 outline-none font-mono focus:border-cyan-500 cursor-pointer"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-semibold text-slate-300 block mb-1">Core Connection Date</label>
+                        <input
+                          type="date"
+                          value={formData.coreConnectionDate || formData.finishDate}
+                          onChange={(e) => setFormData(p => ({ ...p, coreConnectionDate: e.target.value }))}
+                          onClick={handleDateInputClick}
+                          className="w-full bg-slate-950 border border-slate-800 text-xs text-cyan-300 rounded-xl p-2.5 outline-none font-mono focus:border-cyan-500 cursor-pointer"
+                        />
+                      </div>
                     </div>
-                    <input
-                      type="number"
-                      min={1}
-                      value={formData.durationDays}
-                      onChange={(e) => handleDurationChange(parseInt(e.target.value) || 1)}
-                      className="w-full bg-slate-900 border border-cyan-500/50 text-xs text-amber-400 font-extrabold rounded-xl p-2 outline-none font-mono focus:ring-1 focus:ring-cyan-500"
-                    />
+
+                    {/* Right Panel: Multi-Row Start Date, Finish Date, Durasi (Hari) */}
+                    <div className="lg:col-span-3 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-cyan-400 font-mono uppercase tracking-wider flex items-center gap-1.5">
+                          <span>📅</span>
+                          <span>TANGGAL &amp; DURASI PEKERJAAN (MULTI-BARIS)</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleAddScheduleRow}
+                          className="text-xs font-mono font-bold px-3 py-1 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-slate-950 flex items-center gap-1 cursor-pointer transition-colors shadow-sm"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>+ Tambah Tanggal &amp; Durasi</span>
+                        </button>
+                      </div>
+
+                      {/* Baris 1 (Primary Entry Card) */}
+                      <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800">
+                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                          <div className="sm:col-span-4">
+                            <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                              Start Date <span className="text-[10px] text-amber-400 font-mono font-bold">(Baris 1)</span>
+                            </label>
+                            <input
+                              type="date"
+                              value={formData.startDate}
+                              onChange={(e) => handleStartDateChange(e.target.value)}
+                              onClick={handleDateInputClick}
+                              className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none font-mono focus:border-cyan-500 cursor-pointer"
+                            />
+                          </div>
+                          <div className="sm:col-span-4">
+                            <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                              Finish Date <span className="text-[10px] text-amber-400 font-mono font-bold">(Baris 1)</span>
+                            </label>
+                            <input
+                              type="date"
+                              value={formData.finishDate}
+                              onChange={(e) => handleFinishDateChange(e.target.value)}
+                              onClick={handleDateInputClick}
+                              className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none font-mono focus:border-cyan-500 cursor-pointer"
+                            />
+                          </div>
+                          <div className="sm:col-span-3">
+                            <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                              Durasi (Hari)
+                            </label>
+                            <input
+                              type="number"
+                              min={1}
+                              value={formData.durasiDate ?? formData.durationDays ?? 1}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value);
+                                const safeVal = isNaN(val) ? 1 : Math.max(1, val);
+                                handleDurationChange(safeVal);
+                              }}
+                              className="w-full bg-slate-950 border border-slate-800 text-xs text-amber-300 font-extrabold rounded-xl p-2.5 outline-none font-mono focus:border-cyan-400"
+                            />
+                          </div>
+                          <div className="sm:col-span-1 flex items-center justify-end">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFormData(p => ({ ...p, startDate: new Date().toISOString().substring(0, 10), finishDate: new Date().toISOString().substring(0, 10), durationDays: 1, durasiDate: 1 }));
+                              }}
+                              className="p-2.5 text-rose-400 hover:text-rose-300 bg-rose-950/40 hover:bg-rose-900/80 border border-rose-800/60 rounded-xl cursor-pointer transition-colors"
+                              title="Reset baris 1"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Additional Secondary Row Cards (Baris 2, Baris 3, ...) */}
+                      {formData.additionalSchedules && formData.additionalSchedules.length > 0 && (
+                        <div className="space-y-3">
+                          {formData.additionalSchedules.map((row, idx) => (
+                            <div key={row.id} className="bg-slate-950/80 p-4 rounded-xl border border-slate-800">
+                              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                                <div className="sm:col-span-4">
+                                  <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                                    Start Date <span className="text-[10px] text-amber-400 font-mono font-bold">(Baris {idx + 2})</span>
+                                  </label>
+                                  <input
+                                    type="date"
+                                    value={row.startDate}
+                                    onChange={(e) => handleRowDateChange(row.id, 'startDate', e.target.value)}
+                                    onClick={handleDateInputClick}
+                                    className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none font-mono focus:border-cyan-500 cursor-pointer"
+                                  />
+                                </div>
+                                <div className="sm:col-span-4">
+                                  <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                                    Finish Date <span className="text-[10px] text-amber-400 font-mono font-bold">(Baris {idx + 2})</span>
+                                  </label>
+                                  <input
+                                    type="date"
+                                    value={row.finishDate}
+                                    onChange={(e) => handleRowDateChange(row.id, 'finishDate', e.target.value)}
+                                    onClick={handleDateInputClick}
+                                    className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 rounded-xl p-2.5 outline-none font-mono focus:border-cyan-500 cursor-pointer"
+                                  />
+                                </div>
+                                <div className="sm:col-span-3">
+                                  <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                                    Durasi (Hari)
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={row.durationDays}
+                                    onChange={(e) => {
+                                      const val = parseInt(e.target.value);
+                                      const safeVal = isNaN(val) ? 1 : Math.max(1, val);
+                                      handleRowDurationChange(row.id, safeVal);
+                                    }}
+                                    className="w-full bg-slate-950 border border-slate-800 text-xs text-amber-300 font-extrabold rounded-xl p-2.5 outline-none font-mono focus:border-cyan-500"
+                                  />
+                                </div>
+                                <div className="sm:col-span-1 flex items-center justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveScheduleRow(row.id)}
+                                    className="p-2.5 text-rose-400 hover:text-rose-300 bg-rose-950/40 hover:bg-rose-900/80 border border-rose-800/60 rounded-xl cursor-pointer transition-colors"
+                                    title="Hapus baris ini"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Bottom Dashed Add Button */}
+                      <button
+                        type="button"
+                        onClick={handleAddScheduleRow}
+                        className="w-full py-2.5 bg-slate-950 hover:bg-cyan-950/80 text-cyan-400 hover:text-cyan-300 border border-dashed border-cyan-800/80 hover:border-cyan-500 rounded-xl text-xs font-mono font-bold flex items-center justify-center gap-2 cursor-pointer transition-all shadow-inner"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>+ Tambah Tanggal &amp; Durasi</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
               </div>
 
               <div>
@@ -1672,6 +1870,16 @@ export const BASTPage: React.FC = () => {
         onCancel={() => setDeleteTarget(null)}
       />
 
+      {/* Interactive Visual Calendar Modal */}
+      <CalendarDatePickerModal
+        isOpen={calendarConfig.isOpen}
+        onClose={() => setCalendarConfig(prev => ({ ...prev, isOpen: false }))}
+        title={calendarConfig.title}
+        initialDate={calendarConfig.initialDate}
+        onSelectDate={calendarConfig.onSelect}
+      />
+
     </div>
   );
 };
+

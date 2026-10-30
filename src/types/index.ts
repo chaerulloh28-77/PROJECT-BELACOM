@@ -50,6 +50,14 @@ export interface PendingLogEntry {
   pendingDays?: number; // Jumlah hari jeda
 }
 
+export interface DateScheduleEntry {
+  id: string;
+  startDate: string;
+  finishDate: string;
+  durationDays: number;
+  label?: string;
+}
+
 export interface DailyReportItem {
   id: string;
   woType: WOOption;
@@ -63,6 +71,7 @@ export interface DailyReportItem {
   startDate: string; // YYYY-MM-DD
   finishDate: string; // YYYY-MM-DD
   durationDays: number;
+  additionalSchedules?: DateScheduleEntry[];
   woNumber: string;
   estimatedDistanceMeters: number;
   estimatedDistancePdf?: PDFFileMeta;
@@ -105,6 +114,7 @@ export interface BASTItem {
   coreConnectionDate?: string;
   durationDays: number;
   durasiDate?: number | string;
+  additionalSchedules?: DateScheduleEntry[];
   estimatedDistanceMeters: number;
   estimatedDistancePdf?: PDFFileMeta;
   totalDistanceMeters: number;

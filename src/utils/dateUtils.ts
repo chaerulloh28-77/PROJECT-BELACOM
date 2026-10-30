@@ -68,6 +68,87 @@ export const INDONESIAN_HOLIDAYS: string[] = [
   '2027-12-25'  // Hari Raya Natal
 ];
 
+export const INDONESIAN_HOLIDAY_MAP: Record<string, string> = {
+  // 2025
+  '2025-01-01': 'Tahun Baru 2025 Masehi',
+  '2025-01-27': 'Isra Mikraj Nabi Muhammad SAW',
+  '2025-01-28': 'Cuti Bersama Tahun Baru Imlek',
+  '2025-01-29': 'Tahun Baru Imlek 2576 Kongzili',
+  '2025-03-28': 'Cuti Bersama Hari Suci Nyepi',
+  '2025-03-29': 'Hari Suci Nyepi Tahun Baru Saka 1947',
+  '2025-03-31': 'Hari Raya Idul Fitri 1446 Hijriah',
+  '2025-04-01': 'Hari Raya Idul Fitri 1446 Hijriah',
+  '2025-04-02': 'Cuti Bersama Idul Fitri',
+  '2025-04-03': 'Cuti Bersama Idul Fitri',
+  '2025-04-04': 'Cuti Bersama Idul Fitri',
+  '2025-04-07': 'Cuti Bersama Idul Fitri',
+  '2025-04-18': 'Wafat Yesus Kristus',
+  '2025-04-20': 'Kebangkitan Yesus Kristus (Paskah)',
+  '2025-05-01': 'Hari Buruh Internasional',
+  '2025-05-12': 'Hari Raya Waisak 2569 BE',
+  '2025-05-13': 'Cuti Bersama Hari Raya Waisak',
+  '2025-05-29': 'Kenaikan Yesus Kristus',
+  '2025-05-30': 'Cuti Bersama Kenaikan Yesus Kristus',
+  '2025-06-01': 'Hari Lahir Pancasila',
+  '2025-06-06': 'Hari Raya Idul Adha 1446 Hijriah',
+  '2025-06-09': 'Cuti Bersama Idul Adha',
+  '2025-06-27': '1 Muharam Tahun Baru Islam 1447 Hijriah',
+  '2025-08-17': 'Proklamasi Kemerdekaan RI',
+  '2025-09-05': 'Maulid Nabi Muhammad SAW',
+  '2025-12-25': 'Hari Raya Natal',
+  '2025-12-26': 'Cuti Bersama Natal',
+
+  // 2026
+  '2026-01-01': 'Tahun Baru 2026 Masehi',
+  '2026-01-16': 'Isra Mikraj Nabi Muhammad SAW',
+  '2026-02-17': 'Tahun Baru Imlek 2577 Kongzili',
+  '2026-03-19': 'Hari Suci Nyepi Tahun Baru Saka 1948',
+  '2026-03-20': 'Hari Raya Idul Fitri 1447 Hijriah',
+  '2026-03-21': 'Hari Raya Idul Fitri 1447 Hijriah',
+  '2026-03-23': 'Cuti Bersama Idul Fitri',
+  '2026-03-24': 'Cuti Bersama Idul Fitri',
+  '2026-04-03': 'Wafat Yesus Kristus',
+  '2026-05-01': 'Hari Buruh Internasional',
+  '2026-05-14': 'Kenaikan Yesus Kristus',
+  '2026-05-31': 'Hari Raya Waisak 2570 BE',
+  '2026-06-01': 'Hari Lahir Pancasila',
+  '2026-05-27': 'Hari Raya Idul Adha 1447 Hijriah',
+  '2026-06-16': 'Tahun Baru Islam 1448 Hijriah',
+  '2026-08-17': 'Proklamasi Kemerdekaan RI',
+  '2026-08-25': 'Maulid Nabi Muhammad SAW',
+  '2026-12-25': 'Hari Raya Natal',
+  '2026-12-26': 'Cuti Bersama Natal',
+
+  // 2027
+  '2027-01-01': 'Tahun Baru 2027',
+  '2027-02-06': 'Tahun Baru Imlek',
+  '2027-03-09': 'Hari Raya Idul Fitri',
+  '2027-03-10': 'Hari Raya Idul Fitri',
+  '2027-03-26': 'Wafat Yesus Kristus',
+  '2027-05-01': 'Hari Buruh',
+  '2027-05-06': 'Kenaikan Yesus Kristus',
+  '2027-05-20': 'Hari Raya Waisak',
+  '2027-06-01': 'Hari Lahir Pancasila',
+  '2027-08-17': 'Hari Kemerdekaan RI',
+  '2027-12-25': 'Hari Raya Natal'
+};
+
+export function getHolidayName(dateStr: string): string | null {
+  if (!dateStr) return null;
+  if (INDONESIAN_HOLIDAY_MAP[dateStr]) {
+    return INDONESIAN_HOLIDAY_MAP[dateStr];
+  }
+  const mmdd = dateStr.substring(5);
+  const fixedHolidays: Record<string, string> = {
+    '01-01': 'Tahun Baru Masehi',
+    '05-01': 'Hari Buruh Internasional',
+    '06-01': 'Hari Lahir Pancasila',
+    '08-17': 'Hari Kemerdekaan RI',
+    '12-25': 'Hari Raya Natal'
+  };
+  return fixedHolidays[mmdd] || null;
+}
+
 export function isSunday(date: Date): boolean {
   return date.getDay() === 0;
 }
@@ -167,3 +248,38 @@ export function addWorkDays(
 
   return formatDateToYYYYMMDD(current);
 }
+
+/**
+ * Safely calls showPicker() on HTMLInputElement, catching any SecurityError
+ * that might occur inside cross-origin / sandboxed iframes.
+ */
+export function handleDateInputClick(e: React.MouseEvent<HTMLInputElement>): void {
+  try {
+    if (typeof e.currentTarget.showPicker === 'function') {
+      e.currentTarget.showPicker();
+    }
+  } catch (_err) {
+    // showPicker() throws SecurityError in cross-origin iframes.
+    // Catching this prevents uncaught exceptions.
+  }
+}
+
+/**
+ * Computes the total sum of duration days across primary schedule and all additional schedule entries.
+ */
+export function getTotalDurationDays(item?: {
+  durationDays?: number;
+  durasiDate?: number | string;
+  additionalSchedules?: { durationDays?: number }[];
+}): number {
+  if (!item) return 1;
+  const primaryVal = item.durasiDate ?? item.durationDays ?? 1;
+  const primary = isNaN(Number(primaryVal)) ? 1 : Number(primaryVal);
+  const extraSum = (item.additionalSchedules || []).reduce(
+    (sum, row) => sum + (isNaN(Number(row.durationDays)) ? 0 : Number(row.durationDays)),
+    0
+  );
+  return Math.max(1, primary + extraSum);
+}
+
+
