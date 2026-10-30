@@ -1,9 +1,80 @@
-import * as pdfjsLib from 'pdfjs-dist';
 import { PDFFileMeta } from '../types';
 
-// Configure PDF.js worker
-if (typeof window !== 'undefined' && pdfjsLib.GlobalWorkerOptions) {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+export interface SafeImageData {
+  base64: string;
+  width: number;
+  height: number;
+}
+
+/**
+ * Pemuat script PDF.js dinamis via CDN (menghindari error modul missing di Vercel / Rolldown)
+ */
+export function loadPdfJsLib(): Promise<any> {
+  if (typeof window === 'undefined') return Promise.resolve(null);
+
+  if ((window as any).pdfjsLib) {
+    const lib = (window as any).pdfjsLib;
+    if (lib.GlobalWorkerOptions && !lib.GlobalWorkerOptions.workerSrc) {
+      lib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+    return Promise.resolve(lib);
+  }
+
+  return new Promise((resolve) => {
+    try {
+      const existingScript = document.querySelector('script[src*="pdf.min.js"]');
+      if (existingScript) {
+        existingScript.addEventListener('load', () => {
+          const lib = (window as any).pdfjsLib;
+          if (lib && lib.GlobalWorkerOptions) {
+            lib.GlobalWorkerOptions.workerSrc =
+              'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          }
+          resolve(lib || null);
+        });
+        existingScript.addEventListener('error', () => resolve(null));
+        if ((window as any).pdfjsLib) {
+          resolve((window as any).pdfjsLib);
+          return;
+        }
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      script.async = true;
+
+      const timer = setTimeout(() => {
+        console.warn('PDF.js CDN load timeout, menggunakan visual canvas badge.');
+        resolve(null);
+      }, 5000);
+
+      script.onload = () => {
+        clearTimeout(timer);
+        const lib = (window as any).pdfjsLib;
+        if (lib) {
+          if (lib.GlobalWorkerOptions) {
+            lib.GlobalWorkerOptions.workerSrc =
+              'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          }
+          resolve(lib);
+        } else {
+          resolve(null);
+        }
+      };
+
+      script.onerror = () => {
+        clearTimeout(timer);
+        console.warn('Gagal memuat PDF.js dari CDN, menggunakan visual canvas badge.');
+        resolve(null);
+      };
+
+      document.head.appendChild(script);
+    } catch {
+      resolve(null);
+    }
+  });
 }
 
 /**
@@ -415,43 +486,47 @@ export async function ensureImageBase64(
 
   if (isPdf && typeof document !== 'undefined') {
     try {
-      let loadingTask: any;
+      const pdfjs = await loadPdfJsLib();
 
-      if (rawSource.startsWith('data:')) {
-        const bytes = safeBase64ToUint8Array(rawSource);
-        if (bytes && bytes.length > 50) {
-          loadingTask = pdfjsLib.getDocument({
-            data: bytes,
-            cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
-            cMapPacked: true
-          });
+      if (pdfjs) {
+        let loadingTask: any;
+
+        if (rawSource.startsWith('data:')) {
+          const bytes = safeBase64ToUint8Array(rawSource);
+          if (bytes && bytes.length > 50) {
+            loadingTask = pdfjs.getDocument({
+              data: bytes,
+              cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+              cMapPacked: true
+            });
+          }
+        } else if (rawSource.startsWith('http') || rawSource.startsWith('/')) {
+          loadingTask = pdfjs.getDocument(rawSource);
         }
-      } else if (rawSource.startsWith('http') || rawSource.startsWith('/')) {
-        loadingTask = pdfjsLib.getDocument(rawSource);
-      }
 
-      if (loadingTask) {
-        const pdf = await loadingTask.promise;
-        const page = await pdf.getPage(1); // Render first page
-        const scale = 2.0;
-        const viewport = page.getViewport({ scale });
+        if (loadingTask) {
+          const pdf = await loadingTask.promise;
+          const page = await pdf.getPage(1); // Render first page
+          const scale = 2.0;
+          const viewport = page.getViewport({ scale });
 
-        const canvas = document.createElement('canvas');
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        const ctx = canvas.getContext('2d');
+          const canvas = document.createElement('canvas');
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          const ctx = canvas.getContext('2d');
 
-        if (ctx) {
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          await page.render({
-            canvasContext: ctx,
-            viewport: viewport
-          }).promise;
+          if (ctx) {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            await page.render({
+              canvasContext: ctx,
+              viewport: viewport
+            }).promise;
 
-          const renderedPng = canvas.toDataURL('image/png');
-          if (renderedPng && renderedPng.startsWith('data:image/png;base64,')) {
-            return renderedPng;
+            const renderedPng = canvas.toDataURL('image/png');
+            if (renderedPng && renderedPng.startsWith('data:image/png;base64,')) {
+              return renderedPng;
+            }
           }
         }
       }
@@ -462,6 +537,22 @@ export async function ensureImageBase64(
 
   // 4. Default high-resolution document badge fallback
   return renderCanvasDocumentBadge(docTitle, fileName, woNumber, billingCode);
+}
+
+/**
+ * Mengonversi berkas (Foto / PDF) menjadi Base64 PNG bersih beserta rasio dimensinya
+ */
+export async function getCleanImageWithDimensions(
+  fileSource: string | null | undefined,
+  fileNameFallback: string = 'Dokumen'
+): Promise<SafeImageData | null> {
+  const validated = await extractValidatedImageWithDimensions(fileSource, { docTitle: fileNameFallback });
+  if (!validated) return null;
+  return {
+    base64: validated.cleanBase64,
+    width: validated.naturalWidth,
+    height: validated.naturalHeight
+  };
 }
 
 export interface ValidatedImageData {
