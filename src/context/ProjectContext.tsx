@@ -356,7 +356,11 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [penagihanList, setPenagihanList] = useState<PenagihanItem[]>(() => {
     const tombstonesSet = getStoredTombstoneSet();
     const list = safeGetLocalStorage<PenagihanItem[]>(STORAGE_KEYS.PENAGIHAN, INITIAL_PENAGIHAN_LIST);
-    return list.filter(p => !tombstonesSet.has(p.id) && !tombstonesSet.has(p.woNumber));
+    const filtered = list.filter(p => !tombstonesSet.has(p.id) && !tombstonesSet.has(p.woNumber));
+    if (filtered.length > 0) {
+      return filtered;
+    }
+    return INITIAL_PENAGIHAN_LIST.filter(p => !tombstonesSet.has(p.id) && !tombstonesSet.has(p.woNumber));
   });
 
   // Global Filters

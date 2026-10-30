@@ -32,6 +32,7 @@ import { BASTWorkflowModal } from '../components/BASTWorkflowModal';
 import { getFileBadgeStyle } from '../utils/fileHelper';
 import { evaluateBASTWorkflow, getDefaultBASTWorkflow, WorkflowFilterTab } from '../utils/bastWorkflowHelper';
 import { exportBASTToExcel } from '../utils/excelExportHelper';
+import { exportSingleBASTToWord } from '../utils/wordExportService';
 import { calculateWorkDays, addWorkDays } from '../utils/dateUtils';
 
 export const BASTPage: React.FC = () => {
@@ -335,9 +336,15 @@ export const BASTPage: React.FC = () => {
             variant="success"
             size="sm"
             icon={<FileSpreadsheet className="w-4 h-4" />}
-            onClick={() => {
-              exportBASTToExcel(filteredBast);
-              showToast('success', 'Rekap Excel Diunduh', 'Rekap Excel Semua BAST berhasil diunduh dalam format .xlsx dengan lampiran berkas visual!');
+            onClick={async () => {
+              try {
+                showToast('info', 'Menyiapkan Excel', 'Menyusun rekap Excel BAST...');
+                await exportBASTToExcel(filteredBast);
+                showToast('success', 'Rekap Excel Diunduh', 'Rekap Excel Semua BAST berhasil diunduh dalam format .xlsx dengan lampiran berkas visual!');
+              } catch (err) {
+                console.error('BAST excel export error:', err);
+                showToast('error', 'Gagal Ekspor', 'Terjadi kendala saat menyusun berkas Excel BAST.');
+              }
             }}
           >
             Export Excel Rekap Semua BAST (.xlsx)
@@ -608,9 +615,26 @@ export const BASTPage: React.FC = () => {
                               showToast('success', 'Excel Unduh', `Rekap Excel BAST WO ${bast.woNumber} berhasil diunduh!`);
                             }}
                             className="p-1.5 rounded-lg bg-emerald-950/80 text-emerald-300 border border-emerald-800/80 hover:bg-emerald-900 transition-colors cursor-pointer"
-                            title="Export Excel BAST Ini (.xls)"
+                            title="Export Excel BAST Ini (.xlsx)"
                           >
                             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                showToast('info', 'Menyiapkan Word (.docx)', `Menyusun dokumen BAST WO ${bast.woNumber}...`);
+                                await exportSingleBASTToWord(bast);
+                                showToast('success', 'Word BAST Diunduh', `Dokumen BAST WO ${bast.woNumber} berhasil diunduh dalam format .docx!`);
+                              } catch (err) {
+                                console.error('BAST Word export error:', err);
+                                showToast('error', 'Gagal Ekspor Word', 'Terjadi kendala saat menyusun berkas Word BAST.');
+                              }
+                            }}
+                            className="p-1.5 rounded-lg bg-blue-950/80 text-blue-300 border border-blue-800/80 hover:bg-blue-900 transition-colors cursor-pointer"
+                            title="Export Word BAST Ini (.docx)"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-blue-400" />
                           </button>
                           <button
                             type="button"
@@ -774,10 +798,28 @@ export const BASTPage: React.FC = () => {
                       showToast('success', 'Excel Unduh', `Rekap Excel BAST WO ${bast.woNumber} berhasil diunduh!`);
                     }}
                     className="px-2.5 py-1.5 rounded-lg bg-emerald-950/80 text-emerald-300 border border-emerald-800/80 hover:bg-emerald-900 flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-colors shadow-sm"
-                    title="Export Excel BAST Ini (.xls)"
+                    title="Export Excel BAST Ini (.xlsx)"
                   >
                     <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Export Excel</span>
+                    <span>Excel</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        showToast('info', 'Menyiapkan Word (.docx)', `Menyusun dokumen BAST WO ${bast.woNumber}...`);
+                        await exportSingleBASTToWord(bast);
+                        showToast('success', 'Word BAST Diunduh', `Dokumen BAST WO ${bast.woNumber} berhasil diunduh dalam format .docx!`);
+                      } catch (err) {
+                        console.error('BAST Word export error:', err);
+                        showToast('error', 'Gagal Ekspor Word', 'Terjadi kendala saat menyusun berkas Word BAST.');
+                      }
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg bg-blue-950/80 text-blue-300 border border-blue-800/80 hover:bg-blue-900 flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-colors shadow-sm"
+                    title="Export Word BAST Ini (.docx)"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Word</span>
                   </button>
                   <button
                     type="button"

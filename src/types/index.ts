@@ -223,11 +223,26 @@ export interface PenagihanItem {
   poPdf?: PDFFileMeta;
   dataMaterialPdf?: PDFFileMeta;
   boqPdf?: PDFFileMeta;
+  fakturPajakPdf?: PDFFileMeta;
+  fakturPajak?: string | null;
   
   totalNominalRupiah: number;
   remarks?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface BerkasPenagihan {
+  invoice?: string | null;
+  bast?: string | null;
+  apd?: string | null;
+  abd?: string | null;
+  coreConnection?: string | null;
+  fotoDokumentasi?: string | null;
+  purchaseOrder?: string | null;
+  dataMaterial?: string | null;
+  boq?: string | null;
+  fakturPajak?: string | null;
 }
 
 export type ActiveTab = 

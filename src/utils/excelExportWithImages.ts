@@ -5,14 +5,53 @@
  */
 
 import ExcelJS from 'exceljs';
-import { saveAs } from 'file-saver';
+import fileSaver from 'file-saver';
+const saveAs = (fileSaver as any)?.saveAs || (fileSaver as any)?.default || fileSaver;
 import { DailyReportItem, BASTItem, PenagihanItem, PDFFileMeta } from '../types';
 import { calculateWorkDays } from './dateUtils';
 import { generateVisualDocDataUrl } from './bastExportHelper';
+import { 
+  ensureImageBase64, 
+  safeBase64ToUint8Array, 
+  extractValidatedImageWithDimensions, 
+  calculateFitDimensions 
+} from './pdfToImage';
 
 interface ExtractedImage {
   base64: string;
   extension: 'png' | 'jpeg' | 'gif';
+}
+
+export interface SafeImageBuffer {
+  buffer: Uint8Array;
+  extension: 'png' | 'jpeg';
+}
+
+/**
+ * Safely extracts a valid Uint8Array buffer and extension from image data.
+ * Guarantees that invalid or corrupted base64 inputs return null instead of crashing.
+ */
+export function extractSafeImageBuffer(
+  fileSource?: PDFFileMeta | string | null
+): SafeImageBuffer | null {
+  if (!fileSource) return null;
+
+  let rawSource: string = '';
+  if (typeof fileSource === 'string') {
+    rawSource = fileSource;
+  } else if (typeof fileSource === 'object') {
+    rawSource = fileSource.imageDataUrl || fileSource.url || '';
+  }
+
+  if (!rawSource || typeof rawSource !== 'string') return null;
+
+  const ext: 'png' | 'jpeg' =
+    rawSource.includes('image/jpeg') || rawSource.includes('image/jpg') ? 'jpeg' : 'png';
+
+  const buffer = safeBase64ToUint8Array(rawSource);
+  if (!buffer || buffer.length < 100) return null;
+
+  return { buffer, extension: ext };
 }
 
 /**
@@ -22,50 +61,23 @@ interface ExtractedImage {
 export function extractImageData(fileMeta?: PDFFileMeta | string): ExtractedImage | null {
   if (!fileMeta) return null;
 
-  let dataUrl: string | undefined;
-  if (typeof fileMeta === 'string') {
-    dataUrl = fileMeta;
-  } else {
-    dataUrl = fileMeta.imageDataUrl || fileMeta.url;
+  const safe = extractSafeImageBuffer(fileMeta);
+  if (!safe) return null;
+
+  // Convert buffer back to clean, valid base64
+  let binary = '';
+  const len = safe.buffer.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(safe.buffer[i]);
   }
+  const cleanBase64 = typeof window !== 'undefined' && typeof window.btoa === 'function'
+    ? window.btoa(binary)
+    : Buffer.from(safe.buffer).toString('base64');
 
-  if (!dataUrl || typeof dataUrl !== 'string') return null;
-
-  if (!dataUrl.startsWith('data:image/')) return null;
-
-  try {
-    const match = dataUrl.match(/^data:image\/(png|jpeg|jpg|gif|webp);base64,(.+)$/i);
-    if (match) {
-      let mimeExt = match[1].toLowerCase();
-      if (mimeExt === 'jpg' || mimeExt === 'webp') mimeExt = 'jpeg';
-      const cleanBase64 = match[2].trim();
-
-      if (cleanBase64 && cleanBase64.length > 50) {
-        return {
-          base64: cleanBase64,
-          extension: mimeExt as 'png' | 'jpeg' | 'gif'
-        };
-      }
-    }
-
-    if (dataUrl.startsWith('data:image/svg+xml')) {
-      const svgMatch = dataUrl.match(/^data:image\/svg\+xml;(base64|utf8),(.*)$/i);
-      if (svgMatch) {
-        const encoding = svgMatch[1].toLowerCase();
-        const content = svgMatch[2];
-        if (encoding === 'base64' && content.length > 50) {
-          return {
-            base64: content.trim(),
-            extension: 'png'
-          };
-        }
-      }
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
+  return {
+    base64: cleanBase64,
+    extension: safe.extension
+  };
 }
 
 /**
@@ -98,16 +110,18 @@ export function getPhotoVisualUrl(
 }
 
 /**
- * Helper to process a cell: embeds image if available, writes PDF badge text if document, or '-'
- * Applies symmetrical offset padding (4%) inside the cell so photos do not touch or overlap borders.
+ * Helper to process a cell: embeds visual image (PDF rendered to PNG, or photo), or '-'
+ * Applies aspect-ratio preservation (ext: { width, height }, max 260px wide, max 320px high)
+ * and centers the image inside the cell to prevent squishing, stretching, or OpenXML corruption.
  */
-function processFileCell(
+async function processFileCell(
   workbook: ExcelJS.Workbook,
   worksheet: ExcelJS.Worksheet,
   colIndex: number, // 1-indexed for cell access
   rowIndex: number, // 1-indexed for cell access
-  fileMeta?: PDFFileMeta | string
-): void {
+  fileMeta?: PDFFileMeta | string,
+  contextInfo?: { docTitle?: string; woNumber?: string; billingCode?: string }
+): Promise<void> {
   const cell = worksheet.getCell(rowIndex, colIndex);
 
   cell.border = {
@@ -123,35 +137,45 @@ function processFileCell(
     return;
   }
 
-  const fileName = typeof fileMeta === 'string' ? 'Dokumen.pdf' : (fileMeta.name || 'Dokumen.pdf');
-  const imgData = extractImageData(fileMeta);
+  try {
+    const validated = await extractValidatedImageWithDimensions(fileMeta, contextInfo);
 
-  if (imgData) {
-    try {
+    if (validated && validated.buffer && validated.buffer.length >= 100) {
       const imageId = workbook.addImage({
-        base64: imgData.base64,
-        extension: imgData.extension
+        buffer: validated.buffer as any,
+        extension: validated.extension
       });
 
-      // Anchor with 4% symmetrical padding inside the cell to lock aspect ratio & prevent border overlap
+      // Maintain aspect ratio: max width 260px, max height 320px
+      const fit = calculateFitDimensions(validated.naturalWidth, validated.naturalHeight, 260, 320);
+
+      // Symmetrically center inside the cell (Col width ~46 to 55 => 345-412px, Row height 260pt => ~346px)
+      const colDefWidth = worksheet.getColumn(colIndex).width || 46;
+      const cellWidthPx = colDefWidth * 7.5;
+      const rowDefHeight = worksheet.getRow(rowIndex).height || 260;
+      const cellHeightPx = rowDefHeight * 1.33;
+
+      const colOffsetFraction = Math.max(0.02, Math.min(0.40, (cellWidthPx - fit.width) / (2 * cellWidthPx)));
+      const rowOffsetFraction = Math.max(0.02, Math.min(0.40, (cellHeightPx - fit.height) / (2 * cellHeightPx)));
+
       worksheet.addImage(imageId, {
-        tl: { col: colIndex - 1 + 0.04, row: rowIndex - 1 + 0.04 } as any,
-        br: { col: colIndex - 0.04, row: rowIndex - 0.04 } as any,
+        tl: { col: (colIndex - 1) + colOffsetFraction, row: (rowIndex - 1) + rowOffsetFraction } as any,
+        ext: { width: fit.width, height: fit.height },
         editAs: 'oneCell'
       });
 
       cell.value = '';
-      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-    } catch {
-      cell.value = `[DOKUMEN PDF]\n${fileName}`;
-      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-      cell.font = { bold: true, size: 9, color: { argb: 'FF0284C7' } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      return;
     }
-  } else {
-    cell.value = `[DOKUMEN PDF]\n${fileName}`;
-    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-    cell.font = { bold: true, size: 9, color: { argb: 'FF0284C7' } };
+  } catch (err) {
+    console.warn('Excel export: failed to render visual image in cell:', err);
   }
+
+  // Safe fallback if not an image or parsing failed: display clean text, NO empty drawing
+  const fileName = typeof fileMeta === 'string' ? fileMeta : (fileMeta?.name || 'Dokumen.pdf');
+  cell.value = fileName;
+  cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
 }
 
 /**
@@ -348,9 +372,10 @@ export async function exportDailyReportToExcel(reports: DailyReportItem[], custo
 
   setupDailyReportHeader(worksheet, title, columns.length, columns);
 
-  reports.forEach((item, index) => {
+  for (let index = 0; index < reports.length; index++) {
+    const item = reports[index];
     const rowIndex = index + 6; // Rows 1-5 used by title & 2-level headers
-    worksheet.getRow(rowIndex).height = 210; // Row height 210pt for clear large image thumbnails
+    worksheet.getRow(rowIndex).height = 260; // Row height 260pt for clear large image thumbnails with preserved aspect ratio
 
     worksheet.getCell(rowIndex, 1).value = index + 1;
     worksheet.getCell(rowIndex, 1).alignment = { horizontal: 'center', vertical: 'middle' };
@@ -391,43 +416,43 @@ export async function exportDailyReportToExcel(reports: DailyReportItem[], custo
     // 10 Document Attachment Columns:
     // 1. Foto Geotagging Site A (Origin)
     const file1 = item.originPhotoFile || (item as any).originGeotagPhoto;
-    processFileCell(workbook, worksheet, 11, rowIndex, file1);
+    await processFileCell(workbook, worksheet, 11, rowIndex, file1, { docTitle: 'Geotag Site A', woNumber: item.woNumber });
 
     // 2. Dokumen Bukti Tagging Site A
     const file2 = item.originTaggingDocFile || (item as any).originTaggingDoc;
-    processFileCell(workbook, worksheet, 12, rowIndex, file2);
+    await processFileCell(workbook, worksheet, 12, rowIndex, file2, { docTitle: 'Tagging Doc Site A', woNumber: item.woNumber });
 
     // 3. Foto Geotagging Site B (Destination)
     const file3 = item.destinationPhotoFile || (item as any).destinationGeotagPhoto;
-    processFileCell(workbook, worksheet, 13, rowIndex, file3);
+    await processFileCell(workbook, worksheet, 13, rowIndex, file3, { docTitle: 'Geotag Site B', woNumber: item.woNumber });
 
     // 4. Dokumen Bukti Tagging Site B
     const file4 = item.destinationTaggingDocFile || (item as any).destinationTaggingDoc;
-    processFileCell(workbook, worksheet, 14, rowIndex, file4);
+    await processFileCell(workbook, worksheet, 14, rowIndex, file4, { docTitle: 'Tagging Doc Site B', woNumber: item.woNumber });
 
     // 5. File Peta Rute
     const file5 = item.routeMapFile;
-    processFileCell(workbook, worksheet, 15, rowIndex, file5);
+    await processFileCell(workbook, worksheet, 15, rowIndex, file5, { docTitle: 'Peta Rute', woNumber: item.woNumber });
 
     // 6. Foto Closure
     const file6 = item.documentation?.fotoClosurePdf || (item as any).closurePhoto || (item as any).fotoClosurePdf;
-    processFileCell(workbook, worksheet, 16, rowIndex, file6);
+    await processFileCell(workbook, worksheet, 16, rowIndex, file6, { docTitle: 'Foto Closure', woNumber: item.woNumber });
 
     // 7. Pengujian OPM
     const file7 = item.documentation?.opmPdf || (item as any).opmTestPhoto || (item as any).opmPdf;
-    processFileCell(workbook, worksheet, 17, rowIndex, file7);
+    await processFileCell(workbook, worksheet, 17, rowIndex, file7, { docTitle: 'Pengujian OPM', woNumber: item.woNumber });
 
     // 8. Pengujian OLS
     const file8 = item.documentation?.olsPdf || (item as any).olsTestPhoto || (item as any).olsPdf;
-    processFileCell(workbook, worksheet, 18, rowIndex, file8);
+    await processFileCell(workbook, worksheet, 18, rowIndex, file8, { docTitle: 'Pengujian OLS', woNumber: item.woNumber });
 
     // 9. Dokumentasi BTS
     const file9 = item.documentation?.btsPdf || (item as any).btsDocPhoto || (item as any).btsPdf;
-    processFileCell(workbook, worksheet, 19, rowIndex, file9);
+    await processFileCell(workbook, worksheet, 19, rowIndex, file9, { docTitle: 'Dokumentasi BTS', woNumber: item.woNumber });
 
     // 10. OTDR Trace Test
     const file10 = item.documentation?.otdrPdf || (item as any).otdrTracePhoto || (item as any).otdrPdf;
-    processFileCell(workbook, worksheet, 20, rowIndex, file10);
+    await processFileCell(workbook, worksheet, 20, rowIndex, file10, { docTitle: 'OTDR Trace Test', woNumber: item.woNumber });
 
     // Grid borders #D1D5DB
     for (let c = 1; c <= columns.length; c++) {
@@ -438,11 +463,16 @@ export async function exportDailyReportToExcel(reports: DailyReportItem[], custo
         right: { style: 'thin', color: { argb: 'FFD1D5DB' } }
       };
     }
-  });
+  }
 
-  const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  saveAs(blob, filename);
+  try {
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    saveAs(blob, filename);
+  } catch (err) {
+    console.error('Failed to write Daily Report Excel buffer:', err);
+    throw err;
+  }
 }
 
 
@@ -573,9 +603,10 @@ export async function exportBASTToExcel(items: BASTItem[], customFilename?: stri
 
   setupBASTHeader(worksheet, title, columns.length, columns);
 
-  items.forEach((item, index) => {
+  for (let index = 0; index < items.length; index++) {
+    const item = items[index];
     const rowIndex = index + 6; // Rows 1-5 used by title & 2-level headers
-    worksheet.getRow(rowIndex).height = 210; // Row height 210pt for clear large image thumbnails
+    worksheet.getRow(rowIndex).height = 260; // Row height 260pt for clear large image thumbnails with preserved aspect ratio
 
     worksheet.getCell(rowIndex, 1).value = index + 1;
     worksheet.getCell(rowIndex, 1).alignment = { horizontal: 'center', vertical: 'middle' };
@@ -620,19 +651,19 @@ export async function exportBASTToExcel(items: BASTItem[], customFilename?: stri
 
     // Column 12: Lampiran 1 (Foto/Dokumen APD)
     const apdFile = item.apdPdf || (item as any).apdFile;
-    processFileCell(workbook, worksheet, 12, rowIndex, apdFile);
+    await processFileCell(workbook, worksheet, 12, rowIndex, apdFile, { docTitle: 'APD', woNumber: item.woNumber });
 
     // Column 13: Lampiran 2 (Foto/Dokumen ABD)
     const abdFile = item.abdPdf || (item as any).abdFile;
-    processFileCell(workbook, worksheet, 13, rowIndex, abdFile);
+    await processFileCell(workbook, worksheet, 13, rowIndex, abdFile, { docTitle: 'ABD', woNumber: item.woNumber });
 
     // Column 14: Lampiran 3 (Foto/Dokumen Core Connection)
     const coreFile = item.coreConnectionPdf || (item as any).coreConnectionFile;
-    processFileCell(workbook, worksheet, 14, rowIndex, coreFile);
+    await processFileCell(workbook, worksheet, 14, rowIndex, coreFile, { docTitle: 'Core Connection', woNumber: item.woNumber });
 
     // Column 15: Lampiran 4 (Foto Dokumentasi Lapangan)
     const docFile = item.fotoDokumentasiPdf || (item as any).dokumentasiSelesaiPdf || (item.fotoDokumentasiPdfs && item.fotoDokumentasiPdfs[0]);
-    processFileCell(workbook, worksheet, 15, rowIndex, docFile);
+    await processFileCell(workbook, worksheet, 15, rowIndex, docFile, { docTitle: 'Foto Dokumentasi', woNumber: item.woNumber });
 
     // Grid borders #D1D5DB
     for (let c = 1; c <= columns.length; c++) {
@@ -643,11 +674,16 @@ export async function exportBASTToExcel(items: BASTItem[], customFilename?: stri
         right: { style: 'thin', color: { argb: 'FFD1D5DB' } }
       };
     }
-  });
+  }
 
-  const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  saveAs(blob, filename);
+  try {
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    saveAs(blob, filename);
+  } catch (err) {
+    console.error('Failed to write BAST Excel buffer:', err);
+    throw err;
+  }
 }
 
 /**
@@ -680,14 +716,16 @@ export async function exportPenagihanToExcel(penagihanList: PenagihanItem[], cus
     { header: '6. Foto Dokumentasi', width: 55 },
     { header: '7. PO', width: 55 },
     { header: '8. Data Material', width: 55 },
-    { header: '9. BOQ', width: 55 }
+    { header: '9. BOQ', width: 55 },
+    { header: '10. Faktur Pajak', width: 55 }
   ];
 
   setupWorksheetHeader(worksheet, title, columns.length, columns);
 
-  penagihanList.forEach((item, index) => {
+  for (let index = 0; index < penagihanList.length; index++) {
+    const item = penagihanList[index];
     const rowIndex = index + 5;
-    worksheet.getRow(rowIndex).height = 210;
+    worksheet.getRow(rowIndex).height = 260; // Row height 260pt for clear large image thumbnails with preserved aspect ratio
 
     worksheet.getCell(rowIndex, 1).value = index + 1;
     worksheet.getCell(rowIndex, 1).alignment = { horizontal: 'center', vertical: 'middle' };
@@ -721,17 +759,18 @@ export async function exportPenagihanToExcel(penagihanList: PenagihanItem[], cus
     statusCell.font = { bold: true };
     statusCell.alignment = { horizontal: 'center', vertical: 'middle' };
 
-    // 9 Berkas Penagihan:
-    processFileCell(workbook, worksheet, 8, rowIndex, item.invoicePdf || item.kwitansiPdf);
-    processFileCell(workbook, worksheet, 9, rowIndex, item.bastPdf);
-    processFileCell(workbook, worksheet, 10, rowIndex, item.apdPdf);
-    processFileCell(workbook, worksheet, 11, rowIndex, item.abdPdf);
-    processFileCell(workbook, worksheet, 12, rowIndex, item.coreConnectionPdf);
+    // 10 Berkas Penagihan Visual:
+    await processFileCell(workbook, worksheet, 8, rowIndex, item.invoicePdf || item.kwitansiPdf, { docTitle: 'Invoice', woNumber: item.woNumber, billingCode: item.billingCode });
+    await processFileCell(workbook, worksheet, 9, rowIndex, item.bastPdf, { docTitle: 'BAST', woNumber: item.woNumber, billingCode: item.billingCode });
+    await processFileCell(workbook, worksheet, 10, rowIndex, item.apdPdf, { docTitle: 'APD', woNumber: item.woNumber, billingCode: item.billingCode });
+    await processFileCell(workbook, worksheet, 11, rowIndex, item.abdPdf, { docTitle: 'ABD', woNumber: item.woNumber, billingCode: item.billingCode });
+    await processFileCell(workbook, worksheet, 12, rowIndex, item.coreConnectionPdf, { docTitle: 'Core Connection', woNumber: item.woNumber, billingCode: item.billingCode });
     const fotoFile = item.fotoDokumentasiPdf || (item.fotoDokumentasiPdfs && item.fotoDokumentasiPdfs[0]);
-    processFileCell(workbook, worksheet, 13, rowIndex, fotoFile);
-    processFileCell(workbook, worksheet, 14, rowIndex, item.poPdf);
-    processFileCell(workbook, worksheet, 15, rowIndex, item.dataMaterialPdf);
-    processFileCell(workbook, worksheet, 16, rowIndex, item.boqPdf);
+    await processFileCell(workbook, worksheet, 13, rowIndex, fotoFile, { docTitle: 'Foto Dokumentasi', woNumber: item.woNumber, billingCode: item.billingCode });
+    await processFileCell(workbook, worksheet, 14, rowIndex, item.poPdf, { docTitle: 'PO', woNumber: item.woNumber, billingCode: item.billingCode });
+    await processFileCell(workbook, worksheet, 15, rowIndex, item.dataMaterialPdf, { docTitle: 'Data Material', woNumber: item.woNumber, billingCode: item.billingCode });
+    await processFileCell(workbook, worksheet, 16, rowIndex, item.boqPdf, { docTitle: 'BOQ', woNumber: item.woNumber, billingCode: item.billingCode });
+    await processFileCell(workbook, worksheet, 17, rowIndex, item.fakturPajakPdf || (item.fakturPajak || undefined), { docTitle: 'Faktur Pajak', woNumber: item.woNumber, billingCode: item.billingCode });
 
     for (let c = 1; c <= columns.length; c++) {
       worksheet.getCell(rowIndex, c).border = {
@@ -741,11 +780,16 @@ export async function exportPenagihanToExcel(penagihanList: PenagihanItem[], cus
         right: { style: 'thin', color: { argb: 'FFD1D5DB' } }
       };
     }
-  });
+  }
 
-  const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  saveAs(blob, filename);
+  try {
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    saveAs(blob, filename);
+  } catch (err) {
+    console.error('Failed to write Rekap Penagihan Excel buffer:', err);
+    throw err;
+  }
 }
 
 /**
@@ -762,12 +806,14 @@ export async function exportSinglePenagihanToExcel(item: PenagihanItem): Promise
   workbook.creator = 'Belacom System';
   const worksheet = workbook.addWorksheet('Berkas Penagihan');
 
-  worksheet.getColumn(1).width = 30;
-  worksheet.getColumn(2).width = 65;
+  // Set 10 Columns (A to J) symmetrically
+  for (let c = 1; c <= 10; c++) {
+    worksheet.getColumn(c).width = 12;
+  }
 
   // Title Row 1
-  worksheet.mergeCells(1, 1, 1, 2);
-  const title1 = worksheet.getCell(1, 1);
+  worksheet.mergeCells('A1:J1');
+  const title1 = worksheet.getCell('A1');
   title1.value = 'PT. BELACOM INDONESIA TELECOM';
   title1.font = { bold: true, size: 14, color: { argb: 'FF38BDF8' } };
   title1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
@@ -775,8 +821,8 @@ export async function exportSinglePenagihanToExcel(item: PenagihanItem): Promise
   worksheet.getRow(1).height = 30;
 
   // Title Row 2
-  worksheet.mergeCells(2, 1, 2, 2);
-  const title2 = worksheet.getCell(2, 1);
+  worksheet.mergeCells('A2:J2');
+  const title2 = worksheet.getCell('A2');
   title2.value = 'PAKET DOKUMEN BERKAS LENGKAP PENAGIHAN';
   title2.font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } };
   title2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
@@ -784,8 +830,8 @@ export async function exportSinglePenagihanToExcel(item: PenagihanItem): Promise
   worksheet.getRow(2).height = 30;
 
   // Subtitle / Meta Row 3
-  worksheet.mergeCells(3, 1, 3, 2);
-  const metaCell = worksheet.getCell(3, 1);
+  worksheet.mergeCells('A3:J3');
+  const metaCell = worksheet.getCell('A3');
   metaCell.value = `Kode Tagihan: ${item.billingCode} | Ref WO: ${item.woNumber} | Belacom Controlling System`;
   metaCell.font = { size: 9, color: { argb: 'FF94A3B8' } };
   metaCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
@@ -809,19 +855,15 @@ export async function exportSinglePenagihanToExcel(item: PenagihanItem): Promise
     const rIdx = 5 + idx;
     worksheet.getRow(rIdx).height = 24;
 
-    const keyCell = worksheet.getCell(rIdx, 1);
+    worksheet.mergeCells(`A${rIdx}:C${rIdx}`);
+    const keyCell = worksheet.getCell(`A${rIdx}`);
     keyCell.value = s.key;
     keyCell.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
     keyCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
     keyCell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
-    keyCell.border = {
-      top: { style: 'thin', color: { argb: 'FF334155' } },
-      left: { style: 'thin', color: { argb: 'FF334155' } },
-      bottom: { style: 'thin', color: { argb: 'FF334155' } },
-      right: { style: 'thin', color: { argb: 'FF334155' } }
-    };
 
-    const valCell = worksheet.getCell(rIdx, 2);
+    worksheet.mergeCells(`D${rIdx}:J${rIdx}`);
+    const valCell = worksheet.getCell(`D${rIdx}`);
     if (s.isRupiah) {
       valCell.value = Number(s.value);
       valCell.numFmt = '"Rp "#,##0';
@@ -832,18 +874,21 @@ export async function exportSinglePenagihanToExcel(item: PenagihanItem): Promise
     }
     valCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
     valCell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1, wrapText: true };
-    valCell.border = {
-      top: { style: 'thin', color: { argb: 'FF334155' } },
-      left: { style: 'thin', color: { argb: 'FF334155' } },
-      bottom: { style: 'thin', color: { argb: 'FF334155' } },
-      right: { style: 'thin', color: { argb: 'FF334155' } }
-    };
+
+    for (let c = 1; c <= 10; c++) {
+      worksheet.getCell(rIdx, c).border = {
+        top: { style: 'thin', color: { argb: 'FF334155' } },
+        left: { style: 'thin', color: { argb: 'FF334155' } },
+        bottom: { style: 'thin', color: { argb: 'FF334155' } },
+        right: { style: 'thin', color: { argb: 'FF334155' } }
+      };
+    }
   });
 
   // Row 11 Spacer
   worksheet.getRow(11).height = 12;
 
-  // 9 Document Components (Mulai Row 12)
+  // 10 Document Components
   const docList = [
     { label: '1. INVOICE / KWITANSI', file: item.invoicePdf || item.kwitansiPdf },
     { label: '2. BERITA ACARA SERAH TERIMA (BAST)', file: item.bastPdf },
@@ -853,78 +898,119 @@ export async function exportSinglePenagihanToExcel(item: PenagihanItem): Promise
     { label: '6. FOTO DOKUMENTASI LAPANGAN', file: item.fotoDokumentasiPdf || (item.fotoDokumentasiPdfs && item.fotoDokumentasiPdfs[0]) },
     { label: '7. PURCHASE ORDER (PO)', file: item.poPdf },
     { label: '8. DATA MATERIAL LAPANGAN', file: item.dataMaterialPdf },
-    { label: '9. BILL OF QUANTITIES (BOQ)', file: item.boqPdf }
+    { label: '9. BILL OF QUANTITIES (BOQ)', file: item.boqPdf },
+    { label: '10. FAKTUR PAJAK', file: item.fakturPajakPdf || (item.fakturPajak ? { id: 'fp', name: item.fakturPajak, sizeBytes: 500000, uploadDate: '', pages: 1, url: item.fakturPajak, fileType: 'application/pdf' } : undefined) }
   ];
 
   let currRow = 12;
 
-  docList.forEach((doc) => {
+  for (const doc of docList) {
     // Header for document
-    worksheet.mergeCells(currRow, 1, currRow, 2);
-    const hCell = worksheet.getCell(currRow, 1);
+    worksheet.mergeCells(`A${currRow}:J${currRow}`);
+    const hCell = worksheet.getCell(`A${currRow}`);
     hCell.value = doc.label;
     hCell.font = { bold: true, size: 11, color: { argb: 'FFFFFFFF' } };
     hCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0D9488' } }; // Slate Teal
     hCell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
     worksheet.getRow(currRow).height = 28;
 
-    // Content for document (Height 240pt, Column Widths 30+65=95)
-    const contentRow = currRow + 1;
-    worksheet.getRow(contentRow).height = 240; // 220-260 pt range
-
-    worksheet.mergeCells(contentRow, 1, contentRow, 2);
-    const cCell = worksheet.getCell(contentRow, 1);
-
-    cCell.border = {
-      top: { style: 'medium', color: { argb: 'FF0D9488' } },
-      left: { style: 'thin', color: { argb: 'FFD1D5DB' } },
-      bottom: { style: 'medium', color: { argb: 'FFD1D5DB' } },
-      right: { style: 'thin', color: { argb: 'FFD1D5DB' } }
-    };
-
     if (!doc.file) {
-      cCell.value = '[ Belum Ada File Upload ]';
+      const contentRow = currRow + 1;
+      worksheet.getRow(contentRow).height = 28;
+      worksheet.mergeCells(`A${contentRow}:J${contentRow}`);
+      const cCell = worksheet.getCell(`A${contentRow}`);
+      cCell.value = '[ Belum Ada File Unggahan ]';
       cCell.alignment = { horizontal: 'center', vertical: 'middle' };
       cCell.font = { italic: true, size: 10, color: { argb: 'FF94A3B8' } };
       cCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
-    } else {
-      const imgData = extractImageData(doc.file);
-      const fileName = doc.file.name || 'Dokumen.pdf';
 
-      if (imgData) {
+      for (let c = 1; c <= 10; c++) {
+        worksheet.getCell(contentRow, c).border = {
+          top: { style: 'thin', color: { argb: 'FF334155' } },
+          left: { style: 'thin', color: { argb: 'FF334155' } },
+          bottom: { style: 'thin', color: { argb: 'FF334155' } },
+          right: { style: 'thin', color: { argb: 'FF334155' } }
+        };
+      }
+      currRow += 3;
+    } else {
+      // Validate and extract non-corrupt image buffer & natural dimensions
+      const validated = await extractValidatedImageWithDimensions(doc.file, {
+        docTitle: doc.label,
+        woNumber: item.woNumber,
+        billingCode: item.billingCode
+      });
+
+      if (validated && validated.buffer && validated.buffer.length >= 100) {
         try {
           const imageId = workbook.addImage({
-            base64: imgData.base64,
-            extension: imgData.extension
+            buffer: validated.buffer as any,
+            extension: validated.extension
           });
 
+          const startRow = currRow + 1;
+          const endRow = startRow + 21; // 22 rows height = 440pt
+
+          for (let r = startRow; r <= endRow; r++) {
+            worksheet.getRow(r).height = 20;
+          }
+
+          worksheet.mergeCells(`A${startRow}:J${endRow}`);
+          const cCell = worksheet.getCell(`A${startRow}`);
+          cCell.value = '';
+          cCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
+
+          for (let r = startRow; r <= endRow; r++) {
+            for (let c = 1; c <= 10; c++) {
+              worksheet.getCell(r, c).border = {
+                top: { style: 'thin', color: { argb: 'FF0D9488' } },
+                left: { style: 'thin', color: { argb: 'FF0D9488' } },
+                bottom: { style: 'thin', color: { argb: 'FF0D9488' } },
+                right: { style: 'thin', color: { argb: 'FF0D9488' } }
+              };
+            }
+          }
+
+          // Calculate proportional fit: max 640px wide, max 420px high (preserving aspect ratio)
+          const fit = calculateFitDimensions(validated.naturalWidth, validated.naturalHeight, 640, 420);
+
+          // 10 columns * 12 width * 7.5px = 900px wide. 22 rows * 20pt * 1.33 = 585px high.
+          const totalBoxWidthPx = 10 * 12 * 7.5;
+          const totalBoxHeightPx = 22 * 20 * 1.33;
+          const colOffsetCols = Math.max(0.1, (totalBoxWidthPx - fit.width) / (2 * (12 * 7.5)));
+          const rowOffsetRows = Math.max(0.2, (totalBoxHeightPx - fit.height) / (2 * (20 * 1.33)));
+
           worksheet.addImage(imageId, {
-            tl: { col: 0.04, row: contentRow - 1 + 0.04 } as any,
-            br: { col: 1.96, row: contentRow - 0.04 } as any,
+            tl: { col: colOffsetCols, row: (startRow - 1) + rowOffsetRows } as any,
+            ext: { width: fit.width, height: fit.height },
             editAs: 'oneCell'
           });
 
-          cCell.value = '';
-          cCell.alignment = { horizontal: 'center', vertical: 'middle' };
-        } catch {
-          cCell.value = `📄 [DOKUMEN PDF RESMI TERLAMPIR]\n${fileName}`;
-          cCell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-          cCell.font = { bold: true, size: 11, color: { argb: 'FF0284C7' } };
-          cCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
+          currRow = endRow + 2;
+        } catch (err) {
+          console.warn('Single Excel export: failed to embed image:', err);
+          currRow += 3;
         }
       } else {
-        cCell.value = `📄 [DOKUMEN PDF RESMI TERLAMPIR]\n${fileName}`;
-        cCell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-        cCell.font = { bold: true, size: 11, color: { argb: 'FF0284C7' } };
-        cCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
+        const contentRow = currRow + 1;
+        worksheet.getRow(contentRow).height = 28;
+        worksheet.mergeCells(`A${contentRow}:J${contentRow}`);
+        const cCell = worksheet.getCell(`A${contentRow}`);
+        const docFileName = typeof doc.file === 'string' ? doc.file : (doc.file?.name || 'Dokumen Terlampir');
+        cCell.value = docFileName;
+        cCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        currRow += 3;
       }
     }
+  }
 
-    currRow += 3;
-  });
-
-  const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  saveAs(blob, filename);
+  try {
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    saveAs(blob, filename);
+  } catch (err) {
+    console.error('Failed to write single Penagihan Excel buffer:', err);
+    throw err;
+  }
 }
 

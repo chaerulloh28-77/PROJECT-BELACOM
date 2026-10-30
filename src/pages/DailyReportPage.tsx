@@ -497,9 +497,15 @@ export const DailyReportPage: React.FC = () => {
             variant="success"
             size="sm"
             icon={<FileSpreadsheet className="w-4 h-4" />}
-            onClick={() => {
-              exportDailyReportToExcel(filteredReports);
-              showToast('success', 'Excel Unduh', 'Rekap Excel Semua WO berhasil diunduh dalam format .xlsx dengan gambar visual!');
+            onClick={async () => {
+              try {
+                showToast('info', 'Menyiapkan Excel', 'Menyusun rekap Excel Daily Report...');
+                await exportDailyReportToExcel(filteredReports);
+                showToast('success', 'Excel Unduh', 'Rekap Excel Semua WO berhasil diunduh dalam format .xlsx dengan gambar visual!');
+              } catch (err) {
+                console.error('Daily report excel export error:', err);
+                showToast('error', 'Gagal Ekspor', 'Terjadi kendala saat menyusun berkas Excel.');
+              }
             }}
           >
             Export Excel Rekap Semua WO (.xlsx)

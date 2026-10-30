@@ -8,7 +8,15 @@ import {
   X,
   Eye,
   FileText,
-  FileSpreadsheet
+  FileSpreadsheet,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  Layers,
+  Calendar,
+  DollarSign,
+  FileCheck,
+  Check
 } from 'lucide-react';
 import { useProjectContext } from '../context/ProjectContext';
 import { PenagihanItem, StatusPenagihan, PDFFileMeta } from '../types';
@@ -17,17 +25,25 @@ import { PDFUploader } from '../components/PDFUploader';
 import { PDFViewerModal } from '../components/PDFViewerModal';
 import { DeleteConfirmModal } from '../components/DeleteConfirmModal';
 import { exportPenagihanToExcel, exportSinglePenagihanToExcel } from '../utils/excelExportWithImages';
+import { exportSinglePenagihanToWord } from '../utils/wordExportService';
 
 export const PenagihanPage: React.FC = () => {
-  const { penagihanList, addPenagihan, updatePenagihan, deletePenagihan, showToast, dailyReports } = useProjectContext();
+  const { penagihanList, addPenagihan, updatePenagihan, deletePenagihan, showToast } = useProjectContext();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [previewPdf, setPreviewPdf] = useState<PDFFileMeta | null>(null);
 
+  // Detail Modal State (Read / View Detail)
+  const [selectedDetailItem, setSelectedDetailItem] = useState<PenagihanItem | null>(null);
+
   // Delete Target Modal State
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; billingCode: string } | null>(null);
+
+  // Loading States for exports
+  const [isExportingWord, setIsExportingWord] = useState<string | null>(null);
+  const [isExportingExcel, setIsExportingExcel] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<Omit<PenagihanItem, 'id' | 'createdAt' | 'updatedAt'>>({
     billingCode: 'TAG/BEL/2026/10-003',
@@ -43,6 +59,7 @@ export const PenagihanPage: React.FC = () => {
     poPdf: undefined,
     dataMaterialPdf: undefined,
     boqPdf: undefined,
+    fakturPajakPdf: undefined,
     totalNominalRupiah: 145000000,
     remarks: 'Paket berkas penagihan lengkap telah diverifikasi.'
   });
@@ -63,6 +80,7 @@ export const PenagihanPage: React.FC = () => {
       poPdf: undefined,
       dataMaterialPdf: undefined,
       boqPdf: undefined,
+      fakturPajakPdf: undefined,
       totalNominalRupiah: 185000000,
       remarks: 'Seluruh lampiran penagihan lengkap dan siap kirim.'
     });
@@ -87,8 +105,13 @@ export const PenagihanPage: React.FC = () => {
 
     if (editingId) {
       updatePenagihan(editingId, formData);
+      showToast('success', 'Tagihan Diperbarui', `Paket penagihan ${formData.billingCode} berhasil diperbarui.`);
+      if (selectedDetailItem && selectedDetailItem.id === editingId) {
+        setSelectedDetailItem({ ...selectedDetailItem, ...formData });
+      }
     } else {
       addPenagihan(formData);
+      showToast('success', 'Tagihan Disimpan', `Paket penagihan baru ${formData.billingCode} berhasil ditambahkan.`);
     }
     setIsModalOpen(false);
   };
@@ -96,7 +119,39 @@ export const PenagihanPage: React.FC = () => {
   const handleConfirmDelete = () => {
     if (deleteTarget) {
       deletePenagihan(deleteTarget.id);
+      showToast('success', 'Tagihan Dihapus', `Data penagihan ${deleteTarget.billingCode} telah dihapus.`);
+      if (selectedDetailItem && selectedDetailItem.id === deleteTarget.id) {
+        setSelectedDetailItem(null);
+      }
       setDeleteTarget(null);
+    }
+  };
+
+  const handleExportWord = async (item: PenagihanItem) => {
+    try {
+      setIsExportingWord(item.id);
+      showToast('info', 'Menyiapkan Word (.docx)', `Menyusun dokumen berkas resmi ${item.billingCode}...`);
+      await exportSinglePenagihanToWord(item);
+      showToast('success', 'Word Tagihan Diunduh', `Dokumen Word paket penagihan ${item.billingCode} berhasil diunduh (.docx)!`);
+    } catch (err) {
+      console.error('Word export error:', err);
+      showToast('error', 'Gagal Ekspor Word', 'Terjadi kendala saat menyusun berkas Word.');
+    } finally {
+      setIsExportingWord(null);
+    }
+  };
+
+  const handleExportExcel = async (item: PenagihanItem) => {
+    try {
+      setIsExportingExcel(item.id);
+      showToast('info', 'Menyiapkan Excel (.xlsx)', `Menyusun dokumen ${item.billingCode}...`);
+      await exportSinglePenagihanToExcel(item);
+      showToast('success', 'Excel Tagihan Diunduh', `Berkas penagihan ${item.billingCode} berhasil diunduh dalam format .xlsx!`);
+    } catch (err) {
+      console.error('Excel export error:', err);
+      showToast('error', 'Gagal Ekspor Excel', 'Terjadi kendala saat menyusun berkas Excel.');
+    } finally {
+      setIsExportingExcel(null);
     }
   };
 
@@ -105,6 +160,20 @@ export const PenagihanPage: React.FC = () => {
     p.woNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
     Boolean(p.dailyReportWorkType?.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
+  // 10 Components List Helper
+  const get10Components = (item: PenagihanItem) => [
+    { num: 1, name: 'Invoice / Kwitansi', file: item.invoicePdf || item.kwitansiPdf },
+    { num: 2, name: 'BAST', file: item.bastPdf },
+    { num: 3, name: 'APD', file: item.apdPdf },
+    { num: 4, name: 'ABD', file: item.abdPdf },
+    { num: 5, name: 'Core Connection', file: item.coreConnectionPdf },
+    { num: 6, name: 'Foto Dokumentasi Lapangan', file: item.fotoDokumentasiPdf },
+    { num: 7, name: 'Purchase Order (PO)', file: item.poPdf },
+    { num: 8, name: 'Data Material', file: item.dataMaterialPdf },
+    { num: 9, name: 'BOQ', file: item.boqPdf },
+    { num: 10, name: 'Faktur Pajak', file: item.fakturPajakPdf }
+  ];
 
   return (
     <div className="space-y-6 pb-8">
@@ -116,7 +185,7 @@ export const PenagihanPage: React.FC = () => {
             <CreditCard className="w-4 h-4" /> Paket Berkas Penagihan Lengkap
           </div>
           <h2 className="text-xl font-bold text-white mt-1">Halaman Penagihan Belacom</h2>
-          <p className="text-xs text-slate-400">Verifikasi Komponen Berkas Penagihan Lengkap Kepada Klien</p>
+          <p className="text-xs text-slate-400">Verifikasi Komponen Berkas Penagihan Lengkap & Ekspor Dokumen Resmi</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -124,12 +193,18 @@ export const PenagihanPage: React.FC = () => {
             variant="success"
             size="sm"
             icon={<FileSpreadsheet className="w-4 h-4" />}
-            onClick={() => {
-              exportPenagihanToExcel(filteredPenagihan);
-              showToast('success', 'Rekap Excel Penagihan Diunduh', 'Rekap Excel 9 berkas penagihan berhasil diunduh dalam format .xlsx!');
+            onClick={async () => {
+              try {
+                showToast('info', 'Menyiapkan Rekap Excel', 'Menyusun berkas rekap penagihan...');
+                await exportPenagihanToExcel(filteredPenagihan);
+                showToast('success', 'Rekap Excel Penagihan Diunduh', 'Rekap Excel 10 berkas penagihan berhasil diunduh dalam format .xlsx!');
+              } catch (err) {
+                console.error('Rekap Excel error:', err);
+                showToast('error', 'Gagal Ekspor', 'Terjadi kendala saat menyusun berkas rekap Excel.');
+              }
             }}
           >
-            Export Rekap Berkas Penagihan (.xlsx)
+            Export Rekap Excel (.xlsx)
           </TouchButton>
 
           <TouchButton
@@ -144,158 +219,436 @@ export const PenagihanPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800">
-        <div className="relative max-w-md">
+      {/* Search Bar */}
+      <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="relative w-full max-w-md">
           <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Cari Kode Penagihan atau No. WO..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 rounded-xl pl-9 pr-3 py-2 outline-none"
+            className="w-full bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 rounded-xl pl-9 pr-3 py-2.5 outline-none focus:border-cyan-500"
           />
+        </div>
+        <div className="text-xs text-slate-400 font-mono shrink-0">
+          Total: <span className="font-bold text-cyan-400">{filteredPenagihan.length}</span> Paket Tagihan
         </div>
       </div>
 
       {/* Data Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-300">
             <thead className="bg-slate-950/90 text-slate-400 font-mono text-[11px] uppercase tracking-wider border-b border-slate-800">
               <tr>
-                <th className="py-2.5 px-3 font-semibold">No & Kode Penagihan</th>
-                <th className="py-2.5 px-3 font-semibold">Total Nominal</th>
-                <th className="py-2.5 px-3 font-semibold">Pekerjaan & Durasi</th>
-                <th className="py-2.5 px-3 font-semibold">Komponen Berkas PDF</th>
-                <th className="py-2.5 px-3 font-semibold text-center">Status</th>
-                <th className="py-2.5 px-3 font-semibold text-right">Aksi</th>
+                <th className="py-3 px-3.5 font-semibold">No & Kode Penagihan</th>
+                <th className="py-3 px-3.5 font-semibold">Total Nominal</th>
+                <th className="py-3 px-3.5 font-semibold">Pekerjaan & Durasi</th>
+                <th className="py-3 px-3.5 font-semibold">10 Komponen Berkas PDF</th>
+                <th className="py-3 px-3.5 font-semibold text-center">Status</th>
+                <th className="py-3 px-3.5 font-semibold text-center">Aksi Dokumen & Manajemen</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 font-sans">
-              {filteredPenagihan.map((penagihan, index) => (
-                <tr key={penagihan.id} className="hover:bg-slate-850/60 transition-colors">
-                  
-                  <td className="py-2.5 px-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-500 font-mono text-[11px]">#{index + 1}</span>
-                      <div>
-                        <span className="font-bold text-cyan-400 font-mono block">{penagihan.billingCode}</span>
-                        <span className="text-[10px] text-slate-500 font-mono block">Ref WO: {penagihan.woNumber}</span>
-                        <span className="text-[10px] text-emerald-400 font-mono block">Tgl Submit: {penagihan.tanggalSubmit || penagihan.createdAt?.substring(0, 10) || '-'}</span>
-                      </div>
-                    </div>
+              {filteredPenagihan.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-500 font-mono">
+                    Belum ada data paket penagihan yang cocok.
                   </td>
-
-                  <td className="py-2.5 px-3 font-mono font-bold text-emerald-400 text-sm">
-                    Rp {penagihan.totalNominalRupiah.toLocaleString('id-ID')}
-                  </td>
-
-                  <td className="py-2.5 px-3 font-mono text-[11px]">
-                    <div className="text-slate-200 font-sans font-semibold">{penagihan.dailyReportWorkType || '-'}</div>
-                    <div className="text-amber-400 text-[10px]">
-                      {penagihan.dailyReportStartDate} s/d {penagihan.dailyReportFinishDate} ({penagihan.dailyReportDurationDays || 0} Hari)
-                    </div>
-                  </td>
-
-                  <td className="py-2.5 px-3 font-mono">
-                    <div className="flex flex-wrap gap-1 text-[10px] max-w-xs">
-                      {(penagihan.invoicePdf || penagihan.kwitansiPdf) && (
-                        <button onClick={() => setPreviewPdf(penagihan.invoicePdf || penagihan.kwitansiPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat Invoice / Kwitansi PDF">
-                          <Eye className="w-3 h-3 text-cyan-400" /> Inv / Kwitansi
-                        </button>
-                      )}
-                      {penagihan.bastPdf && (
-                        <button onClick={() => setPreviewPdf(penagihan.bastPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat BAST PDF">
-                          <Eye className="w-3 h-3 text-cyan-400" /> BAST
-                        </button>
-                      )}
-                      {penagihan.apdPdf && (
-                        <button onClick={() => setPreviewPdf(penagihan.apdPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat APD PDF">
-                          <Eye className="w-3 h-3 text-cyan-400" /> APD
-                        </button>
-                      )}
-                      {penagihan.abdPdf && (
-                        <button onClick={() => setPreviewPdf(penagihan.abdPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat ABD PDF">
-                          <Eye className="w-3 h-3 text-cyan-400" /> ABD
-                        </button>
-                      )}
-                      {penagihan.coreConnectionPdf && (
-                        <button onClick={() => setPreviewPdf(penagihan.coreConnectionPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat Core Connection PDF">
-                          <Eye className="w-3 h-3 text-cyan-400" /> Core
-                        </button>
-                      )}
-                      {penagihan.fotoDokumentasiPdf && (
-                        <button onClick={() => setPreviewPdf(penagihan.fotoDokumentasiPdf!)} className="px-1.5 py-0.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat Foto Dokumentasi PDF">
-                          <FileText className="w-3 h-3 text-rose-400" /> Foto
-                        </button>
-                      )}
-                      {penagihan.poPdf && (
-                        <button onClick={() => setPreviewPdf(penagihan.poPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat PO PDF">
-                          <Eye className="w-3 h-3 text-cyan-400" /> PO
-                        </button>
-                      )}
-                      {penagihan.dataMaterialPdf && (
-                        <button onClick={() => setPreviewPdf(penagihan.dataMaterialPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat Data Material PDF">
-                          <Eye className="w-3 h-3 text-cyan-400" /> Mat
-                        </button>
-                      )}
-                      {penagihan.boqPdf && (
-                        <button onClick={() => setPreviewPdf(penagihan.boqPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat BOQ PDF">
-                          <Eye className="w-3 h-3 text-cyan-400" /> BOQ
-                        </button>
-                      )}
-                    </div>
-                  </td>
-
-                  <td className="py-2.5 px-3 text-center">
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold ${
-                      penagihan.statusPenagihan === 'Lunas' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                      penagihan.statusPenagihan === 'Disetujui' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' :
-                      penagihan.statusPenagihan === 'Dalam Review' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
-                      'bg-slate-800 text-slate-400 border border-slate-700'
-                    }`}>
-                      {penagihan.statusPenagihan}
-                    </span>
-                  </td>
-
-                  <td className="py-2.5 px-3 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button
-                        onClick={() => {
-                          exportSinglePenagihanToExcel(penagihan);
-                          showToast('success', 'Excel Tagihan Diunduh', `Berkas penagihan ${penagihan.billingCode} berhasil diunduh dalam format .xlsx!`);
-                        }}
-                        className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 cursor-pointer transition-colors"
-                        title="Download Excel Dokumen Tagihan Ini"
-                      >
-                        <FileSpreadsheet className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleOpenEditModal(penagihan)}
-                        className="p-1.5 rounded-lg bg-slate-800 text-cyan-400 hover:bg-cyan-500/20 cursor-pointer"
-                        title="Edit Penagihan"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => setDeleteTarget({ id: penagihan.id, billingCode: penagihan.billingCode })}
-                        className="p-1.5 rounded-lg bg-slate-800 text-rose-400 hover:bg-rose-500/20 cursor-pointer"
-                        title="Hapus Penagihan"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </td>
-
                 </tr>
-              ))}
+              ) : (
+                filteredPenagihan.map((penagihan, index) => {
+                  const comps = get10Components(penagihan);
+                  const availableCount = comps.filter(c => Boolean(c.file)).length;
+
+                  return (
+                    <tr key={penagihan.id} className="hover:bg-slate-850/60 transition-colors">
+                      
+                      {/* Identity */}
+                      <td className="py-3 px-3.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-500 font-mono text-[11px]">#{index + 1}</span>
+                          <div>
+                            <span className="font-bold text-cyan-400 font-mono block text-xs">{penagihan.billingCode}</span>
+                            <span className="text-[10px] text-slate-400 font-mono block">Ref WO: {penagihan.woNumber}</span>
+                            <span className="text-[10px] text-emerald-400 font-mono block">
+                              Tgl Submit: {penagihan.tanggalSubmit || penagihan.createdAt?.substring(0, 10) || '-'}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Total Nominal */}
+                      <td className="py-3 px-3.5 font-mono font-bold text-emerald-400 text-sm whitespace-nowrap">
+                        Rp {penagihan.totalNominalRupiah.toLocaleString('id-ID')}
+                      </td>
+
+                      {/* Work Details */}
+                      <td className="py-3 px-3.5 font-mono text-[11px]">
+                        <div className="text-slate-200 font-sans font-semibold line-clamp-1">{penagihan.dailyReportWorkType || 'Pekerjaan FO'}</div>
+                        <div className="text-amber-400 text-[10px]">
+                          {penagihan.dailyReportStartDate || '-'} s/d {penagihan.dailyReportFinishDate || '-'} ({penagihan.dailyReportDurationDays || 0} Hari)
+                        </div>
+                      </td>
+
+                      {/* 10 Document Slots */}
+                      <td className="py-3 px-3.5 font-mono">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                              availableCount === 10 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                              availableCount >= 5 ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' :
+                              'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                            }`}>
+                              {availableCount}/10 Dokumen
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-1 text-[10px] max-w-xs">
+                            {(penagihan.invoicePdf || penagihan.kwitansiPdf) && (
+                              <button onClick={() => setPreviewPdf(penagihan.invoicePdf || penagihan.kwitansiPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat Invoice / Kwitansi PDF">
+                                <Eye className="w-3 h-3 text-cyan-400" /> Inv
+                              </button>
+                            )}
+                            {penagihan.bastPdf && (
+                              <button onClick={() => setPreviewPdf(penagihan.bastPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat BAST PDF">
+                                <Eye className="w-3 h-3 text-cyan-400" /> BAST
+                              </button>
+                            )}
+                            {penagihan.apdPdf && (
+                              <button onClick={() => setPreviewPdf(penagihan.apdPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat APD PDF">
+                                <Eye className="w-3 h-3 text-cyan-400" /> APD
+                              </button>
+                            )}
+                            {penagihan.abdPdf && (
+                              <button onClick={() => setPreviewPdf(penagihan.abdPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat ABD PDF">
+                                <Eye className="w-3 h-3 text-cyan-400" /> ABD
+                              </button>
+                            )}
+                            {penagihan.coreConnectionPdf && (
+                              <button onClick={() => setPreviewPdf(penagihan.coreConnectionPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat Core Connection PDF">
+                                <Eye className="w-3 h-3 text-cyan-400" /> Core
+                              </button>
+                            )}
+                            {penagihan.fotoDokumentasiPdf && (
+                              <button onClick={() => setPreviewPdf(penagihan.fotoDokumentasiPdf!)} className="px-1.5 py-0.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat Foto Dokumentasi PDF">
+                                <FileText className="w-3 h-3 text-rose-400" /> Foto
+                              </button>
+                            )}
+                            {penagihan.poPdf && (
+                              <button onClick={() => setPreviewPdf(penagihan.poPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat PO PDF">
+                                <Eye className="w-3 h-3 text-cyan-400" /> PO
+                              </button>
+                            )}
+                            {penagihan.dataMaterialPdf && (
+                              <button onClick={() => setPreviewPdf(penagihan.dataMaterialPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat Data Material PDF">
+                                <Eye className="w-3 h-3 text-cyan-400" /> Mat
+                              </button>
+                            )}
+                            {penagihan.boqPdf && (
+                              <button onClick={() => setPreviewPdf(penagihan.boqPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat BOQ PDF">
+                                <Eye className="w-3 h-3 text-cyan-400" /> BOQ
+                              </button>
+                            )}
+                            {penagihan.fakturPajakPdf && (
+                              <button onClick={() => setPreviewPdf(penagihan.fakturPajakPdf!)} className="px-1.5 py-0.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat Faktur Pajak PDF">
+                                <Eye className="w-3 h-3 text-amber-400" /> Faktur
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Status */}
+                      <td className="py-3 px-3.5 text-center">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-mono font-bold whitespace-nowrap ${
+                          penagihan.statusPenagihan === 'Lunas' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                          penagihan.statusPenagihan === 'Disetujui' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' :
+                          penagihan.statusPenagihan === 'Dalam Review' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                          'bg-slate-800 text-slate-400 border border-slate-700'
+                        }`}>
+                          {penagihan.statusPenagihan}
+                        </span>
+                      </td>
+
+                      {/* Row Action Buttons: Detail, Edit, Export Word, Export Excel, Delete */}
+                      <td className="py-3 px-3.5 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {/* 1. Lihat Detail Modal */}
+                          <button
+                            onClick={() => setSelectedDetailItem(penagihan)}
+                            className="p-1.5 rounded-lg bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 cursor-pointer transition-colors border border-sky-500/20"
+                            title="Lihat Detail & Galeri 10 Dokumen"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* 2. Edit Tagihan Modal */}
+                          <button
+                            onClick={() => handleOpenEditModal(penagihan)}
+                            className="p-1.5 rounded-lg bg-slate-800 text-cyan-400 hover:bg-cyan-500/20 cursor-pointer transition-colors border border-slate-700"
+                            title="Edit Data Penagihan"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* 3. Export Word (.docx) */}
+                          <button
+                            disabled={isExportingWord === penagihan.id}
+                            onClick={() => handleExportWord(penagihan)}
+                            className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 cursor-pointer transition-colors border border-blue-500/20 disabled:opacity-50"
+                            title="Download Word Dokumen Tagihan (.docx)"
+                          >
+                            {isExportingWord === penagihan.id ? (
+                              <div className="w-3.5 h-3.5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <FileText className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+
+                          {/* 4. Export Excel (.xlsx) */}
+                          <button
+                            disabled={isExportingExcel === penagihan.id}
+                            onClick={() => handleExportExcel(penagihan)}
+                            className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 cursor-pointer transition-colors border border-emerald-500/20 disabled:opacity-50"
+                            title="Download Excel Dokumen Tagihan (.xlsx)"
+                          >
+                            {isExportingExcel === penagihan.id ? (
+                              <div className="w-3.5 h-3.5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <FileSpreadsheet className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+
+                          {/* 5. Hapus Penagihan */}
+                          <button
+                            onClick={() => setDeleteTarget({ id: penagihan.id, billingCode: penagihan.billingCode })}
+                            className="p-1.5 rounded-lg bg-slate-800 text-rose-400 hover:bg-rose-500/20 cursor-pointer transition-colors border border-slate-700"
+                            title="Hapus Penagihan"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Modal Form */}
+      {/* ======================================================== */}
+      {/* MODAL 1: LIHAT DETAIL TAGIHAN (READ / DETAIL GALLERY) */}
+      {/* ======================================================== */}
+      {selectedDetailItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+            
+            {/* Modal Header */}
+            <div className="p-4 bg-slate-850 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-cyan-500/10 border border-cyan-500/20 rounded-xl text-cyan-400">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    Detail Paket Berkas Penagihan
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-mono">
+                      {selectedDetailItem.billingCode}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400">Verifikasi kelengkapan dokumen & inspeksi berkas lampiran</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSelectedDetailItem(null)} 
+                className="p-1.5 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl cursor-pointer transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto space-y-6">
+              
+              {/* Top Overview Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div className="p-3.5 bg-slate-950 rounded-xl border border-slate-800">
+                  <div className="text-[11px] text-slate-400 font-medium">Nomor Referensi WO</div>
+                  <div className="text-sm font-bold text-white font-mono mt-1">{selectedDetailItem.woNumber}</div>
+                </div>
+
+                <div className="p-3.5 bg-slate-950 rounded-xl border border-slate-800">
+                  <div className="text-[11px] text-slate-400 font-medium">Status Penagihan</div>
+                  <div className="mt-1">
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-mono font-bold ${
+                      selectedDetailItem.statusPenagihan === 'Lunas' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                      selectedDetailItem.statusPenagihan === 'Disetujui' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' :
+                      selectedDetailItem.statusPenagihan === 'Dalam Review' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
+                      'bg-slate-800 text-slate-400'
+                    }`}>
+                      {selectedDetailItem.statusPenagihan}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-3.5 bg-slate-950 rounded-xl border border-slate-800">
+                  <div className="text-[11px] text-slate-400 font-medium">Tanggal Pengajuan</div>
+                  <div className="text-xs font-bold text-slate-200 font-mono mt-1">
+                    {selectedDetailItem.tanggalSubmit || selectedDetailItem.createdAt?.substring(0, 10) || '-'}
+                  </div>
+                </div>
+
+                <div className="p-3.5 bg-slate-950 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
+                  <div className="text-[11px] text-emerald-400 font-medium">Total Nominal Tagihan</div>
+                  <div className="text-base font-extrabold text-emerald-400 font-mono mt-0.5">
+                    Rp {selectedDetailItem.totalNominalRupiah.toLocaleString('id-ID')}
+                  </div>
+                </div>
+              </div>
+
+              {/* Work Details & Remarks */}
+              <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-2 text-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-850 pb-2">
+                  <span className="text-slate-400">Pekerjaan Lapangan:</span>
+                  <span className="font-semibold text-slate-200">{selectedDetailItem.dailyReportWorkType || 'Pekerjaan Infrastruktur Telekomunikasi'}</span>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-850 pb-2">
+                  <span className="text-slate-400">Durasi Pelaksanaan:</span>
+                  <span className="font-mono text-amber-400">
+                    {selectedDetailItem.dailyReportStartDate || '-'} s/d {selectedDetailItem.dailyReportFinishDate || '-'} ({selectedDetailItem.dailyReportDurationDays || 0} Hari Kerja)
+                  </span>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 pt-1">
+                  <span className="text-slate-400 shrink-0">Catatan / Remarks:</span>
+                  <span className="text-slate-300 italic text-right sm:text-left">{selectedDetailItem.remarks || 'Tidak ada catatan tambahan.'}</span>
+                </div>
+              </div>
+
+              {/* Interactive Gallery: 10 Components */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-cyan-400 uppercase font-mono tracking-wider flex items-center gap-1.5">
+                    <Layers className="w-4 h-4" /> Matriks Galeri 10 Komponen Berkas
+                  </h4>
+                  <span className="text-[11px] text-slate-400 font-mono">
+                    {get10Components(selectedDetailItem).filter(c => Boolean(c.file)).length} dari 10 Berkas Tersedia
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                  {get10Components(selectedDetailItem).map((comp) => {
+                    const isAttached = Boolean(comp.file && (comp.file.url || comp.file.name));
+
+                    return (
+                      <div
+                        key={comp.num}
+                        className={`p-3 rounded-xl border flex flex-col justify-between transition-all ${
+                          isAttached
+                            ? 'bg-slate-950/80 border-slate-700/80 hover:border-cyan-500/50 shadow-sm'
+                            : 'bg-slate-950/30 border-slate-800/40 opacity-75'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-1 mb-2">
+                            <span className="text-[11px] font-bold text-slate-300 line-clamp-1">
+                              {comp.num}. {comp.name}
+                            </span>
+                            {isAttached ? (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                            ) : (
+                              <AlertCircle className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                            )}
+                          </div>
+
+                          <div className="text-[10px] text-slate-400 mb-2 truncate">
+                            {isAttached ? (
+                              comp.file?.name || 'Dokumen Terlampir'
+                            ) : (
+                              <span className="italic text-slate-500">Belum diunggah</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {isAttached && comp.file ? (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewPdf(comp.file!)}
+                            className="w-full py-1.5 px-2 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 text-cyan-300 rounded-lg text-[10px] font-mono flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                          >
+                            <Eye className="w-3 h-3" /> Pratinjau Berkas
+                          </button>
+                        ) : (
+                          <div className="text-[10px] text-center text-slate-600 py-1 bg-slate-900 rounded-lg border border-slate-800">
+                            Kosong
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className="p-4 bg-slate-850 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <TouchButton
+                  variant="primary"
+                  size="sm"
+                  icon={<FileText className="w-4 h-4" />}
+                  disabled={isExportingWord === selectedDetailItem.id}
+                  onClick={() => handleExportWord(selectedDetailItem)}
+                >
+                  {isExportingWord === selectedDetailItem.id ? 'Menyusun Word...' : 'Export Word (.docx)'}
+                </TouchButton>
+
+                <TouchButton
+                  variant="success"
+                  size="sm"
+                  icon={<FileSpreadsheet className="w-4 h-4" />}
+                  disabled={isExportingExcel === selectedDetailItem.id}
+                  onClick={() => handleExportExcel(selectedDetailItem)}
+                >
+                  Export Excel (.xlsx)
+                </TouchButton>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <TouchButton
+                  variant="secondary"
+                  size="sm"
+                  icon={<Edit3 className="w-4 h-4" />}
+                  onClick={() => {
+                    const item = selectedDetailItem;
+                    setSelectedDetailItem(null);
+                    handleOpenEditModal(item);
+                  }}
+                >
+                  Edit Data Tagihan
+                </TouchButton>
+
+                <TouchButton
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setSelectedDetailItem(null)}
+                >
+                  Tutup
+                </TouchButton>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 2: INPUT / EDIT TAGIHAN (CREATE & UPDATE) */}
+      {/* ======================================================== */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
@@ -364,10 +717,10 @@ export const PenagihanPage: React.FC = () => {
               {/* Komponen Berkas Upload Grid */}
               <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
                 <h4 className="text-xs font-bold text-cyan-400 uppercase font-mono">
-                  Komponen Berkas Penagihan
+                  Komponen Berkas Penagihan (10 Slot Dokumen)
                 </h4>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                   <PDFUploader label="1. Invoice / Kwitansi" value={formData.invoicePdf} onChange={(f) => setFormData(p => ({ ...p, invoicePdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
                   <PDFUploader label="2. BAST" value={formData.bastPdf} onChange={(f) => setFormData(p => ({ ...p, bastPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
                   <PDFUploader label="3. APD" value={formData.apdPdf} onChange={(f) => setFormData(p => ({ ...p, apdPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
@@ -377,6 +730,7 @@ export const PenagihanPage: React.FC = () => {
                   <PDFUploader label="7. Purchase Order (PO)" value={formData.poPdf} onChange={(f) => setFormData(p => ({ ...p, poPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
                   <PDFUploader label="8. Data Material" value={formData.dataMaterialPdf} onChange={(f) => setFormData(p => ({ ...p, dataMaterialPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
                   <PDFUploader label="9. BOQ" value={formData.boqPdf} onChange={(f) => setFormData(p => ({ ...p, boqPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
+                  <PDFUploader label="10. Faktur Pajak" value={formData.fakturPajakPdf} onChange={(f) => setFormData(p => ({ ...p, fakturPajakPdf: f, fakturPajak: f ? (f.name || f.url) : null }))} onPreview={(f) => setPreviewPdf(f)} />
                 </div>
               </div>
 
@@ -402,28 +756,38 @@ export const PenagihanPage: React.FC = () => {
               </div>
 
               <div className="pt-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
-                <div>
+                <div className="flex flex-wrap items-center gap-2">
                   {editingId && (
-                    <TouchButton
-                      variant="success"
-                      size="md"
-                      type="button"
-                      icon={<FileSpreadsheet className="w-4 h-4" />}
-                      onClick={() => {
-                        exportSinglePenagihanToExcel({ id: editingId, ...formData } as PenagihanItem);
-                        showToast('success', 'Excel Tagihan Diunduh', `Berkas penagihan ${formData.billingCode} berhasil diunduh!`);
-                      }}
-                    >
-                      Export Excel Tagihan Ini (.xlsx)
-                    </TouchButton>
+                    <>
+                      <TouchButton
+                        variant="primary"
+                        size="sm"
+                        type="button"
+                        icon={<FileText className="w-4 h-4" />}
+                        onClick={() => handleExportWord({ id: editingId, ...formData } as PenagihanItem)}
+                      >
+                        Export Word (.docx)
+                      </TouchButton>
+
+                      <TouchButton
+                        variant="success"
+                        size="sm"
+                        type="button"
+                        icon={<FileSpreadsheet className="w-4 h-4" />}
+                        onClick={() => handleExportExcel({ id: editingId, ...formData } as PenagihanItem)}
+                      >
+                        Export Excel (.xlsx)
+                      </TouchButton>
+                    </>
                   )}
                 </div>
+
                 <div className="flex items-center gap-2">
                   <TouchButton variant="secondary" size="md" type="button" onClick={() => setIsModalOpen(false)}>
                     Batal
                   </TouchButton>
                   <TouchButton variant="primary" size="md" type="submit" showFingerIcon>
-                    Simpan Paket Penagihan
+                    {editingId ? 'Simpan Perubahan' : 'Simpan Paket Penagihan'}
                   </TouchButton>
                 </div>
               </div>

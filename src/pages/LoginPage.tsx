@@ -97,7 +97,7 @@ export const LoginPage: React.FC = () => {
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="Masukkan username (belacom)..."
+                placeholder="Masukkan username..."
                 className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 text-sm text-slate-100 placeholder-slate-500 rounded-xl pl-10 pr-4 py-2.5 outline-none transition-all focus:ring-1 focus:ring-cyan-500 font-mono"
               />
             </div>

