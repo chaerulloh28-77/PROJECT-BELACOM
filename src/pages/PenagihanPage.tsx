@@ -46,9 +46,10 @@ export const PenagihanPage: React.FC = () => {
   const [isExportingWord, setIsExportingWord] = useState<string | null>(null);
   const [isExportingExcel, setIsExportingExcel] = useState<string | null>(null);
 
-  const [formData, setFormData] = useState<Omit<PenagihanItem, 'id' | 'createdAt' | 'updatedAt'>>({
-    billingCode: 'TAG/BEL/2026/10-003',
-    woNumber: 'WO-BEL-2026-0082',
+  // Form Fields Initial State Helper
+  const getInitialPenagihanFormData = (): Omit<PenagihanItem, 'id' | 'createdAt' | 'updatedAt'> => ({
+    billingCode: '',
+    woNumber: '',
     tanggalSubmit: new Date().toISOString().substring(0, 10),
     statusPenagihan: 'Dalam Review',
     invoicePdf: undefined,
@@ -61,30 +62,15 @@ export const PenagihanPage: React.FC = () => {
     dataMaterialPdf: undefined,
     boqPdf: undefined,
     fakturPajakPdf: undefined,
-    totalNominalRupiah: 145000000,
-    remarks: 'Paket berkas penagihan lengkap telah diverifikasi.'
+    totalNominalRupiah: 0,
+    remarks: ''
   });
+
+  const [formData, setFormData] = useState<Omit<PenagihanItem, 'id' | 'createdAt' | 'updatedAt'>>(getInitialPenagihanFormData());
 
   const handleOpenAddModal = () => {
     setEditingId(null);
-    setFormData({
-      billingCode: `TAG/BEL/2026/10-${Math.floor(100 + Math.random() * 900)}`,
-      woNumber: `WO-BEL-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-      tanggalSubmit: new Date().toISOString().substring(0, 10),
-      statusPenagihan: 'Dalam Review',
-      invoicePdf: undefined,
-      bastPdf: undefined,
-      apdPdf: undefined,
-      abdPdf: undefined,
-      coreConnectionPdf: undefined,
-      fotoDokumentasiPdf: undefined,
-      poPdf: undefined,
-      dataMaterialPdf: undefined,
-      boqPdf: undefined,
-      fakturPajakPdf: undefined,
-      totalNominalRupiah: 185000000,
-      remarks: 'Seluruh lampiran penagihan lengkap dan siap kirim.'
-    });
+    setFormData(getInitialPenagihanFormData());
     setIsModalOpen(true);
   };
 

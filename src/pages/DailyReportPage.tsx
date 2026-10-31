@@ -117,44 +117,45 @@ export const DailyReportPage: React.FC = () => {
     });
   };
 
+  // Form Fields Initial State Helper
+  const getInitialDailyReportFormData = (): Omit<DailyReportItem, 'id' | 'createdAt' | 'updatedAt'> => {
+    const today = new Date().toISOString().substring(0, 10);
+    return {
+      woType: 'Plan Network Interconection POP',
+      monthReleaseWo: today.substring(0, 7),
+      assignment: 'Jabo 1',
+      team: 'ABR 03',
+      statusWo: 'In Progress',
+      pic: '',
+      workType: '',
+      releaseDate: today,
+      startDate: today,
+      finishDate: today,
+      durationDays: 1,
+      woNumber: '',
+      estimatedDistanceMeters: 0,
+      totalDistanceMeters: 0,
+      statusTeamProject: 'On Schedule',
+      pathLengthMeters: 0,
+      documentation: {},
+      remarks: '',
+      pendingLogs: [],
+      additionalSchedules: [],
+      originLocation: '',
+      originCoordinates: '',
+      originPhotoFile: undefined,
+      originTaggingDocFile: undefined,
+      destinationLocation: '',
+      destinationCoordinates: '',
+      destinationPhotoFile: undefined,
+      destinationTaggingDocFile: undefined,
+      routeMapFile: undefined,
+      routeGmapsUrl: ''
+    };
+  };
+
   // Form Fields State
-  const [formData, setFormData] = useState<Omit<DailyReportItem, 'id' | 'createdAt' | 'updatedAt'>>({
-    woType: 'Plan Network Interconection POP',
-    monthReleaseWo: new Date().toISOString().substring(0, 7),
-    assignment: 'Jabo 1',
-    team: 'ABR 03',
-    statusWo: 'In Progress',
-    pic: '',
-    workType: '',
-    releaseDate: new Date().toISOString().substring(0, 10),
-    startDate: new Date().toISOString().substring(0, 10),
-    finishDate: new Date(Date.now() + 7 * 86400000).toISOString().substring(0, 10),
-    durationDays: 7,
-    woNumber: 'WO-BEL-2026-0090',
-    estimatedDistanceMeters: 1500,
-    totalDistanceMeters: 1490,
-    statusTeamProject: 'On Schedule',
-    pathLengthMeters: 1490,
-    documentation: {
-      fotoClosurePdf: undefined,
-      opmPdf: undefined,
-      olsPdf: undefined,
-      btsPdf: undefined,
-      otdrPdf: undefined
-    },
-    remarks: '',
-    pendingLogs: [],
-    originLocation: '',
-    originCoordinates: '',
-    originPhotoFile: undefined,
-    originTaggingDocFile: undefined,
-    destinationLocation: '',
-    destinationCoordinates: '',
-    destinationPhotoFile: undefined,
-    destinationTaggingDocFile: undefined,
-    routeMapFile: undefined,
-    routeGmapsUrl: ''
-  });
+  const [formData, setFormData] = useState<Omit<DailyReportItem, 'id' | 'createdAt' | 'updatedAt'>>(getInitialDailyReportFormData());
 
   const defaultWOOptions: WOOption[] = [
     'Plan Network Interconection POP',
@@ -174,44 +175,7 @@ export const DailyReportPage: React.FC = () => {
   const handleOpenAddModal = () => {
     setEditingId(null);
     setIsCustomWoType(false);
-    const initialWo = 'Plan Network Interconection POP';
-    const relDate = new Date().toISOString().substring(0, 10);
-    const stDate = relDate;
-    const initialTargetWorkDays = 5;
-    const fnDate = addWorkDays(stDate, initialTargetWorkDays);
-    const calculatedDur = calculateWorkDays(stDate, fnDate);
-
-    setFormData({
-      woType: initialWo,
-      monthReleaseWo: new Date().toISOString().substring(0, 7),
-      assignment: 'Jabo 1',
-      team: 'ABR 03',
-      statusWo: 'In Progress',
-      pic: 'Operator Belacom',
-      workType: '',
-      releaseDate: relDate,
-      startDate: stDate,
-      finishDate: fnDate,
-      durationDays: calculatedDur,
-      woNumber: `WO-BEL-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-      estimatedDistanceMeters: 2000,
-      totalDistanceMeters: 1980,
-      statusTeamProject: 'On Schedule',
-      pathLengthMeters: 1980,
-      documentation: {},
-      remarks: '',
-      pendingLogs: [],
-      originLocation: '',
-      originCoordinates: '',
-      originPhotoFile: undefined,
-      originTaggingDocFile: undefined,
-      destinationLocation: '',
-      destinationCoordinates: '',
-      destinationPhotoFile: undefined,
-      destinationTaggingDocFile: undefined,
-      routeMapFile: undefined,
-      routeGmapsUrl: ''
-    });
+    setFormData(getInitialDailyReportFormData());
     setIsModalOpen(true);
   };
 
