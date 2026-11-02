@@ -170,11 +170,14 @@ export interface TaggingFileValidationResult {
   errorMessage?: string;
 }
 
+export const MAX_FILE_SIZE_MB = 100;
+export const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
+
 export const validateTaggingFile = (
   filename: string,
   category: TaggingFileCategory,
   sizeBytes?: number,
-  maxSizeMB: number = 25
+  maxSizeMB: number = 100
 ): TaggingFileValidationResult => {
   const config = getTaggingCategoryConfig(category);
   const ext = getFileExtension(filename);
@@ -193,7 +196,7 @@ export const validateTaggingFile = (
       valid: false,
       ext,
       allowedExtensions: config.allowedExtensions,
-      errorMessage: `Ukuran file melebihi batas maksimal ${maxSizeMB} MB! (${(sizeBytes / (1024 * 1024)).toFixed(2)} MB)`
+      errorMessage: `Ukuran berkas melebihi kapasitas maksimal ${maxSizeMB} MB. Silakan pilih berkas yang lebih kecil.`
     };
   }
 

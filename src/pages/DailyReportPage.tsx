@@ -1123,6 +1123,9 @@ export const DailyReportPage: React.FC = () => {
                   <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-wider font-mono">
                     18. DOKUMEN &amp; FOTO DOKUMENTASI
                   </h4>
+                  <span className="text-[10px] font-mono text-cyan-400 bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-800">
+                    Kapasitas hingga 100 MB
+                  </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

@@ -31,7 +31,7 @@ export const MultiPDFUploader: React.FC<MultiPDFUploaderProps> = ({
   values,
   singleValue,
   onChange,
-  maxSizeMB = 25,
+  maxSizeMB = 100,
   required = false,
   onPreview,
   woNumber = 'WO-BEL-2026'
@@ -53,6 +53,7 @@ export const MultiPDFUploader: React.FC<MultiPDFUploaderProps> = ({
 
   const processSingleFile = async (file: File): Promise<PDFFileMeta> => {
     const isImage = isImageFile(file);
+    const isLarge = file.size > 5 * 1024 * 1024;
 
     if (isImage) {
       setLoadingText(`Mengompresi ${file.name}...`);
@@ -78,9 +79,20 @@ export const MultiPDFUploader: React.FC<MultiPDFUploaderProps> = ({
       };
     }
 
-    // Non-image document
+    // Non-image document with progress tracking for large files
+    setLoadingText(isLarge ? 'Memproses berkas besar...' : `Membaca ${file.name}...`);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
     return new Promise<PDFFileMeta>((resolve) => {
       const reader = new FileReader();
+
+      reader.onprogress = (e) => {
+        if (e.lengthComputable && isLarge) {
+          const percent = Math.round((e.loaded / e.total) * 100);
+          setLoadingText(`Memproses berkas besar... ${percent}%`);
+        }
+      };
+
       reader.onload = () => {
         const dataUrl = typeof reader.result === 'string' ? reader.result : '';
         const visualImg = generateVisualDocDataUrl(label, file.name, woNumber, `BAST/${woNumber}/2026`);
@@ -123,7 +135,7 @@ export const MultiPDFUploader: React.FC<MultiPDFUploaderProps> = ({
     const maxSizeBytes = maxSizeMB * 1024 * 1024;
     for (const file of filesToProcess) {
       if (!isImageFile(file) && file.size > maxSizeBytes) {
-        setErrorMsg(`Dokumen non-gambar "${file.name}" melebihi kapasitas maksimal ${maxSizeMB} MB. Silakan unggah berkas di bawah ${maxSizeMB} MB.`);
+        setErrorMsg(`Ukuran berkas melebihi kapasitas maksimal ${maxSizeMB} MB. Silakan pilih berkas yang lebih kecil.`);
         return;
       }
     }
@@ -158,7 +170,7 @@ export const MultiPDFUploader: React.FC<MultiPDFUploaderProps> = ({
       const file = e.target.files[0];
       const maxSizeBytes = maxSizeMB * 1024 * 1024;
       if (!isImageFile(file) && file.size > maxSizeBytes) {
-        setErrorMsg(`Dokumen non-gambar "${file.name}" melebihi kapasitas maksimal ${maxSizeMB} MB.`);
+        setErrorMsg(`Ukuran berkas melebihi kapasitas maksimal ${maxSizeMB} MB. Silakan pilih berkas yang lebih kecil.`);
         setReplacingIndex(null);
         e.target.value = '';
         return;
@@ -193,6 +205,7 @@ export const MultiPDFUploader: React.FC<MultiPDFUploaderProps> = ({
         <label
           onClick={() => fileInputRef.current?.click()}
           className="block text-xs font-semibold text-slate-300 cursor-pointer hover:text-cyan-300 transition-colors"
+          title={`${label} (Kapasitas hingga ${maxSizeMB} MB)`}
         >
           {label} {required && <span className="text-rose-400">*</span>}
           {currentFiles.length > 0 && (
@@ -368,7 +381,10 @@ export const MultiPDFUploader: React.FC<MultiPDFUploaderProps> = ({
           ) : (
             <>
               <UploadCloud className="w-4 h-4 shrink-0 text-slate-400 group-hover:text-cyan-400 transition-colors" />
-              <span className="text-xs font-medium tracking-wide">Upload here</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium tracking-wide">Upload here</span>
+                <span className="text-[10px] text-slate-500 font-mono hidden sm:inline">(Hingga {maxSizeMB} MB)</span>
+              </div>
             </>
           )}
         </div>

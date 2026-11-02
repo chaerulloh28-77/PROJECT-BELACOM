@@ -141,9 +141,9 @@ export const BASTPage: React.FC = () => {
       return;
     }
 
-    const maxSizeMB = 25;
+    const maxSizeMB = 100;
     if (file.size > maxSizeMB * 1024 * 1024) {
-      showToast('error', 'Kapasitas Melebihi Batas', `Dokumen non-gambar (Excel) melebihi kapasitas maksimal ${maxSizeMB} MB. Silakan unggah berkas di bawah ${maxSizeMB} MB.`);
+      showToast('error', 'Kapasitas Melebihi Batas', `Ukuran berkas melebihi kapasitas maksimal ${maxSizeMB} MB. Silakan pilih berkas yang lebih kecil.`);
       if (excelInputRef.current) excelInputRef.current.value = '';
       return;
     }
@@ -1171,7 +1171,7 @@ export const BASTPage: React.FC = () => {
                         Klik untuk memilih Berkas Excel <span className="font-mono text-emerald-400">(.xlsx, .xls)</span>
                       </p>
                       <p className="text-[10px] text-slate-500 font-mono">
-                        Upload Rekapitulasi BoQ, Material, atau Opname Lapangan (Maks. 25 MB)
+                        Upload Rekapitulasi BoQ, Material, atau Opname Lapangan (Kapasitas hingga 100 MB)
                       </p>
                     </div>
                   </div>

@@ -706,9 +706,14 @@ export const PenagihanPage: React.FC = () => {
 
               {/* Komponen Berkas Upload Grid */}
               <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
-                <h4 className="text-xs font-bold text-cyan-400 uppercase font-mono">
-                  Komponen Berkas Penagihan (10 Slot Dokumen)
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-cyan-400 uppercase font-mono">
+                    Komponen Berkas Penagihan (10 Slot Dokumen)
+                  </h4>
+                  <span className="text-[10px] font-mono text-cyan-400 bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-800">
+                    Kapasitas hingga 100 MB
+                  </span>
+                </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                   <PDFUploader

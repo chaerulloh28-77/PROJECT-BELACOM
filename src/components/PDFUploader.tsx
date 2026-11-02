@@ -30,7 +30,7 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
   label,
   value,
   onChange,
-  maxSizeMB = 25,
+  maxSizeMB = 100,
   required = false,
   onPreview,
   accept,
@@ -45,6 +45,7 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
     setErrorMsg(null);
     const maxSizeBytes = maxSizeMB * 1024 * 1024;
     const isImage = isImageFile(file);
+    const isLargeFile = file.size > 5 * 1024 * 1024;
 
     // Format validation if accept filter is specified
     if (accept && accept !== '*/*') {
@@ -69,17 +70,26 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
       }
     }
 
-    // Jika non-gambar dan melebihi 25 MB, tampilkan peringatan kapasitas
+    // Jika non-gambar dan melebihi kapasitas maksimal 100 MB, tolak dengan pesan jelas
     if (!isImage && file.size > maxSizeBytes) {
-      setErrorMsg(`Dokumen non-gambar melebihi kapasitas maksimal ${maxSizeMB} MB. Silakan unggah berkas di bawah ${maxSizeMB} MB.`);
+      setErrorMsg(`Ukuran berkas melebihi kapasitas maksimal ${maxSizeMB} MB. Silakan pilih berkas yang lebih kecil.`);
       return;
     }
 
     setIsLoading(true);
+    setLoadingText(
+      isImage
+        ? 'Mengompresi berkas...'
+        : isLargeFile
+        ? 'Memproses berkas besar...'
+        : 'Membaca dokumen...'
+    );
+
+    // Yield singkat agar UI loader ter-render sebelum kalkulasi intensif
+    await new Promise((resolve) => setTimeout(resolve, 30));
 
     try {
       if (isImage) {
-        setLoadingText('Mengompresi berkas...');
         const compressResult = await compressImageFile(file, {
           targetMaxSizeBytes: 850 * 1024,
           maxDimension: 1600,
@@ -104,8 +114,15 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
         setIsLoading(false);
         onChange(fileMeta);
       } else {
-        setLoadingText('Membaca dokumen...');
         const reader = new FileReader();
+
+        reader.onprogress = (e) => {
+          if (e.lengthComputable && e.total > 5 * 1024 * 1024) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            setLoadingText(`Memproses berkas besar... ${percent}%`);
+          }
+        };
+
         reader.onload = () => {
           const dataUrl = typeof reader.result === 'string' ? reader.result : '';
           const visualImg = generateVisualDocDataUrl(label, file.name, woNumber, `BAST/${woNumber}/2026`);
@@ -173,13 +190,18 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
 
   return (
     <div className="w-full font-sans">
-      <label
-        onClick={() => fileInputRef.current?.click()}
-        className="block text-xs font-semibold text-slate-300 mb-1.5 cursor-pointer hover:text-cyan-300 transition-colors truncate"
-        title={label}
-      >
-        {label} {required && <span className="text-rose-400">*</span>}
-      </label>
+      <div className="flex items-center justify-between mb-1.5">
+        <label
+          onClick={() => fileInputRef.current?.click()}
+          className="block text-xs font-semibold text-slate-300 cursor-pointer hover:text-cyan-300 transition-colors truncate"
+          title={`${label} (Kapasitas hingga ${maxSizeMB} MB)`}
+        >
+          {label} {required && <span className="text-rose-400">*</span>}
+        </label>
+        <span className="text-[9px] font-mono text-slate-500 hidden sm:inline">
+          Maks. {maxSizeMB} MB
+        </span>
+      </div>
 
       <input
         type="file"
@@ -289,16 +311,21 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
           {isLoading ? (
             <div className="flex flex-col items-center gap-1.5">
               <Loader2 className="w-5 h-5 animate-spin text-cyan-400" />
-              <span className="text-[11px] font-mono text-cyan-400 font-bold">{loadingText}</span>
+              <span className="text-[11px] font-mono text-cyan-400 font-bold text-center px-2">{loadingText}</span>
             </div>
           ) : (
             <>
               <div className="p-2 rounded-xl bg-slate-900 group-hover:bg-cyan-500/10 border border-slate-800 group-hover:border-cyan-500/30 transition-colors text-slate-400 group-hover:text-cyan-400">
                 <UploadCloud className="w-5 h-5" />
               </div>
-              <span className="text-xs font-semibold text-slate-300 group-hover:text-cyan-300 transition-colors">
-                Upload here
-              </span>
+              <div className="text-center">
+                <span className="text-xs font-semibold text-slate-300 group-hover:text-cyan-300 transition-colors block">
+                  Upload here
+                </span>
+                <span className="text-[9px] text-slate-500 font-mono block">
+                  Kapasitas hingga {maxSizeMB} MB
+                </span>
+              </div>
             </>
           )}
         </div>

@@ -87,8 +87,8 @@ const TaggingFileUploadItem: React.FC<TaggingDropzoneProps> = ({
   const processSelectedFile = async (file: File) => {
     setErrorMsg(null);
     const isImg = checkIsImage(file);
-    if (!isImg && file.size > 25 * 1024 * 1024) {
-      setErrorMsg('Dokumen non-gambar melebihi kapasitas maksimal 25 MB.');
+    if (!isImg && file.size > 100 * 1024 * 1024) {
+      setErrorMsg('Ukuran berkas melebihi kapasitas maksimal 100 MB. Silakan pilih berkas yang lebih kecil.');
       return;
     }
 
