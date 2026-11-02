@@ -26,6 +26,8 @@ interface PDFUploaderProps {
   onPreview?: (file: PDFFileMeta) => void;
   accept?: string;
   woNumber?: string;
+  placeholderText?: string;
+  showCapacityLabel?: boolean;
 }
 
 export const PDFUploader: React.FC<PDFUploaderProps> = ({
@@ -36,7 +38,9 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
   required = false,
   onPreview,
   accept,
-  woNumber = 'WO-BEL-2026'
+  woNumber = 'WO-BEL-2026',
+  placeholderText = 'Upload here',
+  showCapacityLabel = false
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -192,17 +196,19 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
 
   return (
     <div className="w-full font-sans">
-      <div className="flex items-center justify-between mb-1.5">
+      <div className="flex items-center justify-between mb-1.5 h-5">
         <label
           onClick={() => fileInputRef.current?.click()}
-          className="block text-xs font-semibold text-slate-300 cursor-pointer hover:text-cyan-300 transition-colors truncate"
-          title={`${label} (Kapasitas hingga ${maxSizeMB} MB)`}
+          className="block text-xs font-medium text-slate-200 cursor-pointer hover:text-cyan-300 transition-colors truncate"
+          title={label}
         >
           {label} {required && <span className="text-rose-400">*</span>}
         </label>
-        <span className="text-[9px] font-mono text-slate-500 hidden sm:inline">
-          Maks. {maxSizeMB} MB
-        </span>
+        {showCapacityLabel && (
+          <span className="text-[9px] font-mono text-slate-500 hidden sm:inline">
+            Maks. {maxSizeMB} MB
+          </span>
+        )}
       </div>
 
       <input
@@ -214,7 +220,7 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
       />
 
       {value ? (
-        <div className="relative rounded-xl border border-slate-700/80 bg-slate-900/90 hover:border-cyan-400/80 transition-all p-2.5 flex flex-col justify-between h-28 shadow-lg group font-sans">
+        <div className="relative rounded-xl border border-slate-700/80 bg-slate-900/90 hover:border-cyan-400/80 transition-all p-2.5 flex flex-col justify-between h-[140px] shadow-lg group font-sans">
           <div 
             onClick={() => onPreview && onPreview(value)}
             className="flex items-start gap-2 cursor-pointer overflow-hidden"
@@ -236,9 +242,9 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
               <p className="text-xs font-mono font-bold text-slate-100 truncate group-hover:text-cyan-300 transition-colors" title={value.name}>
                 {value.name}
               </p>
-              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+              <div className="flex items-center gap-1 mt-1 flex-wrap">
                 {badgeStyle && (
-                  <span className={`px-1 py-0.2 rounded text-[9px] font-bold font-mono ${badgeStyle.bgClass} ${badgeStyle.textClass} border ${badgeStyle.borderClass}`}>
+                  <span className={`px-1 py-0.2 rounded text-[9px] font-bold font-mono leading-tight ${badgeStyle.bgClass} ${badgeStyle.textClass} border ${badgeStyle.borderClass}`}>
                     [{badgeStyle.ext}]
                   </span>
                 )}
@@ -248,10 +254,10 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
 
                 {value.isCompressed && value.compressionRatio && (
                   <span
-                    className="inline-flex items-center gap-0.5 text-[9px] font-mono font-bold text-emerald-400 bg-emerald-950/90 px-1 py-0.2 rounded border border-emerald-850 truncate max-w-[130px]"
+                    className="inline-flex items-center gap-0.5 text-[9px] font-mono font-bold text-emerald-400 bg-emerald-950/90 px-1 py-0.2 rounded border border-emerald-850 truncate max-w-[110px]"
                     title={`Terkonversi: ${value.compressionRatio} (Hemat ${value.reductionPercent || 0}%)`}
                   >
-                    <Zap className="w-2.5 h-2.5 text-emerald-400" />
+                    <Zap className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
                     <span>{value.compressionRatio}</span>
                   </span>
                 )}
@@ -260,15 +266,15 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
           </div>
 
           {/* Action Buttons Row */}
-          <div className="flex items-center justify-between pt-1.5 border-t border-slate-800/80 mt-1">
-            <div className="flex items-center gap-1.5">
+          <div className="flex items-center justify-between pt-1.5 border-t border-slate-800/80 mt-auto">
+            <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   if (onPreview) onPreview(value);
                 }}
-                className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer transition-colors px-1 py-0.5 rounded hover:bg-cyan-950/60"
+                className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 flex items-center gap-0.5 cursor-pointer transition-colors px-1 py-0.5 rounded hover:bg-cyan-950/60"
                 title="Lihat Pratinjau Isi Dokumen"
               >
                 <Eye className="w-3 h-3" />
@@ -281,7 +287,7 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
                   e.stopPropagation();
                   downloadFileMeta(value);
                 }}
-                className="text-[10px] font-mono text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer transition-colors px-1 py-0.5 rounded hover:bg-emerald-950/60"
+                className="text-[10px] font-mono text-emerald-400 hover:text-emerald-300 flex items-center gap-0.5 cursor-pointer transition-colors px-1 py-0.5 rounded hover:bg-emerald-950/60"
                 title="Langsung Unduh Berkas Ini"
               >
                 <Download className="w-3 h-3" />
@@ -296,7 +302,7 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
                   e.stopPropagation();
                   fileInputRef.current?.click();
                 }}
-                className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[10px] font-mono flex items-center gap-1 transition-colors cursor-pointer"
+                className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[10px] font-mono flex items-center gap-0.5 transition-colors cursor-pointer"
                 title="Ganti Berkas"
               >
                 <RefreshCw className="w-2.5 h-2.5" />
@@ -309,7 +315,7 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
                   e.stopPropagation();
                   onChange(undefined);
                 }}
-                className="px-2 py-0.5 rounded bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/80 text-[10px] font-mono flex items-center gap-1 transition-colors cursor-pointer"
+                className="px-1.5 py-0.5 rounded bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/80 text-[10px] font-mono flex items-center gap-0.5 transition-colors cursor-pointer"
                 title="Hapus Berkas"
               >
                 <Trash2 className="w-2.5 h-2.5" />
@@ -323,27 +329,27 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
-          className="h-28 px-3 border-2 border-dashed border-slate-700/80 hover:border-cyan-500/80 rounded-xl bg-slate-950/60 hover:bg-slate-900/80 flex flex-col items-center justify-center gap-1.5 text-slate-400 hover:text-cyan-400 transition-all cursor-pointer group shadow-inner"
+          className="h-[140px] p-2.5 border-2 border-dashed border-slate-700/80 hover:border-cyan-500/80 rounded-xl bg-slate-950/60 hover:bg-slate-900/80 flex flex-col items-center justify-center text-center cursor-pointer group shadow-inner transition-all"
         >
           {isLoading ? (
-            <div className="flex flex-col items-center gap-1.5">
+            <div className="flex flex-col items-center justify-center gap-1.5">
               <Loader2 className="w-5 h-5 animate-spin text-cyan-400" />
               <span className="text-[11px] font-mono text-cyan-400 font-bold text-center px-2">{loadingText}</span>
             </div>
           ) : (
-            <>
-              <div className="p-2 rounded-xl bg-slate-900 group-hover:bg-cyan-500/10 border border-slate-800 group-hover:border-cyan-500/30 transition-colors text-slate-400 group-hover:text-cyan-400">
+            <div className="flex flex-col items-center justify-center text-center w-full px-1">
+              <div className="p-2 rounded-xl bg-slate-900 group-hover:bg-cyan-500/10 border border-slate-800 group-hover:border-cyan-500/30 transition-colors text-slate-400 group-hover:text-cyan-400 mb-2">
                 <UploadCloud className="w-5 h-5" />
               </div>
-              <div className="text-center">
-                <span className="text-xs font-semibold text-slate-300 group-hover:text-cyan-300 transition-colors block">
-                  Upload here
-                </span>
-                <span className="text-[9px] text-slate-500 font-mono block">
+              <span className="text-[11px] text-slate-400 group-hover:text-cyan-300 font-medium leading-snug px-1 line-clamp-2 block transition-colors">
+                {placeholderText}
+              </span>
+              {showCapacityLabel && (
+                <span className="text-[9px] text-slate-500 font-mono block mt-1">
                   Kapasitas hingga {maxSizeMB} MB
                 </span>
-              </div>
-            </>
+              )}
+            </div>
           )}
         </div>
       )}

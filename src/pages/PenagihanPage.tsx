@@ -719,20 +719,21 @@ export const PenagihanPage: React.FC = () => {
 
               {/* Komponen Berkas Upload Grid */}
               <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold text-cyan-400 uppercase font-mono">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-slate-800/60">
+                  <h4 className="text-xs font-bold text-cyan-400 uppercase font-mono tracking-wider">
                     Komponen Berkas Penagihan (10 Slot Dokumen)
                   </h4>
-                  <span className="text-[10px] font-mono text-cyan-400 bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-800">
-                    Kapasitas hingga 100 MB
+                  <span className="text-[11px] font-mono text-cyan-300 bg-cyan-950/80 px-2.5 py-1 rounded-lg border border-cyan-800/80 w-fit">
+                    Kapasitas hingga 100 MB per Berkas
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                   <PDFUploader
                     label="1. Invoice / Kwitansi"
                     value={formData.invoicePdf}
                     accept={EXTENDED_OFFICE_ACCEPT}
+                    placeholderText="Upload here excel & word"
                     onChange={(f) => setFormData(p => ({ ...p, invoicePdf: f }))}
                     onPreview={(f) => setPreviewPdf(f)}
                   />
@@ -740,6 +741,7 @@ export const PenagihanPage: React.FC = () => {
                     label="2. BAST"
                     value={formData.bastPdf}
                     accept={EXTENDED_OFFICE_ACCEPT}
+                    placeholderText="Upload here excel & word"
                     onChange={(f) => setFormData(p => ({ ...p, bastPdf: f }))}
                     onPreview={(f) => setPreviewPdf(f)}
                   />
@@ -768,6 +770,7 @@ export const PenagihanPage: React.FC = () => {
                     label="6. Foto Dokumentasi"
                     value={formData.fotoDokumentasiPdf}
                     accept={EXTENDED_OFFICE_ACCEPT}
+                    placeholderText="Upload here excel & word"
                     onChange={(f) => setFormData(p => ({ ...p, fotoDokumentasiPdf: f }))}
                     onPreview={(f) => setPreviewPdf(f)}
                   />
@@ -782,6 +785,7 @@ export const PenagihanPage: React.FC = () => {
                     label="8. Data Material"
                     value={formData.dataMaterialPdf}
                     accept={EXTENDED_OFFICE_ACCEPT}
+                    placeholderText="Upload here excel & word"
                     onChange={(f) => setFormData(p => ({ ...p, dataMaterialPdf: f }))}
                     onPreview={(f) => setPreviewPdf(f)}
                   />
@@ -789,6 +793,7 @@ export const PenagihanPage: React.FC = () => {
                     label="9. BOQ"
                     value={formData.boqPdf}
                     accept={EXTENDED_OFFICE_ACCEPT}
+                    placeholderText="Upload here excel & word"
                     onChange={(f) => setFormData(p => ({ ...p, boqPdf: f }))}
                     onPreview={(f) => setPreviewPdf(f)}
                   />

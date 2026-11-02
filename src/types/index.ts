@@ -127,6 +127,7 @@ export interface BASTItem {
   fotoDokumentasiPdfs?: PDFFileMeta[]; // Support multiple photo documentation files
   excelAttachment?: PDFFileMeta; // Excel spreadsheet attachment (Rekap / BoQ / Opname)
   excelFile?: PDFFileMeta; // Alias for excelAttachment
+  excelAttachments?: PDFFileMeta[]; // Support multiple Excel spreadsheet attachments
   statusBast: StatusBAST;
   notes?: string;
   // Tagging End to End Location

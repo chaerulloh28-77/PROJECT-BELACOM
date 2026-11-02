@@ -39,6 +39,19 @@ import { exportBASTToExcel } from '../utils/excelExportHelper';
 import { exportSingleBASTToWord } from '../utils/wordExportService';
 import { handleDateInputClick } from '../utils/dateUtils';
 
+export const getBastExcelAttachments = (bast: Partial<BASTItem>): PDFFileMeta[] => {
+  if (bast.excelAttachments && Array.isArray(bast.excelAttachments) && bast.excelAttachments.length > 0) {
+    return bast.excelAttachments;
+  }
+  if (bast.excelAttachment) {
+    return [bast.excelAttachment];
+  }
+  if (bast.excelFile) {
+    return [bast.excelFile];
+  }
+  return [];
+};
+
 export const BASTPage: React.FC = () => {
   const { bastList, addBAST, updateBAST, deleteBAST, showToast, dailyReports } = useProjectContext();
 
@@ -86,6 +99,7 @@ export const BASTPage: React.FC = () => {
     coreConnectionPdf: undefined,
     excelAttachment: undefined,
     excelFile: undefined,
+    excelAttachments: [],
     workType: '',
     releaseDate: '',
     startDate: '',
@@ -131,65 +145,115 @@ export const BASTPage: React.FC = () => {
     );
   };
 
-  const handleExcelFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleExcelFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    // Validate extension
-    const ext = file.name.split('.').pop()?.toLowerCase();
-    if (ext !== 'xlsx' && ext !== 'xls') {
-      showToast('error', 'Format Berkas Salah', 'Hanya berkas spreadsheet Excel (.xlsx, .xls) yang diperbolehkan!');
-      if (excelInputRef.current) excelInputRef.current.value = '';
-      return;
-    }
-
+    const fileList = Array.from(files);
+    const validFiles: File[] = [];
+    const invalidExtFiles: string[] = [];
+    const oversizedFiles: string[] = [];
     const maxSizeMB = 100;
-    if (file.size > maxSizeMB * 1024 * 1024) {
-      showToast('error', 'Kapasitas Melebihi Batas', `Ukuran berkas melebihi kapasitas maksimal ${maxSizeMB} MB. Silakan pilih berkas yang lebih kecil.`);
+
+    fileList.forEach(file => {
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      if (ext !== 'xlsx' && ext !== 'xls') {
+        invalidExtFiles.push(file.name);
+      } else if (file.size > maxSizeMB * 1024 * 1024) {
+        oversizedFiles.push(file.name);
+      } else {
+        validFiles.push(file);
+      }
+    });
+
+    if (invalidExtFiles.length > 0) {
+      showToast('error', 'Format Berkas Salah', `Format bukan .xlsx / .xls: ${invalidExtFiles.join(', ')}`);
+    }
+
+    if (oversizedFiles.length > 0) {
+      showToast('error', 'Kapasitas Melebihi Batas', `Ukuran berkas melebihi 100 MB: ${oversizedFiles.join(', ')}`);
+    }
+
+    if (validFiles.length === 0) {
       if (excelInputRef.current) excelInputRef.current.value = '';
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
-      const fileMeta: PDFFileMeta = {
-        id: 'excel-' + Math.random().toString(36).substring(2, 9),
-        name: file.name,
-        sizeBytes: file.size,
-        uploadDate: new Date().toISOString().split('T')[0],
-        fileType: file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        mimeType: file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        url: dataUrl || URL.createObjectURL(file)
-      };
+    const readPromises = validFiles.map(file => {
+      return new Promise<PDFFileMeta>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+          resolve({
+            id: 'excel-' + Math.random().toString(36).substring(2, 9) + '-' + Date.now(),
+            name: file.name,
+            sizeBytes: file.size,
+            uploadDate: new Date().toISOString().split('T')[0],
+            fileType: file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            mimeType: file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            url: dataUrl || URL.createObjectURL(file)
+          });
+        };
+        reader.onerror = () => reject(new Error(`Gagal membaca ${file.name}`));
+        reader.readAsDataURL(file);
+      });
+    });
 
-      setFormData(prev => ({
-        ...prev,
-        excelAttachment: fileMeta,
-        excelFile: fileMeta
-      }));
+    try {
+      const newMetas = await Promise.all(readPromises);
+      setFormData(prev => {
+        const currentExcels = prev.excelAttachments && prev.excelAttachments.length > 0
+          ? [...prev.excelAttachments]
+          : (prev.excelAttachment ? [prev.excelAttachment] : prev.excelFile ? [prev.excelFile] : []);
+        const updated = [...currentExcels, ...newMetas];
+        return {
+          ...prev,
+          excelAttachments: updated,
+          excelAttachment: updated[0],
+          excelFile: updated[0]
+        };
+      });
 
-      showToast('success', 'Excel Berhasil Dilampirkan', `Berkas ${file.name} siap disimpan ke dokumen BAST.`);
-    };
-
-    reader.onerror = () => {
+      showToast('success', 'Excel Berhasil Dilampirkan', `${newMetas.length} berkas Excel ditambahkan.`);
+    } catch (err) {
       showToast('error', 'Gagal Membaca Berkas', 'Terjadi kesalahan saat memproses berkas Excel.');
-    };
+    } finally {
+      if (excelInputRef.current) {
+        excelInputRef.current.value = '';
+      }
+    }
+  };
 
-    reader.readAsDataURL(file);
-    e.target.value = '';
+  const handleRemoveSingleExcelFile = (fileIdOrIndex: string | number) => {
+    setFormData(prev => {
+      const current = prev.excelAttachments && prev.excelAttachments.length > 0
+        ? [...prev.excelAttachments]
+        : (prev.excelAttachment ? [prev.excelAttachment] : prev.excelFile ? [prev.excelFile] : []);
+      const updated = current.filter((item, idx) => (item.id ? item.id !== fileIdOrIndex : idx !== fileIdOrIndex));
+      return {
+        ...prev,
+        excelAttachments: updated,
+        excelAttachment: updated[0] || undefined,
+        excelFile: updated[0] || undefined
+      };
+    });
+    if (excelInputRef.current) {
+      excelInputRef.current.value = '';
+    }
+    showToast('info', 'Excel Dihapus', 'Berkas Excel telah dihapus dari daftar lampiran.');
   };
 
   const handleRemoveExcelFile = () => {
     setFormData(prev => ({
       ...prev,
+      excelAttachments: [],
       excelAttachment: undefined,
       excelFile: undefined
     }));
     if (excelInputRef.current) {
       excelInputRef.current.value = '';
     }
-    showToast('info', 'Excel Dibatalkan', 'Lampiran berkas Excel telah dihapus dari form.');
+    showToast('info', 'Excel Dibatalkan', 'Semua lampiran berkas Excel telah dibersihkan.');
   };
 
   const handleOpenAddModal = () => {
@@ -209,14 +273,17 @@ export const BASTPage: React.FC = () => {
       ? item.fotoDokumentasiPdfs
       : (item.fotoDokumentasiPdf ? [item.fotoDokumentasiPdf] : []);
 
+    const existingExcels = getBastExcelAttachments(item);
+
     if (excelInputRef.current) {
       excelInputRef.current.value = '';
     }
 
     setFormData({
       ...item,
-      excelAttachment: item.excelAttachment || item.excelFile,
-      excelFile: item.excelFile || item.excelAttachment,
+      excelAttachments: existingExcels,
+      excelAttachment: existingExcels[0] || undefined,
+      excelFile: existingExcels[0] || undefined,
       fotoDokumentasiPdf: initialDocs[0] || item.fotoDokumentasiPdf,
       fotoDokumentasiPdfs: initialDocs,
       durasiDate: item.durasiDate ?? item.durationDays,
@@ -272,11 +339,13 @@ export const BASTPage: React.FC = () => {
       return;
     }
 
+    const finalExcels = formData.excelAttachments || [];
     const payload = {
       ...formData,
       durasiDate: formData.durasiDate ?? formData.durationDays,
-      excelAttachment: formData.excelAttachment,
-      excelFile: formData.excelAttachment || formData.excelFile
+      excelAttachments: finalExcels,
+      excelAttachment: finalExcels[0] || undefined,
+      excelFile: finalExcels[0] || undefined
     };
 
     if (editingId) {
@@ -568,21 +637,24 @@ export const BASTPage: React.FC = () => {
                             </button>
                           ) : null}
 
-                          {(bast.excelAttachment || bast.excelFile) ? (
-                            <button
-                              onClick={() => {
-                                const ex = bast.excelAttachment || bast.excelFile;
-                                if (ex) setPreviewPdf(ex);
-                              }}
-                              className="px-1.5 py-0.5 bg-emerald-950 hover:bg-emerald-900 text-emerald-400 border border-emerald-800 rounded font-bold transition-colors cursor-pointer flex items-center gap-1 shadow-sm"
-                              title={`Lihat / Unduh Dokumen Excel: ${(bast.excelAttachment || bast.excelFile)?.name}`}
-                            >
-                              <FileSpreadsheet className="w-3 h-3 text-emerald-400" />
-                              Excel
-                            </button>
-                          ) : null}
+                          {(() => {
+                            const excelList = getBastExcelAttachments(bast);
+                            if (excelList.length === 0) return null;
+                            const count = excelList.length;
+                            const label = count > 1 ? `Excel ${count}` : 'Excel';
+                            return (
+                              <button
+                                onClick={() => setPreviewPdf(excelList[0])}
+                                className="px-1.5 py-0.5 bg-emerald-950 hover:bg-emerald-900 text-emerald-400 border border-emerald-800 rounded font-bold transition-colors cursor-pointer flex items-center gap-1 shadow-sm"
+                                title={`Lihat / Unduh Dokumen Excel (${count} berkas): ${excelList.map(e => e.name).join(', ')}`}
+                              >
+                                <FileSpreadsheet className="w-3 h-3 text-emerald-400" />
+                                {label}
+                              </button>
+                            );
+                          })()}
 
-                          {!bast.apdPdf && !bast.abdPdf && !bast.coreConnectionPdf && !bast.fotoDokumentasiPdf && (!bast.fotoDokumentasiPdfs || bast.fotoDokumentasiPdfs.length === 0) && !bast.excelAttachment && !bast.excelFile && (
+                          {!bast.apdPdf && !bast.abdPdf && !bast.coreConnectionPdf && !bast.fotoDokumentasiPdf && (!bast.fotoDokumentasiPdfs || bast.fotoDokumentasiPdfs.length === 0) && getBastExcelAttachments(bast).length === 0 && (
                             <span className="text-slate-600 text-[10px]">-</span>
                           )}
                         </div>
@@ -778,21 +850,39 @@ export const BASTPage: React.FC = () => {
                         </button>
                       ));
                     })()}
-                    {(bast.excelAttachment || bast.excelFile) && (
-                      <button 
-                        onClick={() => {
-                          const ex = bast.excelAttachment || bast.excelFile;
-                          if (ex) setPreviewPdf(ex);
-                        }}
-                        className="px-2 py-1 bg-emerald-950/90 hover:bg-emerald-900 text-emerald-300 rounded border border-emerald-800 flex items-center gap-1 cursor-pointer transition-colors" 
-                        title={`Lihat / Unduh Excel: ${(bast.excelAttachment || bast.excelFile)?.name}`}
-                      >
-                        <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-emerald-900 text-emerald-300 border border-emerald-700 flex items-center gap-0.5">
-                          <FileSpreadsheet className="w-2.5 h-2.5 text-emerald-400" />
-                          [Excel]
-                        </span> BoQ / Opname
-                      </button>
-                    )}
+                    {(() => {
+                      const excelList = getBastExcelAttachments(bast);
+                      if (excelList.length === 0) return null;
+                      const count = excelList.length;
+                      if (count > 1) {
+                        return excelList.map((ex, idx) => (
+                          <button 
+                            key={ex.id || idx}
+                            onClick={() => setPreviewPdf(ex)}
+                            className="px-2 py-1 bg-emerald-950/90 hover:bg-emerald-900 text-emerald-300 rounded border border-emerald-800 flex items-center gap-1 cursor-pointer transition-colors" 
+                            title={`Lihat / Unduh Excel: ${ex.name}`}
+                          >
+                            <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-emerald-900 text-emerald-300 border border-emerald-700 flex items-center gap-0.5">
+                              <FileSpreadsheet className="w-2.5 h-2.5 text-emerald-400" />
+                              [Excel {idx + 1}]
+                            </span> <span className="truncate max-w-[120px]">{ex.name}</span>
+                          </button>
+                        ));
+                      }
+                      const singleEx = excelList[0];
+                      return (
+                        <button 
+                          onClick={() => setPreviewPdf(singleEx)}
+                          className="px-2 py-1 bg-emerald-950/90 hover:bg-emerald-900 text-emerald-300 rounded border border-emerald-800 flex items-center gap-1 cursor-pointer transition-colors" 
+                          title={`Lihat / Unduh Excel: ${singleEx.name}`}
+                        >
+                          <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-emerald-900 text-emerald-300 border border-emerald-700 flex items-center gap-0.5">
+                            <FileSpreadsheet className="w-2.5 h-2.5 text-emerald-400" />
+                            [Excel]
+                          </span> <span className="truncate max-w-[120px]">{singleEx.name}</span>
+                        </button>
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -1090,88 +1180,97 @@ export const BASTPage: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-semibold text-slate-300 flex items-center gap-2">
                     <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-                    Lampiran Dokumen Excel (Rekap / BoQ / Opname)
+                    Lampiran Dokumen Excel
                   </label>
-                  <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800">
-                    .xlsx, .xls
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {getBastExcelAttachments(formData).length > 0 && (
+                      <span className="text-[10px] font-mono text-emerald-300 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800">
+                        {getBastExcelAttachments(formData).length} Berkas
+                      </span>
+                    )}
+                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800">
+                      .xlsx, .xls
+                    </span>
+                  </div>
                 </div>
 
                 <input
                   type="file"
                   ref={excelInputRef}
                   accept=".xlsx, .xls"
+                  multiple
                   onChange={handleExcelFileChange}
                   className="hidden"
                 />
 
-                {(formData.excelAttachment || formData.excelFile) ? (
-                  <div className="bg-slate-900 border border-emerald-900/60 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-inner">
-                    <div className="flex items-center gap-3 overflow-hidden">
-                      <div className="p-2.5 rounded-xl bg-emerald-950 text-emerald-400 border border-emerald-800/80 shrink-0">
-                        <FileSpreadsheet className="w-5 h-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-mono font-bold text-slate-100 truncate" title={(formData.excelAttachment || formData.excelFile)?.name}>
-                          {(formData.excelAttachment || formData.excelFile)?.name}
-                        </p>
-                        <div className="flex items-center gap-2 mt-0.5 text-[10px] font-mono text-slate-400">
-                          <span className="text-emerald-400 font-semibold">[EXCEL]</span>
-                          <span>•</span>
-                          <span>{(((formData.excelAttachment || formData.excelFile)?.sizeBytes || 0) / 1024).toFixed(1)} KB</span>
-                          <span>•</span>
-                          <span className="text-slate-500">{(formData.excelAttachment || formData.excelFile)?.uploadDate}</span>
+                {getBastExcelAttachments(formData).length > 0 ? (
+                  <div className="space-y-2.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {getBastExcelAttachments(formData).map((excelFile, idx) => (
+                        <div
+                          key={excelFile.id || idx}
+                          className="bg-slate-900/95 border border-emerald-900/60 hover:border-emerald-700/80 rounded-xl p-2.5 flex items-center justify-between gap-2 shadow-sm transition-all group"
+                        >
+                          <div className="flex items-center gap-2.5 overflow-hidden min-w-0">
+                            <div className="p-2 rounded-lg bg-emerald-950 text-emerald-400 border border-emerald-800/80 shrink-0">
+                              <FileSpreadsheet className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-mono font-bold text-slate-100 truncate group-hover:text-emerald-300 transition-colors" title={excelFile.name}>
+                                {excelFile.name}
+                              </p>
+                              <div className="flex items-center gap-1.5 mt-0.5 text-[10px] font-mono text-slate-400">
+                                <span className="text-emerald-400 font-bold">[XLS]</span>
+                                <span>•</span>
+                                <span>{excelFile.sizeBytes ? (excelFile.sizeBytes / 1024).toFixed(1) + ' KB' : '0 KB'}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setPreviewPdf(excelFile)}
+                              className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-white border border-slate-700 text-[10px] font-mono flex items-center gap-1 transition-colors cursor-pointer"
+                              title="Lihat Pratinjau Berkas Excel"
+                            >
+                              <Eye className="w-3 h-3" />
+                              <span className="hidden sm:inline">Lihat</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => downloadFileMeta(excelFile)}
+                              className="px-2 py-1 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 text-emerald-400 border border-emerald-800/80 text-[10px] font-mono flex items-center gap-1 transition-colors cursor-pointer"
+                              title="Langsung Unduh Berkas Excel Ini"
+                            >
+                              <Download className="w-3 h-3" />
+                              <span className="hidden sm:inline">Unduh</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSingleExcelFile(excelFile.id || idx)}
+                              className="px-2 py-1 rounded-lg bg-rose-950/50 hover:bg-rose-900/80 text-rose-300 border border-rose-800/80 text-[10px] font-mono flex items-center gap-1 transition-colors cursor-pointer"
+                              title="Hapus Berkas Ini"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span className="hidden sm:inline">Hapus</span>
+                            </button>
+                          </div>
                         </div>
-                      </div>
+                      ))}
                     </div>
 
-                    <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const ex = formData.excelAttachment || formData.excelFile;
-                          if (ex) setPreviewPdf(ex);
-                        }}
-                        className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-lg text-xs font-mono font-semibold border border-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer"
-                        title="Pratinjau Isi Berkas Excel"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        Lihat
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const ex = formData.excelAttachment || formData.excelFile;
-                          if (ex) downloadFileMeta(ex);
-                        }}
-                        className="px-2.5 py-1.5 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-400 rounded-lg text-xs font-mono font-semibold border border-emerald-800/80 flex items-center gap-1.5 transition-colors cursor-pointer"
-                        title="Langsung Unduh Berkas Excel Ini"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        Unduh
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => excelInputRef.current?.click()}
-                        className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-mono font-semibold border border-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer"
-                        title="Ganti Berkas Excel"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                        Ganti
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={handleRemoveExcelFile}
-                        className="px-2.5 py-1.5 bg-rose-950/50 hover:bg-rose-900/60 text-rose-300 rounded-lg text-xs font-mono font-semibold border border-rose-800/80 flex items-center gap-1.5 transition-colors cursor-pointer"
-                        title="Hapus Berkas Excel"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Hapus
-                      </button>
-                    </div>
+                    {/* Tombol ringkas + Tambah Dokumen Excel */}
+                    <button
+                      type="button"
+                      onClick={() => excelInputRef.current?.click()}
+                      className="w-full py-2 px-3 border border-dashed border-emerald-800/80 hover:border-emerald-500 rounded-xl bg-emerald-950/20 hover:bg-emerald-950/40 text-emerald-400 text-xs font-mono font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      + Tambah Dokumen Excel
+                    </button>
                   </div>
                 ) : (
                   <div
@@ -1186,7 +1285,7 @@ export const BASTPage: React.FC = () => {
                         Klik untuk memilih Berkas Excel <span className="font-mono text-emerald-400">(.xlsx, .xls)</span>
                       </p>
                       <p className="text-[10px] text-slate-500 font-mono">
-                        Upload Rekapitulasi BoQ, Material, atau Opname Lapangan (Kapasitas hingga 100 MB)
+                        Dapat memilih lebih dari satu berkas (Kapasitas hingga 100 MB per berkas)
                       </p>
                     </div>
                   </div>
