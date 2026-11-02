@@ -413,6 +413,8 @@ export const INITIAL_BAST_LIST: BASTItem[] = [
     totalDistanceMeters: 1195,
     totalDistancePdf: samplePdf('Tot_Jarak_BAST0082.pdf', 650),
     fotoDokumentasiPdf: samplePdf('Foto_Dokumentasi_BAST_WO0082.pdf', 3800), // Enforce < 4MB
+    excelAttachment: samplePdf('Rekap_BoQ_Opname_WO0082.xlsx', 1450),
+    excelFile: samplePdf('Rekap_BoQ_Opname_WO0082.xlsx', 1450),
     statusBast: 'Done',
     notes: 'Berita Acara Serah Terima telah ditandatangani oleh Tim Belacom dan Tim Klien.',
     workflow: {

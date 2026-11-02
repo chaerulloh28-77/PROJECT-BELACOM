@@ -30,6 +30,7 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
   maxSizeMB = 25,
   required = false,
   onPreview,
+  accept,
   woNumber = 'WO-BEL-2026'
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -127,7 +128,7 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
         type="file"
         ref={fileInputRef}
         onChange={handleFileChange}
-        accept="*/*"
+        accept={accept || "*/*"}
         className="hidden"
       />
 

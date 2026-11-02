@@ -121,6 +121,8 @@ export interface BASTItem {
   totalDistancePdf?: PDFFileMeta;
   fotoDokumentasiPdf?: PDFFileMeta; // Max 4MB enforce
   fotoDokumentasiPdfs?: PDFFileMeta[]; // Support multiple photo documentation files
+  excelAttachment?: PDFFileMeta; // Excel spreadsheet attachment (Rekap / BoQ / Opname)
+  excelFile?: PDFFileMeta; // Alias for excelAttachment
   statusBast: StatusBAST;
   notes?: string;
   // Tagging End to End Location
