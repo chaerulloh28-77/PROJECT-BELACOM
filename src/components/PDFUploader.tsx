@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import {
   UploadCloud,
   Eye,
+  Download,
   Trash2,
   AlertCircle,
   RefreshCw,
@@ -14,6 +15,7 @@ import { PDFFileMeta } from '../types';
 import { getFileExtension, getFileBadgeStyle } from '../utils/fileHelper';
 import { generateVisualDocDataUrl } from '../utils/bastExportHelper';
 import { compressImageFile, isImageFile, formatBytes } from '../utils/fileCompressor';
+import { downloadFileMeta } from '../utils/fileDownloadHelper';
 
 interface PDFUploaderProps {
   label: string;
@@ -259,18 +261,33 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
 
           {/* Action Buttons Row */}
           <div className="flex items-center justify-between pt-1.5 border-t border-slate-800/80 mt-1">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (onPreview) onPreview(value);
-              }}
-              className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer transition-colors"
-              title="Lihat Pratinjau"
-            >
-              <Eye className="w-3 h-3" />
-              <span>Lihat</span>
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onPreview) onPreview(value);
+                }}
+                className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer transition-colors px-1 py-0.5 rounded hover:bg-cyan-950/60"
+                title="Lihat Pratinjau Isi Dokumen"
+              >
+                <Eye className="w-3 h-3" />
+                <span>Lihat</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  downloadFileMeta(value);
+                }}
+                className="text-[10px] font-mono text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer transition-colors px-1 py-0.5 rounded hover:bg-emerald-950/60"
+                title="Langsung Unduh Berkas Ini"
+              >
+                <Download className="w-3 h-3" />
+                <span>Unduh</span>
+              </button>
+            </div>
 
             <div className="flex items-center gap-1">
               <button

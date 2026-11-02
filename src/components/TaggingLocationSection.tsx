@@ -8,6 +8,7 @@ import {
   FileText,
   Compass,
   Eye,
+  Download,
   Trash2,
   AlertCircle,
   RefreshCw,
@@ -31,6 +32,7 @@ import {
   generateVisualDocDataUrl
 } from '../utils/bastExportHelper';
 import { compressImageFile, isImageFile as checkIsImage, formatBytes } from '../utils/fileCompressor';
+import { downloadFileMeta } from '../utils/fileDownloadHelper';
 
 export interface TaggingLocationData {
   originLocation?: string;
@@ -287,6 +289,18 @@ const TaggingFileUploadItem: React.FC<TaggingDropzoneProps> = ({
               aria-label={`Lihat ${value.name}`}
             >
               <Eye className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                downloadFileMeta(value);
+              }}
+              className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors cursor-pointer"
+              title="Langsung Unduh Berkas Ini"
+              aria-label={`Unduh ${value.name}`}
+            >
+              <Download className="w-3.5 h-3.5" />
             </button>
             <button
               type="button"

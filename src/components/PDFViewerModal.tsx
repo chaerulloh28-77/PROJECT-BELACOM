@@ -19,6 +19,7 @@ import {
 import { PDFFileMeta } from '../types';
 import { TouchButton } from './TouchButton';
 import { getFileBadgeStyle, getFileExtension } from '../utils/fileHelper';
+import { downloadFileMeta } from '../utils/fileDownloadHelper';
 
 interface PDFViewerModalProps {
   file: PDFFileMeta | null;
@@ -48,18 +49,7 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
   const isRealUrl = file.url && file.url !== '#' && (file.url.startsWith('blob:') || file.url.startsWith('data:') || file.url.startsWith('http') || file.url.startsWith('/'));
 
   const handleDownload = () => {
-    const element = document.createElement('a');
-    let fileUrl = file.url;
-    if (!fileUrl || fileUrl === '#') {
-      const dummyText = `PT. Belacom Indonesia Telecom - Berkas Resmi: ${file.name}\nTanggal: ${file.uploadDate}\nUkuran: ${formatSize(file.sizeBytes)}\nID: ${file.id}`;
-      const blob = new Blob([dummyText], { type: 'application/octet-stream' });
-      fileUrl = URL.createObjectURL(blob);
-    }
-    element.href = fileUrl;
-    element.download = file.name;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
+    downloadFileMeta(file);
   };
 
   const handlePrint = () => {
@@ -205,6 +195,16 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
               title={isFullscreen ? 'Kecilkan Window' : 'Layar Penuh'}
             >
               <Maximize2 className="w-4 h-4" />
+            </button>
+
+            {/* Direct Download Button */}
+            <button
+              onClick={handleDownload}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-mono font-semibold transition-colors cursor-pointer ml-1"
+              title="Unduh Berkas Ini Langsung ke Komputer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Unduh Berkas</span>
             </button>
 
             {/* Close Button */}

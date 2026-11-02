@@ -16,7 +16,8 @@ import {
   Calendar,
   DollarSign,
   FileCheck,
-  Check
+  Check,
+  Download
 } from 'lucide-react';
 import { useProjectContext } from '../context/ProjectContext';
 import { PenagihanItem, StatusPenagihan, PDFFileMeta } from '../types';
@@ -24,6 +25,7 @@ import { TouchButton } from '../components/TouchButton';
 import { PDFUploader } from '../components/PDFUploader';
 import { PDFViewerModal } from '../components/PDFViewerModal';
 import { DeleteConfirmModal } from '../components/DeleteConfirmModal';
+import { downloadFileMeta } from '../utils/fileDownloadHelper';
 import { exportPenagihanToExcel, exportSinglePenagihanToExcel } from '../utils/excelExportWithImages';
 import { exportSinglePenagihanToWord } from '../utils/wordExportService';
 import { handleDateInputClick } from '../utils/dateUtils';
@@ -563,13 +565,24 @@ export const PenagihanPage: React.FC = () => {
                         </div>
 
                         {isAttached && comp.file ? (
-                          <button
-                            type="button"
-                            onClick={() => setPreviewPdf(comp.file!)}
-                            className="w-full py-1.5 px-2 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 text-cyan-300 rounded-lg text-[10px] font-mono flex items-center justify-center gap-1 cursor-pointer transition-colors"
-                          >
-                            <Eye className="w-3 h-3" /> Pratinjau Berkas
-                          </button>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <button
+                              type="button"
+                              onClick={() => setPreviewPdf(comp.file!)}
+                              className="flex-1 py-1.5 px-2 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 text-cyan-300 rounded-lg text-[10px] font-mono flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                              title="Lihat Pratinjau Isi Berkas"
+                            >
+                              <Eye className="w-3 h-3" /> Lihat
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => downloadFileMeta(comp.file!)}
+                              className="flex-1 py-1.5 px-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-300 rounded-lg text-[10px] font-mono flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                              title="Langsung Unduh Berkas Ini"
+                            >
+                              <Download className="w-3 h-3" /> Unduh
+                            </button>
+                          </div>
                         ) : (
                           <div className="text-[10px] text-center text-slate-600 py-1 bg-slate-900 rounded-lg border border-slate-800">
                             Kosong

@@ -19,7 +19,8 @@ import {
   FileSpreadsheet,
   Table,
   LayoutGrid,
-  Calendar
+  Calendar,
+  Download
 } from 'lucide-react';
 import { useProjectContext } from '../context/ProjectContext';
 import { BASTItem, WOOption, StatusBAST, PDFFileMeta, BASTWorkflow } from '../types';
@@ -28,6 +29,7 @@ import { PDFUploader } from '../components/PDFUploader';
 import { MultiPDFUploader } from '../components/MultiPDFUploader';
 import { PDFViewerModal } from '../components/PDFViewerModal';
 import { DeleteConfirmModal } from '../components/DeleteConfirmModal';
+import { downloadFileMeta } from '../utils/fileDownloadHelper';
 import { BASTWorkflowCardStepper } from '../components/BASTWorkflowCardStepper';
 import { BASTWorkflowModal } from '../components/BASTWorkflowModal';
 import { CalendarDatePickerModal } from '../components/CalendarDatePickerModal';
@@ -1123,7 +1125,7 @@ export const BASTPage: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
                       <button
                         type="button"
                         onClick={() => {
@@ -1131,10 +1133,23 @@ export const BASTPage: React.FC = () => {
                           if (ex) setPreviewPdf(ex);
                         }}
                         className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-lg text-xs font-mono font-semibold border border-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer"
-                        title="Pratinjau / Unduh Berkas Excel"
+                        title="Pratinjau Isi Berkas Excel"
                       >
                         <Eye className="w-3.5 h-3.5" />
-                        Lihat / Unduh
+                        Lihat
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const ex = formData.excelAttachment || formData.excelFile;
+                          if (ex) downloadFileMeta(ex);
+                        }}
+                        className="px-2.5 py-1.5 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-400 rounded-lg text-xs font-mono font-semibold border border-emerald-800/80 flex items-center gap-1.5 transition-colors cursor-pointer"
+                        title="Langsung Unduh Berkas Excel Ini"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        Unduh
                       </button>
 
                       <button

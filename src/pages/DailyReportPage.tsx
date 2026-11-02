@@ -36,6 +36,7 @@ import { DurationBreakdownBadge } from '../components/DurationBreakdownBadge';
 import { getFileBadgeStyle } from '../utils/fileHelper';
 import { exportDailyReportToExcel } from '../utils/excelExportHelper';
 import { calculateWorkDays, addWorkDays, handleDateInputClick, getTotalDurationDays } from '../utils/dateUtils';
+import { downloadFileMeta } from '../utils/fileDownloadHelper';
 
 export const getGoogleMapsRouteUrl = (
   origCoord?: string,
@@ -1357,18 +1358,40 @@ export const DailyReportPage: React.FC = () => {
                         </div>
                         <p className="text-xs text-slate-200 font-medium mb-2">{rep.originLocation || 'Lokasi Titik Awal'}</p>
                         {originPhotoSrc && (
-                          <div
-                            onClick={() => rep.originPhotoFile && setPreviewPdf(rep.originPhotoFile)}
-                            className="relative group rounded-lg overflow-hidden border border-slate-800 bg-black cursor-pointer"
-                          >
-                            <img
-                              src={originPhotoSrc}
-                              alt="Site A Geotag"
-                              className="w-full h-44 object-cover group-hover:scale-105 transition-transform"
-                            />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-xs font-mono text-white">
-                              <Eye className="w-4 h-4 mr-1" /> Klik Pratinjau
+                          <div className="space-y-2">
+                            <div
+                              onClick={() => rep.originPhotoFile && setPreviewPdf(rep.originPhotoFile)}
+                              className="relative group rounded-lg overflow-hidden border border-slate-800 bg-black cursor-pointer"
+                            >
+                              <img
+                                src={originPhotoSrc}
+                                alt="Site A Geotag"
+                                className="w-full h-44 object-cover group-hover:scale-105 transition-transform"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-xs font-mono text-white">
+                                <Eye className="w-4 h-4 mr-1" /> Klik Pratinjau
+                              </div>
                             </div>
+                            {rep.originPhotoFile && (
+                              <div className="flex items-center gap-1.5 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewPdf(rep.originPhotoFile!)}
+                                  className="flex-1 py-1 px-2 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 text-cyan-300 rounded-lg text-[10px] font-mono flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                                  title="Lihat Pratinjau Foto Site A"
+                                >
+                                  <Eye className="w-3 h-3" /> Lihat
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => downloadFileMeta(rep.originPhotoFile!)}
+                                  className="flex-1 py-1 px-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-300 rounded-lg text-[10px] font-mono flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                                  title="Langsung Unduh Berkas Site A"
+                                >
+                                  <Download className="w-3 h-3" /> Unduh
+                                </button>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1383,18 +1406,40 @@ export const DailyReportPage: React.FC = () => {
                         </div>
                         <p className="text-xs text-slate-200 font-medium mb-2">{rep.destinationLocation || 'Lokasi Titik Akhir'}</p>
                         {destPhotoSrc && (
-                          <div
-                            onClick={() => rep.destinationPhotoFile && setPreviewPdf(rep.destinationPhotoFile)}
-                            className="relative group rounded-lg overflow-hidden border border-slate-800 bg-black cursor-pointer"
-                          >
-                            <img
-                              src={destPhotoSrc}
-                              alt="Site B Geotag"
-                              className="w-full h-44 object-cover group-hover:scale-105 transition-transform"
-                            />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-xs font-mono text-white">
-                              <Eye className="w-4 h-4 mr-1" /> Klik Pratinjau
+                          <div className="space-y-2">
+                            <div
+                              onClick={() => rep.destinationPhotoFile && setPreviewPdf(rep.destinationPhotoFile)}
+                              className="relative group rounded-lg overflow-hidden border border-slate-800 bg-black cursor-pointer"
+                            >
+                              <img
+                                src={destPhotoSrc}
+                                alt="Site B Geotag"
+                                className="w-full h-44 object-cover group-hover:scale-105 transition-transform"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-xs font-mono text-white">
+                                <Eye className="w-4 h-4 mr-1" /> Klik Pratinjau
+                              </div>
                             </div>
+                            {rep.destinationPhotoFile && (
+                              <div className="flex items-center gap-1.5 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewPdf(rep.destinationPhotoFile!)}
+                                  className="flex-1 py-1 px-2 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 text-cyan-300 rounded-lg text-[10px] font-mono flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                                  title="Lihat Pratinjau Foto Site B"
+                                >
+                                  <Eye className="w-3 h-3" /> Lihat
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => downloadFileMeta(rep.destinationPhotoFile!)}
+                                  className="flex-1 py-1 px-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-300 rounded-lg text-[10px] font-mono flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                                  title="Langsung Unduh Berkas Site B"
+                                >
+                                  <Download className="w-3 h-3" /> Unduh
+                                </button>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1410,18 +1455,40 @@ export const DailyReportPage: React.FC = () => {
                           Jarak: {(rep.totalDistanceMeters || rep.estimatedDistanceMeters || 0).toLocaleString('id-ID')} Meter
                         </span>
                       </div>
-                      <div
-                        onClick={() => rep.routeMapFile && setPreviewPdf(rep.routeMapFile)}
-                        className="relative group rounded-lg overflow-hidden border border-slate-800 bg-black cursor-pointer"
-                      >
-                        <img
-                          src={routeMapSrc}
-                          alt="Route Map"
-                          className="w-full h-40 object-cover group-hover:scale-102 transition-transform"
-                        />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-xs font-mono text-white">
-                          <Eye className="w-4 h-4 mr-1" /> Klik Pratinjau Peta
+                      <div className="space-y-2">
+                        <div
+                          onClick={() => rep.routeMapFile && setPreviewPdf(rep.routeMapFile)}
+                          className="relative group rounded-lg overflow-hidden border border-slate-800 bg-black cursor-pointer"
+                        >
+                          <img
+                            src={routeMapSrc}
+                            alt="Route Map"
+                            className="w-full h-40 object-cover group-hover:scale-102 transition-transform"
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-xs font-mono text-white">
+                            <Eye className="w-4 h-4 mr-1" /> Klik Pratinjau Peta
+                          </div>
                         </div>
+                        {rep.routeMapFile && (
+                          <div className="flex items-center gap-1.5 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setPreviewPdf(rep.routeMapFile!)}
+                              className="flex-1 py-1 px-2 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 text-cyan-300 rounded-lg text-[10px] font-mono flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                              title="Lihat Pratinjau Peta"
+                            >
+                              <Eye className="w-3 h-3" /> Lihat Peta
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => downloadFileMeta(rep.routeMapFile!)}
+                              className="flex-1 py-1 px-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-300 rounded-lg text-[10px] font-mono flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                              title="Langsung Unduh Peta Rute"
+                            >
+                              <Download className="w-3 h-3" /> Unduh Peta
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1465,6 +1532,26 @@ export const DailyReportPage: React.FC = () => {
                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-xs font-mono text-white">
                                   <Eye className="w-3.5 h-3.5 mr-1" /> Lihat Dokumen
                                 </div>
+                              </div>
+                            )}
+                            {item.file && (
+                              <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-slate-900">
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewPdf(item.file!)}
+                                  className="flex-1 py-1 px-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 text-cyan-300 rounded-lg text-[10px] font-mono flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                                  title="Lihat Pratinjau Dokumen"
+                                >
+                                  <Eye className="w-3 h-3" /> Lihat
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => downloadFileMeta(item.file!)}
+                                  className="flex-1 py-1 px-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-300 rounded-lg text-[10px] font-mono flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                                  title="Langsung Unduh Dokumen Ini"
+                                >
+                                  <Download className="w-3 h-3" /> Unduh
+                                </button>
                               </div>
                             )}
                           </div>

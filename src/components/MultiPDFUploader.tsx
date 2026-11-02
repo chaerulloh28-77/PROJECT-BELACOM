@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import {
   UploadCloud,
   Eye,
+  Download,
   Trash2,
   AlertCircle,
   RefreshCw,
@@ -14,6 +15,7 @@ import { PDFFileMeta } from '../types';
 import { getFileExtension } from '../utils/fileHelper';
 import { generateVisualDocDataUrl } from '../utils/bastExportHelper';
 import { compressImageFile, isImageFile, formatBytes } from '../utils/fileCompressor';
+import { downloadFileMeta } from '../utils/fileDownloadHelper';
 
 interface MultiPDFUploaderProps {
   label: string;
@@ -318,6 +320,19 @@ export const MultiPDFUploader: React.FC<MultiPDFUploaderProps> = ({
                     aria-label={`Lihat ${file.name}`}
                   >
                     <Eye className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadFileMeta(file);
+                    }}
+                    className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors cursor-pointer"
+                    title="Langsung Unduh Berkas Ini"
+                    aria-label={`Unduh ${file.name}`}
+                  >
+                    <Download className="w-3.5 h-3.5" />
                   </button>
 
                   <button
