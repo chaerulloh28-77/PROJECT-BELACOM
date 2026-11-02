@@ -129,9 +129,19 @@ export function generateVisualDocDataUrl(
   const isAbd = cleanCat.includes('ABD') || cleanCat.includes('AS-BUILT');
   const isCore = cleanCat.includes('CORE') || cleanCat.includes('SPLICING');
 
+  const ext = fileName ? fileName.split('.').pop()?.toUpperCase() : '';
+  const isExcel = ['XLS', 'XLSX', 'CSV'].includes(ext || '') || cleanCat.includes('BOQ') || cleanCat.includes('MATERIAL');
+  const isWord = ['DOC', 'DOCX'].includes(ext || '');
+
   let bannerColor = '#0284c7';
   let badgeTitle = 'BERKAS TEKNIS TERVERIFIKASI';
-  if (isFoto) {
+  if (isExcel) {
+    bannerColor = '#059669';
+    badgeTitle = 'LAMPIRAN SPREADSHEET EXCEL';
+  } else if (isWord) {
+    bannerColor = '#2563eb';
+    badgeTitle = 'DOKUMEN MICROSOFT WORD';
+  } else if (isFoto) {
     bannerColor = '#8b5cf6';
     badgeTitle = 'KOLASE FOTO DOKUMENTASI LAPANGAN';
   } else if (isAbd) {

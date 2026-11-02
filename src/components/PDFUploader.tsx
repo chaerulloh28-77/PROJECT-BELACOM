@@ -6,10 +6,11 @@ import {
   AlertCircle,
   RefreshCw,
   Loader2,
-  FileText
+  FileText,
+  FileSpreadsheet
 } from 'lucide-react';
 import { PDFFileMeta } from '../types';
-import { getFileExtension } from '../utils/fileHelper';
+import { getFileExtension, getFileBadgeStyle } from '../utils/fileHelper';
 import { generateVisualDocDataUrl } from '../utils/bastExportHelper';
 
 interface PDFUploaderProps {
@@ -43,6 +44,29 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
     if (file.size > maxSizeBytes) {
       setErrorMsg(`Ukuran file melebihi batas maksimal ${maxSizeMB} MB.`);
       return;
+    }
+
+    // Format validation if accept filter is specified
+    if (accept && accept !== '*/*') {
+      const allowed = accept
+        .split(',')
+        .map(s => s.trim().toLowerCase().replace(/^\./, ''));
+      
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || '';
+      const isAllowed = allowed.some(a => {
+        if (a === fileExt) return true;
+        if ((a === 'jpg' || a === 'jpeg') && (fileExt === 'jpg' || fileExt === 'jpeg')) return true;
+        if (a.includes('/') && file.type) {
+          if (a === 'image/*' && file.type.startsWith('image/')) return true;
+          if (a === file.type) return true;
+        }
+        return false;
+      });
+
+      if (!isAllowed) {
+        setErrorMsg(`Format berkas .${fileExt.toUpperCase()} tidak didukung. Format yang diizinkan: ${accept}`);
+        return;
+      }
     }
 
     setIsLoading(true);
@@ -108,11 +132,7 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
   };
 
   const ext = value ? getFileExtension(value.name) : '';
-  const isImageOrVisual =
-    Boolean(value?.imageDataUrl) ||
-    ['JPG', 'JPEG', 'PNG', 'WEBP', 'GIF', 'SVG'].includes(ext) ||
-    (value?.url?.startsWith('data:image/') ?? false);
-
+  const badgeStyle = value ? getFileBadgeStyle(value.name) : null;
   const previewImageSrc = value?.imageDataUrl || (value?.url?.startsWith('data:image/') ? value.url : undefined);
 
   return (
@@ -120,6 +140,7 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
       <label
         onClick={() => fileInputRef.current?.click()}
         className="block text-xs font-semibold text-slate-300 mb-1.5 cursor-pointer hover:text-cyan-300 transition-colors truncate"
+        title={label}
       >
         {label} {required && <span className="text-rose-400">*</span>}
       </label>
@@ -133,80 +154,68 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
       />
 
       {value ? (
-        <div
-          onClick={() => onPreview && onPreview(value)}
-          className="group relative rounded-2xl border border-slate-700/80 bg-slate-900/90 hover:border-cyan-400/80 transition-all overflow-hidden cursor-pointer shadow-xl p-2.5 flex flex-col gap-2 font-sans"
-        >
-          {/* Large Preview Container (min-h 220px) */}
-          <div className="w-full h-48 sm:h-56 bg-slate-950 rounded-xl overflow-hidden flex items-center justify-center relative border border-slate-800/90 shadow-inner group-hover:border-cyan-500/40 transition-colors">
-            {previewImageSrc ? (
-              <img
-                src={previewImageSrc}
-                alt={value.name}
-                className="w-full h-full object-contain p-1.5 group-hover:scale-105 transition-transform duration-300"
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center p-4 text-slate-400 space-y-2">
-                <div className="p-3 rounded-2xl bg-slate-900 border border-slate-800 text-cyan-400">
-                  <FileText className="w-10 h-10" />
-                </div>
-                <span className="text-xs font-mono font-bold text-slate-300 text-center truncate max-w-xs">
-                  {value.name}
-                </span>
-                <span className="text-[10px] font-mono text-cyan-400/80 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800/50">
-                  {ext || 'DOKUMEN PDF'}
-                </span>
-              </div>
-            )}
+        <div className="relative rounded-xl border border-slate-700/80 bg-slate-900/90 hover:border-cyan-400/80 transition-all p-2.5 flex flex-col justify-between h-28 shadow-lg group font-sans">
+          <div 
+            onClick={() => onPreview && onPreview(value)}
+            className="flex items-start gap-2 cursor-pointer overflow-hidden"
+            title="Klik untuk pratinjau"
+          >
+            <div className={`p-1.5 rounded-lg shrink-0 ${badgeStyle?.bgClass || 'bg-slate-800'} border ${badgeStyle?.borderClass || 'border-slate-700'}`}>
+              {['XLS', 'XLSX', 'CSV'].includes(ext) ? (
+                <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+              ) : ['DOC', 'DOCX'].includes(ext) ? (
+                <FileText className="w-4 h-4 text-blue-400" />
+              ) : ['JPG', 'JPEG', 'PNG', 'WEBP'].includes(ext) && previewImageSrc ? (
+                <img src={previewImageSrc} alt={value.name} className="w-4 h-4 object-cover rounded" />
+              ) : (
+                <FileText className="w-4 h-4 text-rose-400" />
+              )}
+            </div>
 
-            {/* Hover Fullscreen Lightbox Overlay */}
-            <div className="absolute inset-0 bg-slate-950/70 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-center gap-2 backdrop-blur-[2px]">
-              <div className="p-2.5 rounded-full bg-cyan-500 text-slate-950 shadow-glow animate-bounce">
-                <Eye className="w-6 h-6" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-mono font-bold text-slate-100 truncate group-hover:text-cyan-300 transition-colors" title={value.name}>
+                {value.name}
+              </p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                {badgeStyle && (
+                  <span className={`px-1 py-0.2 rounded text-[9px] font-bold font-mono ${badgeStyle.bgClass} ${badgeStyle.textClass} border ${badgeStyle.borderClass}`}>
+                    [{badgeStyle.ext}]
+                  </span>
+                )}
+                <span className="text-[10px] text-slate-400 font-mono">
+                  {value.sizeBytes ? `${(value.sizeBytes / 1024).toFixed(1)} KB` : ''}
+                </span>
               </div>
-              <span className="px-3 py-1 rounded-xl bg-slate-900/90 text-cyan-300 font-mono text-xs font-bold border border-cyan-500/40 shadow-xl">
-                🔍 Klik untuk Buka Foto Ukuran Penuh
-              </span>
             </div>
           </div>
 
-          {/* Card Footer Details & Actions */}
-          <div className="flex items-center justify-between gap-2 px-1 pt-0.5">
-            <div className="overflow-hidden">
-              <span
-                className="text-xs font-bold text-slate-200 group-hover:text-cyan-300 transition-colors block truncate font-mono"
-                title={value.name}
-              >
-                {value.name}
-              </span>
-              <span className="text-[10px] text-slate-400 font-mono block">
-                {value.uploadDate} · {value.sizeBytes ? `${(value.sizeBytes / 1024).toFixed(1)} KB` : 'Dokumen Valid'}
-              </span>
-            </div>
+          {/* Action Buttons Row */}
+          <div className="flex items-center justify-between pt-1.5 border-t border-slate-800/80 mt-1">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onPreview) onPreview(value);
+              }}
+              className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer transition-colors"
+              title="Lihat Pratinjau"
+            >
+              <Eye className="w-3 h-3" />
+              <span>Lihat</span>
+            </button>
 
-            <div className="flex items-center gap-1 shrink-0">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (onPreview) onPreview(value);
-                }}
-                className="px-2.5 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-mono text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
-                title="Lihat ukuran penuh"
-              >
-                <Eye className="w-3.5 h-3.5" /> Full
-              </button>
-
+            <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   fileInputRef.current?.click();
                 }}
-                className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer"
+                className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[10px] font-mono flex items-center gap-1 transition-colors cursor-pointer"
                 title="Ganti Berkas"
               >
-                <RefreshCw className="w-3.5 h-3.5" />
+                <RefreshCw className="w-2.5 h-2.5" />
+                <span>Ganti</span>
               </button>
 
               <button
@@ -215,10 +224,11 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
                   e.stopPropagation();
                   onChange(undefined);
                 }}
-                className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-colors cursor-pointer"
+                className="px-2 py-0.5 rounded bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/80 text-[10px] font-mono flex items-center gap-1 transition-colors cursor-pointer"
                 title="Hapus Berkas"
               >
-                <Trash2 className="w-3.5 h-3.5" />
+                <Trash2 className="w-2.5 h-2.5" />
+                <span>Hapus</span>
               </button>
             </div>
           </div>
@@ -228,26 +238,21 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
-          className="h-32 sm:h-36 px-4 border-2 border-dashed border-slate-700/80 hover:border-cyan-500/80 rounded-2xl bg-slate-950/60 hover:bg-slate-900/80 flex flex-col items-center justify-center gap-2 text-slate-400 hover:text-cyan-400 transition-all cursor-pointer group shadow-inner"
+          className="h-28 px-3 border-2 border-dashed border-slate-700/80 hover:border-cyan-500/80 rounded-xl bg-slate-950/60 hover:bg-slate-900/80 flex flex-col items-center justify-center gap-1.5 text-slate-400 hover:text-cyan-400 transition-all cursor-pointer group shadow-inner"
         >
           {isLoading ? (
-            <div className="flex flex-col items-center gap-2">
-              <Loader2 className="w-7 h-7 animate-spin text-cyan-400" />
-              <span className="text-xs font-mono text-cyan-400 font-bold">Memproses Berkas...</span>
+            <div className="flex flex-col items-center gap-1.5">
+              <Loader2 className="w-5 h-5 animate-spin text-cyan-400" />
+              <span className="text-[11px] font-mono text-cyan-400 font-bold">Memproses...</span>
             </div>
           ) : (
             <>
-              <div className="p-2.5 rounded-xl bg-slate-900 group-hover:bg-cyan-500/10 border border-slate-800 group-hover:border-cyan-500/30 transition-colors text-slate-400 group-hover:text-cyan-400">
-                <UploadCloud className="w-6 h-6" />
+              <div className="p-2 rounded-xl bg-slate-900 group-hover:bg-cyan-500/10 border border-slate-800 group-hover:border-cyan-500/30 transition-colors text-slate-400 group-hover:text-cyan-400">
+                <UploadCloud className="w-5 h-5" />
               </div>
-              <div className="text-center">
-                <span className="text-xs font-bold text-slate-300 group-hover:text-cyan-300 block">
-                  Unggah Berkas / Foto {label}
-                </span>
-                <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
-                  Drag & Drop atau Klik (PNG, JPG, WEBP, PDF s/d {maxSizeMB}MB)
-                </span>
-              </div>
+              <span className="text-xs font-semibold text-slate-300 group-hover:text-cyan-300 transition-colors">
+                Upload here
+              </span>
             </>
           )}
         </div>

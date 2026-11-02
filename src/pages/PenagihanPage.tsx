@@ -27,6 +27,10 @@ import { DeleteConfirmModal } from '../components/DeleteConfirmModal';
 import { exportPenagihanToExcel, exportSinglePenagihanToExcel } from '../utils/excelExportWithImages';
 import { exportSinglePenagihanToWord } from '../utils/wordExportService';
 import { handleDateInputClick } from '../utils/dateUtils';
+import { getFileBadgeStyle, getFileExtension } from '../utils/fileHelper';
+
+const EXTENDED_OFFICE_ACCEPT = '.xlsx, .xls, .docx, .doc, .pdf, .png, .jpg, .jpeg, .webp';
+const STANDARD_DOC_ACCEPT = '.pdf, .png, .jpg, .jpeg, .webp';
 
 export const PenagihanPage: React.FC = () => {
   const { penagihanList, addPenagihan, updatePenagihan, deletePenagihan, showToast } = useProjectContext();
@@ -162,6 +166,44 @@ export const PenagihanPage: React.FC = () => {
     { num: 10, name: 'Faktur Pajak', file: item.fakturPajakPdf }
   ];
 
+  const renderSlotBadge = (file: PDFFileMeta | undefined, label: string) => {
+    if (!file) return null;
+    const ext = getFileExtension(file.name);
+    const isExcel = ['XLS', 'XLSX', 'CSV'].includes(ext);
+    const isWord = ['DOC', 'DOCX'].includes(ext);
+    const isPhoto = ['JPG', 'JPEG', 'PNG', 'WEBP'].includes(ext) || label.toLowerCase().includes('foto');
+
+    let badgeClass = "bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border-cyan-500/20";
+    if (isExcel) {
+      badgeClass = "bg-emerald-950/90 hover:bg-emerald-900 text-emerald-400 border-emerald-800";
+    } else if (isWord) {
+      badgeClass = "bg-blue-950/90 hover:bg-blue-900 text-blue-400 border-blue-800";
+    } else if (isPhoto) {
+      badgeClass = "bg-purple-950/70 hover:bg-purple-900 text-purple-300 border-purple-800";
+    }
+
+    return (
+      <button
+        key={label}
+        type="button"
+        onClick={() => setPreviewPdf(file)}
+        className={`px-1.5 py-0.5 rounded border flex items-center gap-1 cursor-pointer transition-colors font-mono font-bold text-[10px] ${badgeClass}`}
+        title={`Lihat ${file.name || label} (${ext})`}
+      >
+        {isExcel ? (
+          <FileSpreadsheet className="w-3 h-3 text-emerald-400" />
+        ) : isWord ? (
+          <FileText className="w-3 h-3 text-blue-400" />
+        ) : (
+          <Eye className="w-3 h-3" />
+        )}
+        <span>{label}</span>
+        {isExcel && <span className="text-[8px] text-emerald-300 font-bold">[XLS]</span>}
+        {isWord && <span className="text-[8px] text-blue-300 font-bold">[DOC]</span>}
+      </button>
+    );
+  };
+
   return (
     <div className="space-y-6 pb-8">
       
@@ -292,56 +334,16 @@ export const PenagihanPage: React.FC = () => {
                             </span>
                           </div>
                           <div className="flex flex-wrap gap-1 text-[10px] max-w-xs">
-                            {(penagihan.invoicePdf || penagihan.kwitansiPdf) && (
-                              <button onClick={() => setPreviewPdf(penagihan.invoicePdf || penagihan.kwitansiPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat Invoice / Kwitansi PDF">
-                                <Eye className="w-3 h-3 text-cyan-400" /> Inv
-                              </button>
-                            )}
-                            {penagihan.bastPdf && (
-                              <button onClick={() => setPreviewPdf(penagihan.bastPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat BAST PDF">
-                                <Eye className="w-3 h-3 text-cyan-400" /> BAST
-                              </button>
-                            )}
-                            {penagihan.apdPdf && (
-                              <button onClick={() => setPreviewPdf(penagihan.apdPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat APD PDF">
-                                <Eye className="w-3 h-3 text-cyan-400" /> APD
-                              </button>
-                            )}
-                            {penagihan.abdPdf && (
-                              <button onClick={() => setPreviewPdf(penagihan.abdPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat ABD PDF">
-                                <Eye className="w-3 h-3 text-cyan-400" /> ABD
-                              </button>
-                            )}
-                            {penagihan.coreConnectionPdf && (
-                              <button onClick={() => setPreviewPdf(penagihan.coreConnectionPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat Core Connection PDF">
-                                <Eye className="w-3 h-3 text-cyan-400" /> Core
-                              </button>
-                            )}
-                            {penagihan.fotoDokumentasiPdf && (
-                              <button onClick={() => setPreviewPdf(penagihan.fotoDokumentasiPdf!)} className="px-1.5 py-0.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat Foto Dokumentasi PDF">
-                                <FileText className="w-3 h-3 text-rose-400" /> Foto
-                              </button>
-                            )}
-                            {penagihan.poPdf && (
-                              <button onClick={() => setPreviewPdf(penagihan.poPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat PO PDF">
-                                <Eye className="w-3 h-3 text-cyan-400" /> PO
-                              </button>
-                            )}
-                            {penagihan.dataMaterialPdf && (
-                              <button onClick={() => setPreviewPdf(penagihan.dataMaterialPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat Data Material PDF">
-                                <Eye className="w-3 h-3 text-cyan-400" /> Mat
-                              </button>
-                            )}
-                            {penagihan.boqPdf && (
-                              <button onClick={() => setPreviewPdf(penagihan.boqPdf!)} className="px-1.5 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat BOQ PDF">
-                                <Eye className="w-3 h-3 text-cyan-400" /> BOQ
-                              </button>
-                            )}
-                            {penagihan.fakturPajakPdf && (
-                              <button onClick={() => setPreviewPdf(penagihan.fakturPajakPdf!)} className="px-1.5 py-0.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20 rounded flex items-center gap-1 cursor-pointer transition-colors" title="Lihat Faktur Pajak PDF">
-                                <Eye className="w-3 h-3 text-amber-400" /> Faktur
-                              </button>
-                            )}
+                            {renderSlotBadge(penagihan.invoicePdf || penagihan.kwitansiPdf, 'Inv')}
+                            {renderSlotBadge(penagihan.bastPdf, 'BAST')}
+                            {renderSlotBadge(penagihan.apdPdf, 'APD')}
+                            {renderSlotBadge(penagihan.abdPdf, 'ABD')}
+                            {renderSlotBadge(penagihan.coreConnectionPdf, 'Core')}
+                            {renderSlotBadge(penagihan.fotoDokumentasiPdf, 'Foto')}
+                            {renderSlotBadge(penagihan.poPdf, 'PO')}
+                            {renderSlotBadge(penagihan.dataMaterialPdf, 'Mat')}
+                            {renderSlotBadge(penagihan.boqPdf, 'BOQ')}
+                            {renderSlotBadge(penagihan.fakturPajakPdf, 'Faktur')}
                           </div>
                         </div>
                       </td>
@@ -709,16 +711,76 @@ export const PenagihanPage: React.FC = () => {
                 </h4>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                  <PDFUploader label="1. Invoice / Kwitansi" value={formData.invoicePdf} onChange={(f) => setFormData(p => ({ ...p, invoicePdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="2. BAST" value={formData.bastPdf} onChange={(f) => setFormData(p => ({ ...p, bastPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="3. APD" value={formData.apdPdf} onChange={(f) => setFormData(p => ({ ...p, apdPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="4. ABD" value={formData.abdPdf} onChange={(f) => setFormData(p => ({ ...p, abdPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="5. Core Connection" value={formData.coreConnectionPdf} onChange={(f) => setFormData(p => ({ ...p, coreConnectionPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="6. Foto Dokumentasi" value={formData.fotoDokumentasiPdf} onChange={(f) => setFormData(p => ({ ...p, fotoDokumentasiPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="7. Purchase Order (PO)" value={formData.poPdf} onChange={(f) => setFormData(p => ({ ...p, poPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="8. Data Material" value={formData.dataMaterialPdf} onChange={(f) => setFormData(p => ({ ...p, dataMaterialPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="9. BOQ" value={formData.boqPdf} onChange={(f) => setFormData(p => ({ ...p, boqPdf: f }))} onPreview={(f) => setPreviewPdf(f)} />
-                  <PDFUploader label="10. Faktur Pajak" value={formData.fakturPajakPdf} onChange={(f) => setFormData(p => ({ ...p, fakturPajakPdf: f, fakturPajak: f ? (f.name || f.url) : null }))} onPreview={(f) => setPreviewPdf(f)} />
+                  <PDFUploader
+                    label="1. Invoice / Kwitansi"
+                    value={formData.invoicePdf}
+                    accept={EXTENDED_OFFICE_ACCEPT}
+                    onChange={(f) => setFormData(p => ({ ...p, invoicePdf: f }))}
+                    onPreview={(f) => setPreviewPdf(f)}
+                  />
+                  <PDFUploader
+                    label="2. BAST"
+                    value={formData.bastPdf}
+                    accept={EXTENDED_OFFICE_ACCEPT}
+                    onChange={(f) => setFormData(p => ({ ...p, bastPdf: f }))}
+                    onPreview={(f) => setPreviewPdf(f)}
+                  />
+                  <PDFUploader
+                    label="3. APD"
+                    value={formData.apdPdf}
+                    accept={STANDARD_DOC_ACCEPT}
+                    onChange={(f) => setFormData(p => ({ ...p, apdPdf: f }))}
+                    onPreview={(f) => setPreviewPdf(f)}
+                  />
+                  <PDFUploader
+                    label="4. ABD"
+                    value={formData.abdPdf}
+                    accept={STANDARD_DOC_ACCEPT}
+                    onChange={(f) => setFormData(p => ({ ...p, abdPdf: f }))}
+                    onPreview={(f) => setPreviewPdf(f)}
+                  />
+                  <PDFUploader
+                    label="5. Core Connection"
+                    value={formData.coreConnectionPdf}
+                    accept={STANDARD_DOC_ACCEPT}
+                    onChange={(f) => setFormData(p => ({ ...p, coreConnectionPdf: f }))}
+                    onPreview={(f) => setPreviewPdf(f)}
+                  />
+                  <PDFUploader
+                    label="6. Foto Dokumentasi"
+                    value={formData.fotoDokumentasiPdf}
+                    accept={EXTENDED_OFFICE_ACCEPT}
+                    onChange={(f) => setFormData(p => ({ ...p, fotoDokumentasiPdf: f }))}
+                    onPreview={(f) => setPreviewPdf(f)}
+                  />
+                  <PDFUploader
+                    label="7. Purchase Order (PO)"
+                    value={formData.poPdf}
+                    accept={STANDARD_DOC_ACCEPT}
+                    onChange={(f) => setFormData(p => ({ ...p, poPdf: f }))}
+                    onPreview={(f) => setPreviewPdf(f)}
+                  />
+                  <PDFUploader
+                    label="8. Data Material"
+                    value={formData.dataMaterialPdf}
+                    accept={EXTENDED_OFFICE_ACCEPT}
+                    onChange={(f) => setFormData(p => ({ ...p, dataMaterialPdf: f }))}
+                    onPreview={(f) => setPreviewPdf(f)}
+                  />
+                  <PDFUploader
+                    label="9. BOQ"
+                    value={formData.boqPdf}
+                    accept={EXTENDED_OFFICE_ACCEPT}
+                    onChange={(f) => setFormData(p => ({ ...p, boqPdf: f }))}
+                    onPreview={(f) => setPreviewPdf(f)}
+                  />
+                  <PDFUploader
+                    label="10. Faktur Pajak"
+                    value={formData.fakturPajakPdf}
+                    accept={STANDARD_DOC_ACCEPT}
+                    onChange={(f) => setFormData(p => ({ ...p, fakturPajakPdf: f, fakturPajak: f ? (f.name || f.url) : null }))}
+                    onPreview={(f) => setPreviewPdf(f)}
+                  />
                 </div>
               </div>
 
