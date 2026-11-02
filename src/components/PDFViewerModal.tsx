@@ -165,9 +165,14 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
                 <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
                   <CheckCircle2 className="w-3 h-3" /> Berkas Valid
                 </span>
+                {file.isCompressed && file.compressionRatio && (
+                  <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shrink-0" title={`Ukuran awal: ${formatSize(file.originalSizeBytes || 0)}`}>
+                    ⚡ Terkompres: {file.compressionRatio}
+                  </span>
+                )}
               </div>
               <p className="text-[11px] text-slate-400 font-mono">
-                Ukuran: {formatSize(file.sizeBytes)} · Format: {badgeStyle.label} · Dimuat: {file.uploadDate}
+                Ukuran: {formatSize(file.sizeBytes)} {file.isCompressed && `(Asli: ${formatSize(file.originalSizeBytes || 0)})`} · Format: {badgeStyle.label} · Dimuat: {file.uploadDate}
               </p>
             </div>
           </div>

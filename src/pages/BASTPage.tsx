@@ -143,7 +143,7 @@ export const BASTPage: React.FC = () => {
 
     const maxSizeMB = 25;
     if (file.size > maxSizeMB * 1024 * 1024) {
-      showToast('error', 'Ukuran Terlalu Besar', `Ukuran berkas melebihi batas maksimal ${maxSizeMB} MB!`);
+      showToast('error', 'Kapasitas Melebihi Batas', `Dokumen non-gambar (Excel) melebihi kapasitas maksimal ${maxSizeMB} MB. Silakan unggah berkas di bawah ${maxSizeMB} MB.`);
       if (excelInputRef.current) excelInputRef.current.value = '';
       return;
     }

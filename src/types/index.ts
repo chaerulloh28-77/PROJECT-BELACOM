@@ -34,6 +34,10 @@ export interface PDFFileMeta {
   fileType?: string;
   mimeType?: string;
   imageDataUrl?: string;
+  isCompressed?: boolean;
+  originalSizeBytes?: number;
+  compressionRatio?: string;
+  reductionPercent?: number;
 }
 
 export interface PhotoDocumentation {

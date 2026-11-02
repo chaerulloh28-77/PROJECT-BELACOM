@@ -7,11 +7,13 @@ import {
   RefreshCw,
   Loader2,
   FileText,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Zap
 } from 'lucide-react';
 import { PDFFileMeta } from '../types';
 import { getFileExtension, getFileBadgeStyle } from '../utils/fileHelper';
 import { generateVisualDocDataUrl } from '../utils/bastExportHelper';
+import { compressImageFile, isImageFile, formatBytes } from '../utils/fileCompressor';
 
 interface PDFUploaderProps {
   label: string;
@@ -37,14 +39,12 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingText, setLoadingText] = useState('Memproses...');
 
-  const processFile = (file: File) => {
+  const processFile = async (file: File) => {
     setErrorMsg(null);
     const maxSizeBytes = maxSizeMB * 1024 * 1024;
-    if (file.size > maxSizeBytes) {
-      setErrorMsg(`Ukuran file melebihi batas maksimal ${maxSizeMB} MB.`);
-      return;
-    }
+    const isImage = isImageFile(file);
 
     // Format validation if accept filter is specified
     if (accept && accept !== '*/*') {
@@ -69,49 +69,85 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
       }
     }
 
+    // Jika non-gambar dan melebihi 25 MB, tampilkan peringatan kapasitas
+    if (!isImage && file.size > maxSizeBytes) {
+      setErrorMsg(`Dokumen non-gambar melebihi kapasitas maksimal ${maxSizeMB} MB. Silakan unggah berkas di bawah ${maxSizeMB} MB.`);
+      return;
+    }
+
     setIsLoading(true);
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
-      const ext = getFileExtension(file.name);
-      const isImg = ['JPG', 'JPEG', 'PNG', 'WEBP', 'GIF', 'SVG'].includes(ext);
 
-      const visualImg = isImg && dataUrl
-        ? dataUrl
-        : generateVisualDocDataUrl(label, file.name, woNumber, `BAST/${woNumber}/2026`);
+    try {
+      if (isImage) {
+        setLoadingText('Mengompresi berkas...');
+        const compressResult = await compressImageFile(file, {
+          targetMaxSizeBytes: 850 * 1024,
+          maxDimension: 1600,
+          quality: 0.8
+        });
 
-      const fileMeta: PDFFileMeta = {
-        id: 'doc-' + Math.random().toString(36).substring(2, 9),
-        name: file.name,
-        sizeBytes: file.size,
-        uploadDate: new Date().toISOString().split('T')[0],
-        pages: Math.floor(Math.random() * 5) + 1,
-        url: dataUrl || URL.createObjectURL(file),
-        fileType: file.type || 'application/octet-stream',
-        imageDataUrl: visualImg
-      };
+        const fileMeta: PDFFileMeta = {
+          id: 'doc-' + Math.random().toString(36).substring(2, 9),
+          name: file.name,
+          sizeBytes: compressResult.compressedSizeBytes,
+          originalSizeBytes: compressResult.originalSizeBytes,
+          isCompressed: compressResult.wasCompressed,
+          compressionRatio: compressResult.wasCompressed ? compressResult.compressionRatio : undefined,
+          reductionPercent: compressResult.wasCompressed ? compressResult.reductionPercent : undefined,
+          uploadDate: new Date().toISOString().split('T')[0],
+          pages: 1,
+          url: compressResult.dataUrl,
+          fileType: compressResult.mimeType,
+          imageDataUrl: compressResult.dataUrl
+        };
 
+        setIsLoading(false);
+        onChange(fileMeta);
+      } else {
+        setLoadingText('Membaca dokumen...');
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+          const visualImg = generateVisualDocDataUrl(label, file.name, woNumber, `BAST/${woNumber}/2026`);
+
+          const fileMeta: PDFFileMeta = {
+            id: 'doc-' + Math.random().toString(36).substring(2, 9),
+            name: file.name,
+            sizeBytes: file.size,
+            uploadDate: new Date().toISOString().split('T')[0],
+            pages: Math.floor(Math.random() * 5) + 1,
+            url: dataUrl || URL.createObjectURL(file),
+            fileType: file.type || 'application/octet-stream',
+            imageDataUrl: visualImg
+          };
+
+          setIsLoading(false);
+          onChange(fileMeta);
+        };
+
+        reader.onerror = () => {
+          const visualImg = generateVisualDocDataUrl(label, file.name, woNumber, `BAST/${woNumber}/2026`);
+          const fileMeta: PDFFileMeta = {
+            id: 'doc-' + Math.random().toString(36).substring(2, 9),
+            name: file.name,
+            sizeBytes: file.size,
+            uploadDate: new Date().toISOString().split('T')[0],
+            pages: 1,
+            url: URL.createObjectURL(file),
+            fileType: file.type || 'application/octet-stream',
+            imageDataUrl: visualImg
+          };
+          setIsLoading(false);
+          onChange(fileMeta);
+        };
+
+        reader.readAsDataURL(file);
+      }
+    } catch (err) {
+      console.error('Error processing file:', err);
+      setErrorMsg('Gagal memproses berkas. Silakan coba kembali.');
       setIsLoading(false);
-      onChange(fileMeta);
-    };
-
-    reader.onerror = () => {
-      const visualImg = generateVisualDocDataUrl(label, file.name, woNumber, `BAST/${woNumber}/2026`);
-      const fileMeta: PDFFileMeta = {
-        id: 'doc-' + Math.random().toString(36).substring(2, 9),
-        name: file.name,
-        sizeBytes: file.size,
-        uploadDate: new Date().toISOString().split('T')[0],
-        pages: 1,
-        url: URL.createObjectURL(file),
-        fileType: file.type || 'application/octet-stream',
-        imageDataUrl: visualImg
-      };
-      setIsLoading(false);
-      onChange(fileMeta);
-    };
-
-    reader.readAsDataURL(file);
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -176,15 +212,25 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
               <p className="text-xs font-mono font-bold text-slate-100 truncate group-hover:text-cyan-300 transition-colors" title={value.name}>
                 {value.name}
               </p>
-              <div className="flex items-center gap-1.5 mt-0.5">
+              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                 {badgeStyle && (
                   <span className={`px-1 py-0.2 rounded text-[9px] font-bold font-mono ${badgeStyle.bgClass} ${badgeStyle.textClass} border ${badgeStyle.borderClass}`}>
                     [{badgeStyle.ext}]
                   </span>
                 )}
                 <span className="text-[10px] text-slate-400 font-mono">
-                  {value.sizeBytes ? `${(value.sizeBytes / 1024).toFixed(1)} KB` : ''}
+                  {value.sizeBytes ? formatBytes(value.sizeBytes) : ''}
                 </span>
+
+                {value.isCompressed && value.compressionRatio && (
+                  <span
+                    className="inline-flex items-center gap-0.5 text-[9px] font-mono font-bold text-emerald-400 bg-emerald-950/90 px-1 py-0.2 rounded border border-emerald-850 truncate max-w-[130px]"
+                    title={`Terkonversi: ${value.compressionRatio} (Hemat ${value.reductionPercent || 0}%)`}
+                  >
+                    <Zap className="w-2.5 h-2.5 text-emerald-400" />
+                    <span>{value.compressionRatio}</span>
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -243,7 +289,7 @@ export const PDFUploader: React.FC<PDFUploaderProps> = ({
           {isLoading ? (
             <div className="flex flex-col items-center gap-1.5">
               <Loader2 className="w-5 h-5 animate-spin text-cyan-400" />
-              <span className="text-[11px] font-mono text-cyan-400 font-bold">Memproses...</span>
+              <span className="text-[11px] font-mono text-cyan-400 font-bold">{loadingText}</span>
             </div>
           ) : (
             <>

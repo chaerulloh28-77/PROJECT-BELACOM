@@ -8,11 +8,12 @@ import {
   Loader2,
   FileText,
   Plus,
-  Image as ImageIcon
+  Zap
 } from 'lucide-react';
 import { PDFFileMeta } from '../types';
 import { getFileExtension } from '../utils/fileHelper';
 import { generateVisualDocDataUrl } from '../utils/bastExportHelper';
+import { compressImageFile, isImageFile, formatBytes } from '../utils/fileCompressor';
 
 interface MultiPDFUploaderProps {
   label: string;
@@ -40,6 +41,7 @@ export const MultiPDFUploader: React.FC<MultiPDFUploaderProps> = ({
   const [replacingIndex, setReplacingIndex] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingText, setLoadingText] = useState('Memproses...');
 
   // Normalize current file list
   const currentFiles: PDFFileMeta[] =
@@ -49,6 +51,70 @@ export const MultiPDFUploader: React.FC<MultiPDFUploaderProps> = ({
       ? [singleValue]
       : [];
 
+  const processSingleFile = async (file: File): Promise<PDFFileMeta> => {
+    const isImage = isImageFile(file);
+
+    if (isImage) {
+      setLoadingText(`Mengompresi ${file.name}...`);
+      const compressResult = await compressImageFile(file, {
+        targetMaxSizeBytes: 850 * 1024,
+        maxDimension: 1600,
+        quality: 0.8
+      });
+
+      return {
+        id: 'doc-' + Math.random().toString(36).substring(2, 9),
+        name: file.name,
+        sizeBytes: compressResult.compressedSizeBytes,
+        originalSizeBytes: compressResult.originalSizeBytes,
+        isCompressed: compressResult.wasCompressed,
+        compressionRatio: compressResult.wasCompressed ? compressResult.compressionRatio : undefined,
+        reductionPercent: compressResult.wasCompressed ? compressResult.reductionPercent : undefined,
+        uploadDate: new Date().toISOString().split('T')[0],
+        pages: 1,
+        url: compressResult.dataUrl,
+        fileType: compressResult.mimeType,
+        imageDataUrl: compressResult.dataUrl
+      };
+    }
+
+    // Non-image document
+    return new Promise<PDFFileMeta>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+        const visualImg = generateVisualDocDataUrl(label, file.name, woNumber, `BAST/${woNumber}/2026`);
+
+        resolve({
+          id: 'doc-' + Math.random().toString(36).substring(2, 9),
+          name: file.name,
+          sizeBytes: file.size,
+          uploadDate: new Date().toISOString().split('T')[0],
+          pages: 1,
+          url: dataUrl || URL.createObjectURL(file),
+          fileType: file.type || 'application/octet-stream',
+          imageDataUrl: visualImg
+        });
+      };
+
+      reader.onerror = () => {
+        const visualImg = generateVisualDocDataUrl(label, file.name, woNumber, `BAST/${woNumber}/2026`);
+        resolve({
+          id: 'doc-' + Math.random().toString(36).substring(2, 9),
+          name: file.name,
+          sizeBytes: file.size,
+          uploadDate: new Date().toISOString().split('T')[0],
+          pages: 1,
+          url: URL.createObjectURL(file),
+          fileType: file.type || 'application/octet-stream',
+          imageDataUrl: visualImg
+        });
+      };
+
+      reader.readAsDataURL(file);
+    });
+  };
+
   const processFileList = async (fileList: FileList | File[]) => {
     setErrorMsg(null);
     const filesToProcess = Array.from(fileList);
@@ -56,64 +122,28 @@ export const MultiPDFUploader: React.FC<MultiPDFUploaderProps> = ({
 
     const maxSizeBytes = maxSizeMB * 1024 * 1024;
     for (const file of filesToProcess) {
-      if (file.size > maxSizeBytes) {
-        setErrorMsg(`Ukuran file "${file.name}" melebihi batas ${maxSizeMB} MB.`);
+      if (!isImageFile(file) && file.size > maxSizeBytes) {
+        setErrorMsg(`Dokumen non-gambar "${file.name}" melebihi kapasitas maksimal ${maxSizeMB} MB. Silakan unggah berkas di bawah ${maxSizeMB} MB.`);
         return;
       }
     }
 
     setIsLoading(true);
 
-    const newMetas: PDFFileMeta[] = [];
+    try {
+      const newMetas: PDFFileMeta[] = [];
+      for (const file of filesToProcess) {
+        const meta = await processSingleFile(file);
+        newMetas.push(meta);
+      }
 
-    for (let i = 0; i < filesToProcess.length; i++) {
-      const file = filesToProcess[i];
-      const meta = await new Promise<PDFFileMeta>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const dataUrl = typeof reader.result === 'string' ? reader.result : '';
-          const ext = getFileExtension(file.name);
-          const isImg = ['JPG', 'JPEG', 'PNG', 'WEBP', 'GIF', 'SVG'].includes(ext);
-
-          const visualImg =
-            isImg && dataUrl
-              ? dataUrl
-              : generateVisualDocDataUrl(label, file.name, woNumber, `BAST/${woNumber}/2026`);
-
-          resolve({
-            id: 'doc-' + Math.random().toString(36).substring(2, 9),
-            name: file.name,
-            sizeBytes: file.size,
-            uploadDate: new Date().toISOString().split('T')[0],
-            pages: 1,
-            url: dataUrl || URL.createObjectURL(file),
-            fileType: file.type || 'application/octet-stream',
-            imageDataUrl: visualImg
-          });
-        };
-
-        reader.onerror = () => {
-          const visualImg = generateVisualDocDataUrl(label, file.name, woNumber, `BAST/${woNumber}/2026`);
-          resolve({
-            id: 'doc-' + Math.random().toString(36).substring(2, 9),
-            name: file.name,
-            sizeBytes: file.size,
-            uploadDate: new Date().toISOString().split('T')[0],
-            pages: 1,
-            url: URL.createObjectURL(file),
-            fileType: file.type || 'application/octet-stream',
-            imageDataUrl: visualImg
-          });
-        };
-
-        reader.readAsDataURL(file);
-      });
-
-      newMetas.push(meta);
+      setIsLoading(false);
+      onChange([...currentFiles, ...newMetas]);
+    } catch (err) {
+      console.error('Error processing files in MultiPDFUploader:', err);
+      setErrorMsg('Gagal memproses beberapa berkas.');
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
-    onChange([...currentFiles, ...newMetas]);
   };
 
   const handleAddFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -127,54 +157,29 @@ export const MultiPDFUploader: React.FC<MultiPDFUploaderProps> = ({
     if (replacingIndex !== null && e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       const maxSizeBytes = maxSizeMB * 1024 * 1024;
-      if (file.size > maxSizeBytes) {
-        setErrorMsg(`Ukuran file "${file.name}" melebihi batas ${maxSizeMB} MB.`);
+      if (!isImageFile(file) && file.size > maxSizeBytes) {
+        setErrorMsg(`Dokumen non-gambar "${file.name}" melebihi kapasitas maksimal ${maxSizeMB} MB.`);
         setReplacingIndex(null);
         e.target.value = '';
         return;
       }
 
       setIsLoading(true);
-      const reader = new FileReader();
-      reader.onload = () => {
-        const dataUrl = typeof reader.result === 'string' ? reader.result : '';
-        const ext = getFileExtension(file.name);
-        const isImg = ['JPG', 'JPEG', 'PNG', 'WEBP', 'GIF', 'SVG'].includes(ext);
-
-        const visualImg =
-          isImg && dataUrl
-            ? dataUrl
-            : generateVisualDocDataUrl(label, file.name, woNumber, `BAST/${woNumber}/2026`);
-
-        const updatedMeta: PDFFileMeta = {
-          id: 'doc-' + Math.random().toString(36).substring(2, 9),
-          name: file.name,
-          sizeBytes: file.size,
-          uploadDate: new Date().toISOString().split('T')[0],
-          pages: 1,
-          url: dataUrl || URL.createObjectURL(file),
-          fileType: file.type || 'application/octet-stream',
-          imageDataUrl: visualImg
-        };
-
+      try {
+        const updatedMeta = await processSingleFile(file);
         const updatedList = [...currentFiles];
         updatedList[replacingIndex] = updatedMeta;
         setIsLoading(false);
         setReplacingIndex(null);
         onChange(updatedList);
-      };
-      reader.readAsDataURL(file);
+      } catch (err) {
+        console.error('Error replacing file:', err);
+        setErrorMsg('Gagal mengganti berkas.');
+        setIsLoading(false);
+        setReplacingIndex(null);
+      }
     }
     e.target.value = '';
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setErrorMsg(null);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      processFileList(e.dataTransfer.files);
-    }
   };
 
   const handleRemoveFile = (index: number) => {
@@ -183,15 +188,16 @@ export const MultiPDFUploader: React.FC<MultiPDFUploaderProps> = ({
   };
 
   return (
-    <div className="w-full font-sans space-y-2">
-      <div className="flex items-center justify-between">
-        <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-          <ImageIcon className="w-4 h-4 text-cyan-400" />
-          <span>{label}</span>
-          {required && <span className="text-rose-400">*</span>}
+    <div className="w-full font-sans">
+      <div className="flex items-center justify-between mb-1.5">
+        <label
+          onClick={() => fileInputRef.current?.click()}
+          className="block text-xs font-semibold text-slate-300 cursor-pointer hover:text-cyan-300 transition-colors"
+        >
+          {label} {required && <span className="text-rose-400">*</span>}
           {currentFiles.length > 0 && (
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-800/80 ml-1">
-              {currentFiles.length} File Foto
+            <span className="ml-2 font-mono text-[10px] text-cyan-400 font-normal">
+              ({currentFiles.length} Berkas)
             </span>
           )}
         </label>
@@ -238,11 +244,7 @@ export const MultiPDFUploader: React.FC<MultiPDFUploaderProps> = ({
             const previewImageSrc =
               file.imageDataUrl || (file.url?.startsWith('data:image/') ? file.url : undefined);
 
-            const fileSizeFormatted = file.sizeBytes
-              ? file.sizeBytes > 1024 * 1024
-                ? (file.sizeBytes / (1024 * 1024)).toFixed(2) + ' MB'
-                : (file.sizeBytes / 1024).toFixed(1) + ' KB'
-              : 'Auto';
+            const fileSizeFormatted = file.sizeBytes ? formatBytes(file.sizeBytes) : 'Auto';
 
             return (
               <div
@@ -271,9 +273,23 @@ export const MultiPDFUploader: React.FC<MultiPDFUploaderProps> = ({
                     <p className="text-xs font-semibold text-slate-200 group-hover:text-cyan-300 transition-colors truncate" title={file.name}>
                       {file.name}
                     </p>
-                    <p className="text-[10px] text-slate-400 font-mono">
-                      {fileSizeFormatted} · {file.uploadDate || '2026-10-26'}
-                    </p>
+                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono">
+                      <span>{fileSizeFormatted}</span>
+                      <span>·</span>
+                      <span>{file.uploadDate || '2026-10-26'}</span>
+                      {file.isCompressed && file.compressionRatio && (
+                        <>
+                          <span>·</span>
+                          <span
+                            className="inline-flex items-center gap-0.5 text-emerald-400 font-bold bg-emerald-950/80 px-1 rounded border border-emerald-850"
+                            title={`Terkonversi: ${file.compressionRatio}`}
+                          >
+                            <Zap className="w-2.5 h-2.5" />
+                            <span>{file.compressionRatio}</span>
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -336,18 +352,25 @@ export const MultiPDFUploader: React.FC<MultiPDFUploaderProps> = ({
         /* Empty Dropzone */
         <div
           onDragOver={(e) => e.preventDefault()}
-          onDrop={handleDrop}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.dataTransfer.files) processFileList(e.dataTransfer.files);
+          }}
           onClick={() => fileInputRef.current?.click()}
           className="h-12 px-3 border border-dashed border-slate-700/80 hover:border-cyan-500/60 rounded-xl bg-slate-900/50 hover:bg-slate-800/60 flex items-center justify-center gap-2 text-slate-400 hover:text-cyan-400 transition-all cursor-pointer group"
         >
           {isLoading ? (
-            <Loader2 className="w-4 h-4 animate-spin text-cyan-400 shrink-0" />
+            <div className="flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-cyan-400 shrink-0" />
+              <span className="text-xs font-mono text-cyan-400">{loadingText}</span>
+            </div>
           ) : (
-            <UploadCloud className="w-4 h-4 shrink-0 text-slate-400 group-hover:text-cyan-400 transition-colors" />
+            <>
+              <UploadCloud className="w-4 h-4 shrink-0 text-slate-400 group-hover:text-cyan-400 transition-colors" />
+              <span className="text-xs font-medium tracking-wide">Upload here</span>
+            </>
           )}
-          <span className="text-xs font-medium tracking-wide">
-            {isLoading ? 'Uploading...' : 'Upload here'}
-          </span>
         </div>
       )}
 

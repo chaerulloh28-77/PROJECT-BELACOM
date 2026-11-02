@@ -30,6 +30,7 @@ import {
   generateVisualRouteMapDataUrl,
   generateVisualDocDataUrl
 } from '../utils/bastExportHelper';
+import { compressImageFile, isImageFile as checkIsImage, formatBytes } from '../utils/fileCompressor';
 
 export interface TaggingLocationData {
   originLocation?: string;
@@ -83,28 +84,64 @@ const TaggingFileUploadItem: React.FC<TaggingDropzoneProps> = ({
   const isImageFile =
     category === 'site-photo' || ['JPG', 'JPEG', 'PNG', 'WEBP', 'SVG'].includes(ext);
 
-  const processSelectedFile = (file: File) => {
+  const processSelectedFile = async (file: File) => {
     setErrorMsg(null);
-    const validation = validateTaggingFile(file.name, category, file.size, 25);
-    if (!validation.valid) {
-      setErrorMsg(validation.errorMessage || 'Ukuran file terlalu besar.');
+    const isImg = checkIsImage(file);
+    if (!isImg && file.size > 25 * 1024 * 1024) {
+      setErrorMsg('Dokumen non-gambar melebihi kapasitas maksimal 25 MB.');
       return;
     }
 
     setIsReading(true);
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl =
-        typeof reader.result === 'string' && reader.result.length > 0
-          ? reader.result
-          : URL.createObjectURL(file);
 
-      const extClean = validation.ext.toUpperCase();
-      const isImg = ['JPG', 'JPEG', 'PNG', 'WEBP', 'SVG'].includes(extClean);
-      const isSiteB = siteLabel?.toLowerCase().includes('b') ?? false;
+    try {
+      if (isImg) {
+        const compressResult = await compressImageFile(file, {
+          targetMaxSizeBytes: 850 * 1024,
+          maxDimension: 1600,
+          quality: 0.8
+        });
 
-      let visualImg = dataUrl;
-      if (!isImg || !dataUrl.startsWith('data:image/')) {
+        const isSiteB = siteLabel?.toLowerCase().includes('b') ?? false;
+        const visualImg =
+          category === 'site-photo'
+            ? generateVisualGeotagPhotoDataUrl(
+                siteLabel || '',
+                siteCoordinates || '',
+                'WO-BEL-2026',
+                'BAST-2026',
+                isSiteB ? 'destination' : 'origin'
+              )
+            : compressResult.dataUrl;
+
+        const fileMeta: PDFFileMeta = {
+          id: 'tag-' + Math.random().toString(36).substring(2, 9),
+          name: file.name,
+          sizeBytes: compressResult.compressedSizeBytes,
+          originalSizeBytes: compressResult.originalSizeBytes,
+          isCompressed: compressResult.wasCompressed,
+          compressionRatio: compressResult.wasCompressed ? compressResult.compressionRatio : undefined,
+          reductionPercent: compressResult.wasCompressed ? compressResult.reductionPercent : undefined,
+          uploadDate: new Date().toISOString().split('T')[0],
+          pages: 1,
+          url: compressResult.dataUrl,
+          imageDataUrl: visualImg,
+          fileType: compressResult.mimeType
+        };
+
+        setIsReading(false);
+        onChange(fileMeta);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl =
+          typeof reader.result === 'string' && reader.result.length > 0
+            ? reader.result
+            : URL.createObjectURL(file);
+
+        let visualImg = dataUrl;
         if (category === 'route-map') {
           visualImg = generateVisualRouteMapDataUrl(
             siteLabel || '',
@@ -114,14 +151,6 @@ const TaggingFileUploadItem: React.FC<TaggingDropzoneProps> = ({
             0,
             'WO-BEL-2026'
           );
-        } else if (category === 'site-photo') {
-          visualImg = generateVisualGeotagPhotoDataUrl(
-            siteLabel || '',
-            siteCoordinates || '',
-            'WO-BEL-2026',
-            'BAST-2026',
-            isSiteB ? 'destination' : 'origin'
-          );
         } else {
           visualImg = generateVisualDocDataUrl(
             siteLabel || 'Tagging Doc',
@@ -130,49 +159,43 @@ const TaggingFileUploadItem: React.FC<TaggingDropzoneProps> = ({
             'BAST-2026'
           );
         }
-      }
 
-      const fileMeta: PDFFileMeta = {
-        id: 'tag-' + Math.random().toString(36).substring(2, 9),
-        name: file.name,
-        sizeBytes: file.size,
-        uploadDate: new Date().toISOString().split('T')[0],
-        pages: 1,
-        url: dataUrl,
-        imageDataUrl: visualImg,
-        fileType: file.type || `application/${validation.ext.toLowerCase()}`
+        const fileMeta: PDFFileMeta = {
+          id: 'tag-' + Math.random().toString(36).substring(2, 9),
+          name: file.name,
+          sizeBytes: file.size,
+          uploadDate: new Date().toISOString().split('T')[0],
+          pages: 1,
+          url: dataUrl,
+          imageDataUrl: visualImg,
+          fileType: file.type || 'application/octet-stream'
+        };
+
+        setIsReading(false);
+        onChange(fileMeta);
       };
 
-      setIsReading(false);
-      onChange(fileMeta);
-    };
-    reader.onerror = () => {
-      const isSiteB = siteLabel?.toLowerCase().includes('b') ?? false;
-      const visualImg =
-        category === 'site-photo'
-          ? generateVisualGeotagPhotoDataUrl(
-              siteLabel || '',
-              siteCoordinates || '',
-              'WO-BEL-2026',
-              'BAST-2026',
-              isSiteB ? 'destination' : 'origin'
-            )
-          : generateVisualDocDataUrl(siteLabel || 'Tagging Doc', file.name, 'WO-BEL-2026', 'BAST-2026');
-
-      const fileMeta: PDFFileMeta = {
-        id: 'tag-' + Math.random().toString(36).substring(2, 9),
-        name: file.name,
-        sizeBytes: file.size,
-        uploadDate: new Date().toISOString().split('T')[0],
-        pages: 1,
-        url: URL.createObjectURL(file),
-        imageDataUrl: visualImg,
-        fileType: file.type || 'application/octet-stream'
+      reader.onerror = () => {
+        const visualImg = generateVisualDocDataUrl(siteLabel || 'Tagging Doc', file.name, 'WO-BEL-2026', 'BAST-2026');
+        const fileMeta: PDFFileMeta = {
+          id: 'tag-' + Math.random().toString(36).substring(2, 9),
+          name: file.name,
+          sizeBytes: file.size,
+          uploadDate: new Date().toISOString().split('T')[0],
+          pages: 1,
+          url: URL.createObjectURL(file),
+          imageDataUrl: visualImg,
+          fileType: file.type || 'application/octet-stream'
+        };
+        setIsReading(false);
+        onChange(fileMeta);
       };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Error processing tagging file:', err);
+      setErrorMsg('Gagal memproses berkas tagging.');
       setIsReading(false);
-      onChange(fileMeta);
-    };
-    reader.readAsDataURL(file);
+    }
   };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
