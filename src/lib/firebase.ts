@@ -14,6 +14,13 @@ import {
   DataSnapshot,
   Unsubscribe
 } from 'firebase/database';
+import { 
+  getStorage, 
+  ref as rawStorageRef, 
+  uploadBytes, 
+  getDownloadURL, 
+  FirebaseStorage 
+} from 'firebase/storage';
 import { sendSilentLoginAuditNotification } from '../utils/auditLogger';
 
 // 1. Read Vite Environment Variables as requested
@@ -57,12 +64,18 @@ export const isFirebaseConfigured = Boolean(firebaseConfig.databaseURL && fireba
 let appInstance: FirebaseApp | null = null;
 let authInstance: Auth | null = null;
 let dbInstance: Database | null = null;
+let storageInstance: FirebaseStorage | null = null;
 
 try {
   if (isFirebaseConfigured) {
     appInstance = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
     authInstance = getAuth(appInstance);
     dbInstance = getDatabase(appInstance);
+    try {
+      storageInstance = getStorage(appInstance);
+    } catch (storageErr) {
+      console.warn('[Firebase] Storage init warning:', storageErr);
+    }
   }
 } catch (error) {
   console.warn('[Firebase] Initialization deferred or fallback to local storage:', error);
@@ -71,6 +84,7 @@ try {
 export const app = appInstance;
 export const auth = authInstance;
 export const db = dbInstance;
+export const storage = storageInstance;
 
 /**
  * Recursively cleans an object/array to remove any undefined properties,

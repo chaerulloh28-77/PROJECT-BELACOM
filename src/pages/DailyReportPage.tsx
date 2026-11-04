@@ -11,9 +11,12 @@ import {
   FileText,
   MapPin,
   Navigation,
-  ExternalLink
+  ExternalLink,
+  ShieldCheck,
+  Cloud
 } from 'lucide-react';
 import { useProjectContext } from '../context/ProjectContext';
+import { saveFormDraft, getFormDraft, clearFormDraft } from '../utils/localFirstDB';
 import { 
   DailyReportItem, 
   WOOption, 
@@ -75,7 +78,8 @@ export const DailyReportPage: React.FC = () => {
     addDailyReport, 
     updateDailyReport, 
     deleteDailyReport,
-    showToast
+    showToast,
+    dataStorageStatus
   } = useProjectContext();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -173,10 +177,20 @@ export const DailyReportPage: React.FC = () => {
     );
   };
 
-  const handleOpenAddModal = () => {
+  const handleOpenAddModal = async () => {
     setEditingId(null);
     setIsCustomWoType(false);
-    setFormData(getInitialDailyReportFormData());
+    try {
+      const savedDraft = await getFormDraft<Omit<DailyReportItem, 'id' | 'createdAt' | 'updatedAt'>>('daily_report_draft');
+      if (savedDraft && (savedDraft.woNumber || savedDraft.pic)) {
+        setFormData(savedDraft);
+        showToast('info', 'Draft Dipulihkan', `Memuat draft laporan tersimpan lokal untuk WO: ${savedDraft.woNumber || 'Belum Bernomor'}`);
+      } else {
+        setFormData(getInitialDailyReportFormData());
+      }
+    } catch {
+      setFormData(getInitialDailyReportFormData());
+    }
     setIsModalOpen(true);
   };
 
@@ -202,7 +216,7 @@ export const DailyReportPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.woNumber.trim() || !formData.pic.trim() || !formData.workType.trim()) {
       showToast('error', 'Validasi Gagal', 'Harap isi seluruh bidang mandatory (No WO, PIC, Work Type)!');
@@ -221,12 +235,21 @@ export const DailyReportPage: React.FC = () => {
       routeGmapsUrl: calculatedRouteUrl
     };
 
-    if (editingId) {
-      updateDailyReport(editingId, payload);
-    } else {
-      addDailyReport(payload);
+    try {
+      if (editingId) {
+        updateDailyReport(editingId, payload);
+      } else {
+        addDailyReport(payload);
+        await clearFormDraft('daily_report_draft').catch(() => {});
+      }
+      setIsModalOpen(false);
+    } catch (err) {
+      console.error('Error saving Daily Report:', err);
+      // Guarantee data is stored in IndexedDB draft
+      await saveFormDraft('daily_report_draft', payload).catch(() => {});
+      showToast('info', 'Tersimpan Aman di IndexedDB', 'Koneksi terhambat, data Daily Report & Titik FO tersimpan di perangkat lokal!');
+      setIsModalOpen(false);
     }
-    setIsModalOpen(false);
   };
 
   // Auto calculate duration in active work days (excluding Sundays & Indonesian holidays)
@@ -663,11 +686,24 @@ export const DailyReportPage: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
             
-            <div className="p-4 bg-slate-850 border-b border-slate-800 flex items-center justify-between">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <FileSpreadsheet className="w-5 h-5 text-cyan-400" />
-                {editingId ? 'Edit Daily Report' : 'Input Daily Report Baru'}
-              </h3>
+            <div className="p-4 bg-slate-850 border-b border-slate-800 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <FileSpreadsheet className="w-5 h-5 text-cyan-400" />
+                  {editingId ? 'Edit Daily Report' : 'Input Daily Report Baru'}
+                </h3>
+                {dataStorageStatus === 'cloud_synced' ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-medium bg-blue-950/80 text-blue-300 border border-blue-700/60 flex items-center gap-1.5 shadow-sm">
+                    <Cloud className="w-3 h-3 text-blue-400" />
+                    Tersinkronisasi Cloud
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-medium bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 flex items-center gap-1.5 shadow-sm">
+                    <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                    Tersimpan Lokal
+                  </span>
+                )}
+              </div>
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="p-1.5 text-slate-400 hover:text-white bg-slate-800 rounded-xl cursor-pointer"

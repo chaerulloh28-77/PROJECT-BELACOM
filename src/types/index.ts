@@ -30,6 +30,8 @@ export interface PDFFileMeta {
   sizeBytes: number;
   uploadDate: string;
   url?: string;
+  downloadUrl?: string;
+  storagePath?: string;
   pages?: number;
   fileType?: string;
   mimeType?: string;
@@ -38,6 +40,7 @@ export interface PDFFileMeta {
   originalSizeBytes?: number;
   compressionRatio?: string;
   reductionPercent?: number;
+  hasLocalBlob?: boolean;
 }
 
 export interface PhotoDocumentation {
@@ -97,6 +100,7 @@ export interface DailyReportItem {
   destinationTaggingDocFile?: PDFFileMeta;
   routeMapFile?: PDFFileMeta;
   routeGmapsUrl?: string;
+  pendingSync?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -141,6 +145,7 @@ export interface BASTItem {
   destinationTaggingDocFile?: PDFFileMeta;
   // Sub Routing Workflow Alur BAST (4 Tahapan Berurutan)
   workflow?: BASTWorkflow;
+  pendingSync?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -245,6 +250,7 @@ export interface PenagihanItem {
   
   totalNominalRupiah: number;
   remarks?: string;
+  pendingSync?: boolean;
   createdAt: string;
   updatedAt: string;
 }

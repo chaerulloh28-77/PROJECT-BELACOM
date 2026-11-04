@@ -5,6 +5,7 @@
  */
 
 import { PDFFileMeta } from '../types';
+import { getFileBlob, saveFileBlob } from './localFirstDB';
 
 /**
  * Menghasilkan PDF minimal yang valid secara biner jika base64 kosong / corrupt
@@ -170,16 +171,77 @@ function triggerDownload(blobUrl: string, cleanName: string, shouldRevoke: boole
 
 /**
  * Unduh berkas langsung dari objek PDFFileMeta
+ * Mendukung akses lintas perangkat: membaca cloud downloadUrl secara prioritas
+ * dan otomatis menyimpan salinan ke IndexedDB lokal perangkat baru (smart caching).
  */
-export const downloadFileMeta = (file: PDFFileMeta): void => {
+export const downloadFileMeta = async (file: PDFFileMeta): Promise<void> => {
   if (!file) return;
-  const targetData = file.url || file.imageDataUrl || '';
-  if (!targetData || targetData === '#' || targetData.length < 30) {
-    // Generate valid minimal binary PDF jika url belum tersedia
-    const blob = createMinimalValidPdf(file.name, `PT. Belacom Indonesia Telecom - Dokumen Terverifikasi (${file.uploadDate || new Date().toISOString().split('T')[0]})`);
-    const url = URL.createObjectURL(blob);
-    downloadFile(url, file.name, file.fileType || 'application/pdf');
+
+  // 1. Cek penyimpanan lokal IndexedDB
+  if (file.id) {
+    try {
+      const localRecord = await getFileBlob(file.id);
+      if (localRecord && localRecord.dataUrl && localRecord.dataUrl.length > 50) {
+        downloadFile(localRecord.dataUrl, file.name, file.fileType || file.mimeType || localRecord.mimeType);
+        return;
+      }
+    } catch {
+      // fallback ke cloud
+    }
+  }
+
+  // 2. Akses Cloud Lintas Perangkat (downloadUrl atau URL HTTPS)
+  const cloudUrl = file.downloadUrl || (file.url && file.url.startsWith('http') ? file.url : '');
+  if (cloudUrl) {
+    try {
+      // Fetch berkas dari cloud, buat blob URL untuk unduh langsung tanpa membuka tab
+      const res = await fetch(cloudUrl, { mode: 'cors' });
+      if (res.ok) {
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        downloadFile(blobUrl, file.name, file.fileType || file.mimeType || blob.type);
+
+        // Smart Caching ke IndexedDB lokal di background
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === 'string') {
+            saveFileBlob(file.id, {
+              name: file.name,
+              dataUrl: reader.result,
+              mimeType: file.fileType || file.mimeType || blob.type,
+              sizeBytes: blob.size
+            }).catch(() => {});
+          }
+        };
+        reader.readAsDataURL(blob);
+        return;
+      }
+    } catch (fetchErr) {
+      console.warn('[Download] Direct cloud fetch restricted, direct download trigger:', fetchErr);
+    }
+
+    // Jika fetch gagal (misal CORS), gunakan URL langsung
+    downloadFile(cloudUrl, file.name, file.fileType || file.mimeType);
     return;
   }
-  downloadFile(targetData, file.name, file.fileType || file.mimeType);
+
+  // 3. Cek dataUrl / Base64 lokal pada objek file
+  let targetData = file.url || file.imageDataUrl || '';
+  if (targetData && targetData !== '#' && targetData.length > 30) {
+    if (file.id && targetData.startsWith('data:')) {
+      saveFileBlob(file.id, {
+        name: file.name,
+        dataUrl: targetData,
+        mimeType: file.fileType || file.mimeType,
+        sizeBytes: file.sizeBytes
+      }).catch(() => {});
+    }
+    downloadFile(targetData, file.name, file.fileType || file.mimeType);
+    return;
+  }
+
+  // 4. Generate valid minimal binary PDF jika url belum tersedia
+  const blob = createMinimalValidPdf(file.name, `PT. Belacom Indonesia Telecom - Dokumen Terverifikasi (${file.uploadDate || new Date().toISOString().split('T')[0]})`);
+  const url = URL.createObjectURL(blob);
+  downloadFile(url, file.name, file.fileType || 'application/pdf');
 };

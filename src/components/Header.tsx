@@ -27,6 +27,7 @@ export const Header: React.FC = () => {
     autoSaveStatus, 
     lastSavedTime,
     syncStatus,
+    dataStorageStatus,
     lastCloudSyncTime,
     triggerManualSync,
     filters,
@@ -66,28 +67,29 @@ export const Header: React.FC = () => {
           </div>
         </div>
 
-        {/* Multi-Device Cloud Sync Connection Indicator */}
+        {/* Data Persistence Indicator: Local-First IndexedDB & Cloud Sync */}
         <button
           onClick={triggerManualSync}
-          className="hidden xl:flex items-center gap-2 px-3 py-1 bg-slate-800/90 hover:bg-slate-750 border border-slate-700/80 rounded-full text-xs font-mono shadow-sm transition-all cursor-pointer group active:scale-95"
-          title={`Multi-Device Real-Time Cloud Sync • Terakhir selaras: ${lastCloudSyncTime || lastSavedTime} • Klik untuk sinkronisasi paksa`}
+          className="hidden sm:flex items-center gap-2 px-3 py-1 bg-slate-800/90 hover:bg-slate-750 border border-slate-700/80 rounded-full text-xs font-mono shadow-sm transition-all cursor-pointer group active:scale-95"
+          title={`Status Arsitektur Data • Terakhir: ${lastCloudSyncTime || lastSavedTime || 'Sekarang'} • Klik untuk sinkronisasi paksa`}
         >
-          {syncStatus === 'syncing' || autoSaveStatus === 'saving' ? (
+          {dataStorageStatus === 'saving' || syncStatus === 'syncing' ? (
             <>
               <span className="relative flex h-2.5 w-2.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500"></span>
               </span>
               <Cloud className="w-3.5 h-3.5 text-cyan-400 animate-pulse shrink-0" />
-              <span className="text-cyan-300 font-medium">Cloud Sync: Menyinkronkan...</span>
+              <span className="text-cyan-300 font-medium">Menyimpan Data...</span>
             </>
-          ) : syncStatus === 'offline' ? (
+          ) : dataStorageStatus === 'cloud_synced' ? (
             <>
               <span className="relative flex h-2.5 w-2.5">
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500 shadow-sm shadow-blue-500/50"></span>
               </span>
-              <WifiOff className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span className="text-amber-300 font-medium">Cloud Sync: Offline</span>
+              <Cloud className="w-3.5 h-3.5 text-blue-400 shrink-0 group-hover:scale-110 transition-transform" />
+              <span className="text-blue-300 font-medium">Tersinkronisasi Cloud</span>
             </>
           ) : (
             <>
@@ -95,8 +97,8 @@ export const Header: React.FC = () => {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 shadow-sm shadow-emerald-500/50"></span>
               </span>
-              <Cloud className="w-3.5 h-3.5 text-emerald-400 shrink-0 group-hover:scale-110 transition-transform" />
-              <span className="text-emerald-300 font-medium">Cloud Sync: Terhubung</span>
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0 group-hover:scale-110 transition-transform" />
+              <span className="text-emerald-300 font-medium">Tersimpan Lokal</span>
             </>
           )}
         </button>

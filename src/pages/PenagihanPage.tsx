@@ -16,10 +16,12 @@ import {
   Calendar,
   DollarSign,
   FileCheck,
-  Check,
-  Download
+  Download,
+  ShieldCheck,
+  Cloud
 } from 'lucide-react';
 import { useProjectContext } from '../context/ProjectContext';
+import { saveFormDraft, getFormDraft, clearFormDraft } from '../utils/localFirstDB';
 import { PenagihanItem, StatusPenagihan, PDFFileMeta } from '../types';
 import { TouchButton } from '../components/TouchButton';
 import { PDFUploader } from '../components/PDFUploader';
@@ -35,7 +37,7 @@ const EXTENDED_OFFICE_ACCEPT = '.xlsx, .xls, .docx, .doc, .pdf, .png, .jpg, .jpe
 const STANDARD_DOC_ACCEPT = '.pdf, .png, .jpg, .jpeg, .webp';
 
 export const PenagihanPage: React.FC = () => {
-  const { penagihanList, addPenagihan, updatePenagihan, deletePenagihan, showToast } = useProjectContext();
+  const { penagihanList, addPenagihan, updatePenagihan, deletePenagihan, showToast, dataStorageStatus } = useProjectContext();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -74,9 +76,19 @@ export const PenagihanPage: React.FC = () => {
 
   const [formData, setFormData] = useState<Omit<PenagihanItem, 'id' | 'createdAt' | 'updatedAt'>>(getInitialPenagihanFormData());
 
-  const handleOpenAddModal = () => {
+  const handleOpenAddModal = async () => {
     setEditingId(null);
-    setFormData(getInitialPenagihanFormData());
+    try {
+      const savedDraft = await getFormDraft<Omit<PenagihanItem, 'id' | 'createdAt' | 'updatedAt'>>('penagihan_draft');
+      if (savedDraft && (savedDraft.billingCode || savedDraft.woNumber)) {
+        setFormData(savedDraft);
+        showToast('info', 'Draft Dipulihkan', `Memuat draft penagihan lokal: ${savedDraft.billingCode || savedDraft.woNumber}`);
+      } else {
+        setFormData(getInitialPenagihanFormData());
+      }
+    } catch {
+      setFormData(getInitialPenagihanFormData());
+    }
     setIsModalOpen(true);
   };
 
@@ -89,24 +101,33 @@ export const PenagihanPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.billingCode.trim() || !formData.woNumber.trim()) {
       showToast('error', 'Validasi Gagal', 'Harap isi Kode Penagihan dan Nomor WO!');
       return;
     }
 
-    if (editingId) {
-      updatePenagihan(editingId, formData);
-      showToast('success', 'Tagihan Diperbarui', `Paket penagihan ${formData.billingCode} berhasil diperbarui.`);
-      if (selectedDetailItem && selectedDetailItem.id === editingId) {
-        setSelectedDetailItem({ ...selectedDetailItem, ...formData });
+    try {
+      if (editingId) {
+        updatePenagihan(editingId, formData);
+        showToast('success', 'Tagihan Diperbarui', `Paket penagihan ${formData.billingCode} berhasil diperbarui.`);
+        if (selectedDetailItem && selectedDetailItem.id === editingId) {
+          setSelectedDetailItem({ ...selectedDetailItem, ...formData });
+        }
+      } else {
+        addPenagihan(formData);
+        showToast('success', 'Tagihan Disimpan', `Paket penagihan baru ${formData.billingCode} berhasil ditambahkan.`);
+        await clearFormDraft('penagihan_draft').catch(() => {});
       }
-    } else {
-      addPenagihan(formData);
-      showToast('success', 'Tagihan Disimpan', `Paket penagihan baru ${formData.billingCode} berhasil ditambahkan.`);
+      setIsModalOpen(false);
+    } catch (err) {
+      console.error('Error submitting penagihan form:', err);
+      // Guarantee draft is preserved locally
+      await saveFormDraft('penagihan_draft', formData).catch(() => {});
+      showToast('info', 'Tersimpan di IndexedDB', 'Koneksi terhambat, dokumen tagihan tersimpan aman di perangkat lokal!');
+      setIsModalOpen(false);
     }
-    setIsModalOpen(false);
   };
 
   const handleConfirmDelete = () => {
@@ -654,11 +675,24 @@ export const PenagihanPage: React.FC = () => {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
-            <div className="p-4 bg-slate-850 border-b border-slate-800 flex items-center justify-between">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <CreditCard className="w-5 h-5 text-cyan-400" />
-                {editingId ? 'Edit Tagihan' : 'Input Tagihan Baru'}
-              </h3>
+            <div className="p-4 bg-slate-850 border-b border-slate-800 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-cyan-400" />
+                  {editingId ? 'Edit Tagihan' : 'Input Tagihan Baru'}
+                </h3>
+                {dataStorageStatus === 'cloud_synced' ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-medium bg-blue-950/80 text-blue-300 border border-blue-700/60 flex items-center gap-1.5 shadow-sm">
+                    <Cloud className="w-3 h-3 text-blue-400" />
+                    Tersinkronisasi Cloud
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-medium bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 flex items-center gap-1.5 shadow-sm">
+                    <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                    Tersimpan Lokal
+                  </span>
+                )}
+              </div>
               <button onClick={() => setIsModalOpen(false)} className="p-1.5 text-slate-400 hover:text-white bg-slate-800 rounded-xl cursor-pointer">
                 <X className="w-5 h-5" />
               </button>

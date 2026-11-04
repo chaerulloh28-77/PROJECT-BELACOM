@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   FileText, 
@@ -20,6 +20,7 @@ import { PDFFileMeta } from '../types';
 import { TouchButton } from './TouchButton';
 import { getFileBadgeStyle, getFileExtension } from '../utils/fileHelper';
 import { downloadFileMeta } from '../utils/fileDownloadHelper';
+import { getFileBlob } from '../utils/localFirstDB';
 
 interface PDFViewerModalProps {
   file: PDFFileMeta | null;
@@ -32,8 +33,28 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
 }) => {
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [effectiveFile, setEffectiveFile] = useState<PDFFileMeta | null>(file);
 
-  if (!file) return null;
+  useEffect(() => {
+    let isMounted = true;
+    setEffectiveFile(file);
+
+    if (file && (!file.url || file.url === '#' || file.url === '' || file.hasLocalBlob)) {
+      getFileBlob(file.id).then((record) => {
+        if (isMounted && record && record.dataUrl) {
+          setEffectiveFile({
+            ...file,
+            url: record.dataUrl,
+            imageDataUrl: record.dataUrl
+          });
+        }
+      }).catch(() => {});
+    }
+
+    return () => { isMounted = false; };
+  }, [file]);
+
+  if (!effectiveFile) return null;
 
   const formatSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -41,15 +62,15 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   };
 
-  const ext = getFileExtension(file.name);
-  const badgeStyle = getFileBadgeStyle(file.name);
+  const ext = getFileExtension(effectiveFile.name);
+  const badgeStyle = getFileBadgeStyle(effectiveFile.name);
 
   const isImage = ['JPG', 'JPEG', 'PNG', 'WEBP', 'GIF', 'SVG'].includes(ext);
   const isPdf = ext === 'PDF';
-  const isRealUrl = file.url && file.url !== '#' && (file.url.startsWith('blob:') || file.url.startsWith('data:') || file.url.startsWith('http') || file.url.startsWith('/'));
+  const isRealUrl = effectiveFile.url && effectiveFile.url !== '#' && (effectiveFile.url.startsWith('blob:') || effectiveFile.url.startsWith('data:') || effectiveFile.url.startsWith('http') || effectiveFile.url.startsWith('/'));
 
   const handleDownload = () => {
-    downloadFileMeta(file);
+    downloadFileMeta(effectiveFile);
   };
 
   const handlePrint = () => {
@@ -59,9 +80,9 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
         printWindow.document.write(`
           <!DOCTYPE html>
           <html>
-            <head><title>Cetak Gambar - ${file.name}</title></head>
+            <head><title>Cetak Gambar - ${effectiveFile.name}</title></head>
             <body style="margin:0; flex justify-content:center; align-items:center; background:#000;">
-              <img src="${file.url}" style="max-width:100%; height:auto;" onload="window.print();" />
+              <img src="${effectiveFile.url}" style="max-width:100%; height:auto;" onload="window.print();" />
             </body>
           </html>
         `);
@@ -76,7 +97,7 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
         <!DOCTYPE html>
         <html>
           <head>
-            <title>Cetak Dokumen - ${file.name}</title>
+            <title>Cetak Dokumen - ${effectiveFile.name}</title>
             <style>
               body { font-family: sans-serif; padding: 40px; color: #1e293b; line-height: 1.6; }
               .header { border-bottom: 3px solid #0284c7; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center; }
@@ -97,10 +118,10 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
             </div>
             
             <div class="info-grid">
-              <div><strong>Nama Berkas:</strong> ${file.name}</div>
+              <div><strong>Nama Berkas:</strong> ${effectiveFile.name}</div>
               <div><strong>Format File:</strong> ${badgeStyle.label} (${ext})</div>
-              <div><strong>Ukuran File:</strong> ${formatSize(file.sizeBytes)}</div>
-              <div><strong>Tanggal Unggah:</strong> ${file.uploadDate}</div>
+              <div><strong>Ukuran File:</strong> ${formatSize(effectiveFile.sizeBytes)}</div>
+              <div><strong>Tanggal Unggah:</strong> ${effectiveFile.uploadDate}</div>
             </div>
 
             <div class="doc-body">
@@ -149,20 +170,20 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
             </div>
             <div className="overflow-hidden">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-white truncate max-w-sm sm:max-w-md font-mono" title={file.name}>
-                  {file.name}
+                <h3 className="text-sm font-bold text-white truncate max-w-sm sm:max-w-md font-mono" title={effectiveFile.name}>
+                  {effectiveFile.name}
                 </h3>
                 <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
                   <CheckCircle2 className="w-3 h-3" /> Berkas Valid
                 </span>
-                {file.isCompressed && file.compressionRatio && (
-                  <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shrink-0" title={`Ukuran awal: ${formatSize(file.originalSizeBytes || 0)}`}>
-                    ⚡ Terkompres: {file.compressionRatio}
+                {effectiveFile.isCompressed && effectiveFile.compressionRatio && (
+                  <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shrink-0" title={`Ukuran awal: ${formatSize(effectiveFile.originalSizeBytes || 0)}`}>
+                    ⚡ Terkompres: {effectiveFile.compressionRatio}
                   </span>
                 )}
               </div>
               <p className="text-[11px] text-slate-400 font-mono">
-                Ukuran: {formatSize(file.sizeBytes)} {file.isCompressed && `(Asli: ${formatSize(file.originalSizeBytes || 0)})`} · Format: {badgeStyle.label} · Dimuat: {file.uploadDate}
+                Ukuran: {formatSize(effectiveFile.sizeBytes)} {effectiveFile.isCompressed && `(Asli: ${formatSize(effectiveFile.originalSizeBytes || 0)})`} · Format: {badgeStyle.label} · Dimuat: {effectiveFile.uploadDate}
               </p>
             </div>
           </div>
@@ -226,18 +247,18 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
             className="transition-transform duration-200 origin-top w-full max-w-4xl flex justify-center"
             style={{ transform: `scale(${zoomLevel / 100})` }}
           >
-            {(isImage && isRealUrl) || (file.imageDataUrl && file.imageDataUrl.startsWith('data:image/')) ? (
+            {(isImage && isRealUrl) || (effectiveFile.imageDataUrl && effectiveFile.imageDataUrl.startsWith('data:image/')) ? (
               <div className="flex flex-col items-center justify-center w-full">
                 <img
-                  src={(file.url && file.url.startsWith('data:image/')) ? file.url : (file.imageDataUrl || file.url)}
-                  alt={file.name}
+                  src={(effectiveFile.url && effectiveFile.url.startsWith('data:image/')) ? effectiveFile.url : (effectiveFile.imageDataUrl || effectiveFile.url)}
+                  alt={effectiveFile.name}
                   className="max-h-[72vh] min-h-[280px] w-full object-contain rounded-2xl border border-slate-800 shadow-2xl bg-black/60 p-2"
                 />
               </div>
             ) : isPdf && isRealUrl ? (
               <iframe
-                src={file.url}
-                title={file.name}
+                src={effectiveFile.url}
+                title={effectiveFile.name}
                 className="w-full h-[65vh] rounded-xl border border-slate-800 bg-white shadow-2xl"
               />
             ) : (
@@ -266,7 +287,7 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 font-mono text-xs text-slate-700">
                   <div>
                     <span className="text-slate-400 block text-[10px] uppercase">NAMA BERKAS</span>
-                    <strong className="text-slate-900 text-sm block truncate">{file.name}</strong>
+                    <strong className="text-slate-900 text-sm block truncate">{effectiveFile.name}</strong>
                   </div>
                   <div>
                     <span className="text-slate-400 block text-[10px] uppercase">FORMAT & BADGE</span>
@@ -274,11 +295,11 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
                   </div>
                   <div>
                     <span className="text-slate-400 block text-[10px] uppercase">UKURAN BERKAS</span>
-                    <span className="text-slate-800 font-bold block">{formatSize(file.sizeBytes)}</span>
+                    <span className="text-slate-800 font-bold block">{formatSize(effectiveFile.sizeBytes)}</span>
                   </div>
                   <div>
                     <span className="text-slate-400 block text-[10px] uppercase">TANGGAL UNGGAH SYSTEM</span>
-                    <span className="text-slate-800 font-bold block">{file.uploadDate}</span>
+                    <span className="text-slate-800 font-bold block">{effectiveFile.uploadDate}</span>
                   </div>
                 </div>
 
@@ -299,7 +320,7 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
                       className="px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-mono text-xs font-bold shadow-md flex items-center gap-2 cursor-pointer transition-all active:scale-95"
                     >
                       <Download className="w-4 h-4" />
-                      <span>Download File Asli ({file.name})</span>
+                      <span>Download File Asli ({effectiveFile.name})</span>
                     </button>
                   </div>
                 </div>

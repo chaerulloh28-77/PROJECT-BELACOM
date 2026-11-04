@@ -20,9 +20,12 @@ import {
   Table,
   LayoutGrid,
   Calendar,
-  Download
+  Download,
+  ShieldCheck,
+  Cloud
 } from 'lucide-react';
 import { useProjectContext } from '../context/ProjectContext';
+import { saveFormDraft, getFormDraft, clearFormDraft } from '../utils/localFirstDB';
 import { BASTItem, WOOption, StatusBAST, PDFFileMeta, BASTWorkflow } from '../types';
 import { TouchButton } from '../components/TouchButton';
 import { PDFUploader } from '../components/PDFUploader';
@@ -53,7 +56,7 @@ export const getBastExcelAttachments = (bast: Partial<BASTItem>): PDFFileMeta[] 
 };
 
 export const BASTPage: React.FC = () => {
-  const { bastList, addBAST, updateBAST, deleteBAST, showToast, dailyReports } = useProjectContext();
+  const { bastList, addBAST, updateBAST, deleteBAST, showToast, dailyReports, dataStorageStatus } = useProjectContext();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [workflowTab, setWorkflowTab] = useState<WorkflowFilterTab>('ALL');
@@ -256,13 +259,23 @@ export const BASTPage: React.FC = () => {
     showToast('info', 'Excel Dibatalkan', 'Semua lampiran berkas Excel telah dibersihkan.');
   };
 
-  const handleOpenAddModal = () => {
+  const handleOpenAddModal = async () => {
     setEditingId(null);
     setIsCustomWoType(false);
     if (excelInputRef.current) {
       excelInputRef.current.value = '';
     }
-    setFormData(getInitialBASTFormData());
+    try {
+      const savedDraft = await getFormDraft<Omit<BASTItem, 'id' | 'createdAt' | 'updatedAt'>>('bast_draft');
+      if (savedDraft && savedDraft.woNumber) {
+        setFormData(savedDraft);
+        showToast('info', 'Draft Dipulihkan', `Memuat draft tersimpan lokal untuk WO: ${savedDraft.woNumber}`);
+      } else {
+        setFormData(getInitialBASTFormData());
+      }
+    } catch {
+      setFormData(getInitialBASTFormData());
+    }
     setIsModalOpen(true);
   };
 
@@ -332,7 +345,7 @@ export const BASTPage: React.FC = () => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.woNumber.trim() || !formData.workType.trim()) {
       showToast('error', 'Validasi Gagal', 'Harap isi bidang No WO dan Jenis Pekerjaan!');
@@ -348,12 +361,21 @@ export const BASTPage: React.FC = () => {
       excelFile: finalExcels[0] || undefined
     };
 
-    if (editingId) {
-      updateBAST(editingId, payload);
-    } else {
-      addBAST(payload);
+    try {
+      if (editingId) {
+        updateBAST(editingId, payload);
+      } else {
+        addBAST(payload);
+        await clearFormDraft('bast_draft').catch(() => {});
+      }
+      setIsModalOpen(false);
+    } catch (err) {
+      console.error('Error submitting BAST form:', err);
+      // Ensure data stays safe in IndexedDB
+      await saveFormDraft('bast_draft', payload).catch(() => {});
+      showToast('info', 'Tersimpan Aman di IndexedDB', 'Koneksi terhambat, data tersimpan aman di perangkat lokal!');
+      setIsModalOpen(false);
     }
-    setIsModalOpen(false);
   };
 
   const handleReleaseDateChange = (val: string) => {
@@ -963,11 +985,24 @@ export const BASTPage: React.FC = () => {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
-            <div className="p-4 bg-slate-850 border-b border-slate-800 flex items-center justify-between">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <CheckSquare className="w-5 h-5 text-cyan-400" />
-                {editingId ? 'Edit BAST' : 'Input BAST Baru'}
-              </h3>
+            <div className="p-4 bg-slate-850 border-b border-slate-800 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <CheckSquare className="w-5 h-5 text-cyan-400" />
+                  {editingId ? 'Edit BAST' : 'Input BAST Baru'}
+                </h3>
+                {dataStorageStatus === 'cloud_synced' ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-medium bg-blue-950/80 text-blue-300 border border-blue-700/60 flex items-center gap-1.5 shadow-sm">
+                    <Cloud className="w-3 h-3 text-blue-400" />
+                    Tersinkronisasi Cloud
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-medium bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 flex items-center gap-1.5 shadow-sm">
+                    <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                    Tersimpan Lokal
+                  </span>
+                )}
+              </div>
               <button onClick={() => setIsModalOpen(false)} className="p-1.5 text-slate-400 hover:text-white bg-slate-800 rounded-xl cursor-pointer">
                 <X className="w-5 h-5" />
               </button>

@@ -33,6 +33,11 @@ import {
   loginWithFirebaseBelacom,
   isFirebaseConfigured
 } from '../lib/firebase';
+import { 
+  saveLocalCollection, 
+  getLocalCollection, 
+  extractAndStoreBlobsLocally 
+} from '../utils/localFirstDB';
 
 export interface DrilldownFilter {
   title: string;
@@ -86,6 +91,7 @@ interface ProjectContextType {
   syncStatus: SyncConnectionStatus;
   lastCloudSyncTime: string;
   triggerManualSync: () => Promise<void>;
+  dataStorageStatus: 'cloud_synced' | 'local_saved' | 'saving';
 
   // Data
   dailyReports: DailyReportItem[];
@@ -295,9 +301,12 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
   );
 
-  // Cloud Sync State
+  // Cloud Sync & Local Storage Status
   const [syncStatus, setSyncStatus] = useState<SyncConnectionStatus>(cloudSyncService.getStatus());
   const [lastCloudSyncTime, setLastCloudSyncTime] = useState<string>(cloudSyncService.getLastSyncTime());
+  const [dataStorageStatus, setDataStorageStatus] = useState<'cloud_synced' | 'local_saved' | 'saving'>(
+    isFirebaseConfigured && (typeof navigator === 'undefined' || navigator.onLine) ? 'cloud_synced' : 'local_saved'
+  );
   const isReceivingRemote = useRef(false);
   const isCloudReady = useRef(false);
 
@@ -516,6 +525,41 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [undo, redo]);
 
+  // Initial IndexedDB Hydration (Local-First fast bootstrap)
+  useEffect(() => {
+    let isMounted = true;
+    const hydrateFromIndexedDB = async () => {
+      try {
+        const [idbDRs, idbBasts, idbPenagihan] = await Promise.all([
+          getLocalCollection<DailyReportItem>('dailyReports'),
+          getLocalCollection<BASTItem>('basts'),
+          getLocalCollection<PenagihanItem>('penagihan')
+        ]);
+
+        if (!isMounted) return;
+        const tombstonesSet = getStoredTombstoneSet();
+
+        if (idbDRs && idbDRs.length > 0) {
+          const filtered = idbDRs.filter(r => r && r.id && !tombstonesSet.has(r.id) && !tombstonesSet.has(r.woNumber));
+          if (filtered.length > 0) setDailyReports(filtered);
+        }
+        if (idbBasts && idbBasts.length > 0) {
+          const filtered = idbBasts.filter(b => b && b.id && !tombstonesSet.has(b.id) && !tombstonesSet.has(b.woNumber));
+          if (filtered.length > 0) setBastList(filtered);
+        }
+        if (idbPenagihan && idbPenagihan.length > 0) {
+          const filtered = idbPenagihan.filter(p => p && p.id && !tombstonesSet.has(p.id) && !tombstonesSet.has(p.woNumber));
+          if (filtered.length > 0) setPenagihanList(filtered);
+        }
+      } catch (err) {
+        console.warn('[LocalVault] Initial hydration skipped:', err);
+      }
+    };
+
+    hydrateFromIndexedDB();
+    return () => { isMounted = false; };
+  }, []);
+
   // Trigger Real-time Auto-save with debouncing & indicator + Cloud Sync Push
   const triggerAutoSave = useCallback(() => {
     setAutoSaveStatus('saving');
@@ -528,6 +572,12 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       safeSetLocalStorage(STORAGE_KEYS.PENAGIHAN, penagihanList);
       safeSetLocalStorage(STORAGE_KEYS.USER_PROFILE, userProfile);
       safeSetLocalStorage(STORAGE_KEYS.SYSTEM_USERS, systemUsers);
+
+      // Local-First IndexedDB Persistence for entire dataset
+      saveLocalCollection('dailyReports', dailyReports).catch(() => {});
+      saveLocalCollection('basts', bastList).catch(() => {});
+      saveLocalCollection('penagihan', penagihanList).catch(() => {});
+      saveLocalCollection('invoices', invoices).catch(() => {});
 
       const now = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       setLastSavedTime(now);
@@ -979,7 +1029,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     showToast('info', 'Sesi Berakhir', 'Anda telah keluar dari sistem.');
   };
 
-  // CRUD Daily Report & Projects with Direct Firebase RTDB Mutations ('dailyReports' node)
+  // CRUD Daily Report & Projects with Local-First IndexedDB and Optimized Firebase RTDB
   const addDailyReport = (item: Omit<DailyReportItem, 'id' | 'createdAt' | 'updatedAt'>) => {
     recordSnapshot();
     const now = new Date().toISOString();
@@ -993,10 +1043,10 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const updatedDRs = [newRecord, ...dailyReports];
     setDailyReports(updatedDRs);
-    if (db) {
-      set(ref(db, `dailyReports/${newRecord.id}`), newRecord).catch(() => {});
-      set(ref(db, 'projects'), updatedDRs).catch(() => {});
-    }
+    setDataStorageStatus('saving');
+
+    // 1. Local-First: Simpan langsung ke IndexedDB perangkat
+    saveLocalCollection('dailyReports', updatedDRs).catch(() => {});
 
     // Automatically create corresponding billing package
     const defaultNominal = 15000000 + Math.floor(Math.random() * 35000000);
@@ -1020,22 +1070,42 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const updatedPng = [newPenagihan, ...penagihanList];
     setPenagihanList(updatedPng);
-    if (db) {
-      set(ref(db, `penagihan/${newPenagihan.id}`), newPenagihan).catch(() => {});
-    }
+    saveLocalCollection('penagihan', updatedPng).catch(() => {});
 
-    showToast('success', 'Daily Report & Tagihan Dibuat', `WO No. ${newRecord.woNumber} dan paket penagihan otomatis ditambahkan!`);
+    // 2. Cloud Sync: Optimasi payload - simpan Base64 foto/lampiran di IndexedDB, kirim payload ringan ke Firebase
+    extractAndStoreBlobsLocally(newRecord)
+      .then((cloudPayload) => {
+        if (db) {
+          return set(ref(db, `dailyReports/${newRecord.id}`), cloudPayload);
+        }
+        return Promise.resolve();
+      })
+      .then(() => {
+        if (db) {
+          set(ref(db, `penagihan/${newPenagihan.id}`), newPenagihan).catch(() => {});
+        }
+        setDataStorageStatus('cloud_synced');
+      })
+      .catch((err) => {
+        console.warn('[Firebase] Sync failed, data safe locally in IndexedDB:', err);
+        setDataStorageStatus('local_saved');
+      });
+
+    showToast('success', 'Daily Report & Tagihan Dibuat', `WO No. ${newRecord.woNumber} tersimpan lokal & cloud!`);
   };
 
   const updateDailyReport = (id: string, item: Partial<DailyReportItem>) => {
     recordSnapshot();
     const now = new Date().toISOString();
+    let updatedItem: DailyReportItem | null = null;
     const updatedDRs = dailyReports.map(r => {
       if (r.id === id) {
         const updated = { ...r, ...item, updatedAt: now };
+        updatedItem = updated;
         if (item.statusWo === 'Done') {
           setPenagihanList(pList => {
             const updatedP = pList.map(p => p.woNumber === updated.woNumber ? { ...p, statusPenagihan: 'Disetujui' as const, updatedAt: now } : p);
+            saveLocalCollection('penagihan', updatedP).catch(() => {});
             if (db) {
               const matchedP = updatedP.find(p => p.woNumber === updated.woNumber);
               if (matchedP) {
@@ -1050,9 +1120,27 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return r;
     });
     setDailyReports(updatedDRs);
-    if (db) {
-      update(ref(db, `dailyReports/${id}`), { ...item, updatedAt: now }).catch(() => {});
-      set(ref(db, 'projects'), updatedDRs).catch(() => {});
+    setDataStorageStatus('saving');
+
+    // 1. Local-First: Simpan ke IndexedDB
+    saveLocalCollection('dailyReports', updatedDRs).catch(() => {});
+
+    // 2. Cloud Sync
+    if (updatedItem) {
+      extractAndStoreBlobsLocally(updatedItem)
+        .then((cloudPayload) => {
+          if (db) {
+            return update(ref(db, `dailyReports/${id}`), cloudPayload);
+          }
+          return Promise.resolve();
+        })
+        .then(() => {
+          setDataStorageStatus('cloud_synced');
+        })
+        .catch((err) => {
+          console.warn('[Firebase] Update failed, data safe locally:', err);
+          setDataStorageStatus('local_saved');
+        });
     }
 
     showToast('success', 'Daily Report Diperbarui', `Perubahan data ID: ${id} tersimpan otomatis.`);
@@ -1075,23 +1163,27 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const updatedDRs = dailyReports.filter(r => r.id !== id);
     setDailyReports(updatedDRs);
+    saveLocalCollection('dailyReports', updatedDRs).catch(() => {});
+
     if (db) {
       remove(ref(db, `dailyReports/${id}`)).catch(() => {});
-      set(ref(db, 'projects'), updatedDRs).catch(() => {});
     }
 
     if (woNum) {
       const updatedPng = penagihanList.filter(p => p.woNumber !== woNum);
       setPenagihanList(updatedPng);
+      saveLocalCollection('penagihan', updatedPng).catch(() => {});
+
       if (db) {
         linkedPenagihanIds.forEach(pId => remove(ref(db, `penagihan/${pId}`)).catch(() => {}));
       }
 
       const updatedBast = bastList.filter(b => b.woNumber !== woNum);
       setBastList(updatedBast);
+      saveLocalCollection('basts', updatedBast).catch(() => {});
+
       if (db) {
         linkedBastIds.forEach(bId => remove(ref(db, `basts/${bId}`)).catch(() => {}));
-        set(ref(db, 'bast'), updatedBast).catch(() => {});
       }
 
       setInvoices(prev => prev.filter(i => i.woNumber !== woNum));
@@ -1104,7 +1196,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const updateProject = updateDailyReport;
   const deleteProject = deleteDailyReport;
 
-  // CRUD BAST with Direct Firebase RTDB Mutations ('basts' node)
+  // CRUD BAST with Local-First IndexedDB and Optimized Firebase RTDB
   const addBAST = (item: Omit<BASTItem, 'id' | 'createdAt' | 'updatedAt'>) => {
     recordSnapshot();
     const now = new Date().toISOString();
@@ -1116,25 +1208,67 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
     const updatedBast = [newRecord, ...bastList];
     setBastList(updatedBast);
-    if (db) {
-      set(ref(db, `basts/${newRecord.id}`), newRecord).catch(() => {});
-      set(ref(db, 'bast'), updatedBast).catch(() => {});
-    }
+    setDataStorageStatus('saving');
 
-    showToast('success', 'Dokumen BAST Dibuat', `BAST untuk WO ${newRecord.woNumber} berhasil dibuat!`);
+    // 1. Local-First: Simpan langsung ke IndexedDB
+    saveLocalCollection('basts', updatedBast).catch(() => {});
+
+    // 2. Cloud Sync: Ekstrak lampiran file Excel & Foto secara lokal, kirim metadata ringan ke Firebase
+    extractAndStoreBlobsLocally(newRecord)
+      .then((cloudPayload) => {
+        if (db) {
+          return set(ref(db, `basts/${newRecord.id}`), cloudPayload);
+        }
+        return Promise.resolve();
+      })
+      .then(() => {
+        setDataStorageStatus('cloud_synced');
+      })
+      .catch((err) => {
+        console.warn('[Firebase] BAST sync failed, data safe locally in IndexedDB:', err);
+        setDataStorageStatus('local_saved');
+      });
+
+    showToast('success', 'Dokumen BAST Dibuat', `BAST untuk WO ${newRecord.woNumber} berhasil diamankan!`);
   };
 
   const updateBAST = (id: string, item: Partial<BASTItem>) => {
     recordSnapshot();
     const now = new Date().toISOString();
-    const updatedBast = bastList.map(b => b.id === id ? { ...b, ...item, updatedAt: now } : b);
+    let updatedItem: BASTItem | null = null;
+    const updatedBast = bastList.map(b => {
+      if (b.id === id) {
+        const u = { ...b, ...item, updatedAt: now };
+        updatedItem = u;
+        return u;
+      }
+      return b;
+    });
     setBastList(updatedBast);
-    if (db) {
-      update(ref(db, `basts/${id}`), { ...item, updatedAt: now }).catch(() => {});
-      set(ref(db, 'bast'), updatedBast).catch(() => {});
+    setDataStorageStatus('saving');
+
+    // 1. Local-First
+    saveLocalCollection('basts', updatedBast).catch(() => {});
+
+    // 2. Cloud Sync
+    if (updatedItem) {
+      extractAndStoreBlobsLocally(updatedItem)
+        .then((cloudPayload) => {
+          if (db) {
+            return update(ref(db, `basts/${id}`), cloudPayload);
+          }
+          return Promise.resolve();
+        })
+        .then(() => {
+          setDataStorageStatus('cloud_synced');
+        })
+        .catch((err) => {
+          console.warn('[Firebase] BAST update failed, data safe locally in IndexedDB:', err);
+          setDataStorageStatus('local_saved');
+        });
     }
 
-    showToast('success', 'Dokumen BAST Diperbarui', `Perubahan BAST ID: ${id} tersimpan otomatis.`);
+    showToast('success', 'Dokumen BAST Diperbarui', `Perubahan BAST ID: ${id} tersimpan.`);
   };
 
   const deleteBAST = (id: string) => {
@@ -1142,9 +1276,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     purgeHistoryForDeleted([id]);
     const updatedBast = bastList.filter(b => b.id !== id);
     setBastList(updatedBast);
+    saveLocalCollection('basts', updatedBast).catch(() => {});
     if (db) {
       remove(ref(db, `basts/${id}`)).catch(() => {});
-      set(ref(db, 'bast'), updatedBast).catch(() => {});
     }
 
     showToast('error', 'Dokumen BAST Dihapus Permanen', `Dokumen BAST ${id} telah dihapus permanen.`);
@@ -1161,11 +1295,12 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return b;
     });
     setBastList(updatedBast);
+    saveLocalCollection('basts', updatedBast).catch(() => {});
+
     if (db) {
       update(ref(db, `basts/${id}`), { workflow: { ...stageData }, updatedAt: now }).catch(() => {});
-      set(ref(db, 'bast'), updatedBast).catch(() => {});
     }
-    showToast('success', 'Workflow BAST Diperbarui', `Tahap workflow BAST ${id} tersimpan ke Realtime Database.`);
+    showToast('success', 'Workflow BAST Diperbarui', `Tahap workflow BAST ${id} tersimpan.`);
   };
 
   const updateBASTDoc = (id: string, docData: any) => {
@@ -1178,11 +1313,12 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return b;
     });
     setBastList(updatedBast);
+    saveLocalCollection('basts', updatedBast).catch(() => {});
+
     if (db) {
       update(ref(db, `basts/${id}`), { ...docData, updatedAt: now }).catch(() => {});
-      set(ref(db, 'bast'), updatedBast).catch(() => {});
     }
-    showToast('success', 'Dokumen BAST Diperbarui', `Perubahan dokumen BAST ${id} tersimpan ke Realtime Database.`);
+    showToast('success', 'Dokumen BAST Diperbarui', `Perubahan dokumen BAST ${id} tersimpan.`);
   };
 
   // CRUD Invoice
@@ -1195,25 +1331,31 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       createdAt: now,
       updatedAt: now
     };
-    setInvoices(prev => [newRecord, ...prev]);
+    const updatedInvoices = [newRecord, ...invoices];
+    setInvoices(updatedInvoices);
+    saveLocalCollection('invoices', updatedInvoices).catch(() => {});
     showToast('success', 'Invoice Diterbitkan', `No Invoice: ${newRecord.invoiceNumber} berhasil dibuat!`);
   };
 
   const updateInvoice = (id: string, item: Partial<InvoiceItem>) => {
     recordSnapshot();
     const now = new Date().toISOString();
-    setInvoices(prev => prev.map(inv => inv.id === id ? { ...inv, ...item, updatedAt: now } : inv));
+    const updatedInvoices = invoices.map(inv => inv.id === id ? { ...inv, ...item, updatedAt: now } : inv);
+    setInvoices(updatedInvoices);
+    saveLocalCollection('invoices', updatedInvoices).catch(() => {});
     showToast('success', 'Invoice Diperbarui', `Perubahan Invoice ID: ${id} tersimpan otomatis.`);
   };
 
   const deleteInvoice = (id: string) => {
     addTombstoneIds([id]);
     purgeHistoryForDeleted([id]);
-    setInvoices(prev => prev.filter(inv => inv.id !== id));
+    const updatedInvoices = invoices.filter(inv => inv.id !== id);
+    setInvoices(updatedInvoices);
+    saveLocalCollection('invoices', updatedInvoices).catch(() => {});
     showToast('error', 'Invoice Dihapus Permanen', `Invoice ID: ${id} telah dihapus permanen.`);
   };
 
-  // CRUD Penagihan with Direct Firebase RTDB Mutations ('penagihan' node)
+  // CRUD Penagihan with Local-First IndexedDB and Optimized Firebase RTDB
   const addPenagihan = (item: Omit<PenagihanItem, 'id' | 'createdAt' | 'updatedAt'>) => {
     recordSnapshot();
     const now = new Date().toISOString();
@@ -1225,20 +1367,66 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
     const updatedPng = [newRecord, ...penagihanList];
     setPenagihanList(updatedPng);
-    if (db) {
-      set(ref(db, `penagihan/${newRecord.id}`), newRecord).catch(() => {});
-    }
+    setDataStorageStatus('saving');
+
+    // 1. Local-First
+    saveLocalCollection('penagihan', updatedPng).catch(() => {});
+
+    // 2. Cloud Sync
+    extractAndStoreBlobsLocally(newRecord)
+      .then((cloudPayload) => {
+        if (db) {
+          return set(ref(db, `penagihan/${newRecord.id}`), cloudPayload);
+        }
+        return Promise.resolve();
+      })
+      .then(() => {
+        setDataStorageStatus('cloud_synced');
+      })
+      .catch((err) => {
+        console.warn('[Firebase] Penagihan sync failed, data safe locally in IndexedDB:', err);
+        setDataStorageStatus('local_saved');
+      });
+
     showToast('success', 'Paket Penagihan Dibuat', `Kode Penagihan: ${newRecord.billingCode} tersimpan!`);
   };
 
   const updatePenagihan = (id: string, item: Partial<PenagihanItem>) => {
     recordSnapshot();
     const now = new Date().toISOString();
-    const updatedPng = penagihanList.map(p => p.id === id ? { ...p, ...item, updatedAt: now } : p);
+    let updatedItem: PenagihanItem | null = null;
+    const updatedPng = penagihanList.map(p => {
+      if (p.id === id) {
+        const u = { ...p, ...item, updatedAt: now };
+        updatedItem = u;
+        return u;
+      }
+      return p;
+    });
     setPenagihanList(updatedPng);
-    if (db) {
-      update(ref(db, `penagihan/${id}`), { ...item, updatedAt: now }).catch(() => {});
+    setDataStorageStatus('saving');
+
+    // 1. Local-First
+    saveLocalCollection('penagihan', updatedPng).catch(() => {});
+
+    // 2. Cloud Sync
+    if (updatedItem) {
+      extractAndStoreBlobsLocally(updatedItem)
+        .then((cloudPayload) => {
+          if (db) {
+            return update(ref(db, `penagihan/${id}`), cloudPayload);
+          }
+          return Promise.resolve();
+        })
+        .then(() => {
+          setDataStorageStatus('cloud_synced');
+        })
+        .catch((err) => {
+          console.warn('[Firebase] Penagihan update failed, data safe locally:', err);
+          setDataStorageStatus('local_saved');
+        });
     }
+
     showToast('success', 'Paket Penagihan Diperbarui', `Checklist berkas penagihan ID: ${id} diperbarui.`);
   };
 
@@ -1247,6 +1435,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     purgeHistoryForDeleted([id]);
     const updatedPng = penagihanList.filter(p => p.id !== id);
     setPenagihanList(updatedPng);
+    saveLocalCollection('penagihan', updatedPng).catch(() => {});
+
     if (db) {
       remove(ref(db, `penagihan/${id}`)).catch(() => {});
     }
@@ -1278,6 +1468,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         autoSaveStatus,
         lastSavedTime,
         syncStatus,
+        dataStorageStatus,
         lastCloudSyncTime,
         triggerManualSync,
         dailyReports,
